@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Off Grid Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <div class="page">
+
+    <header class="admin-header">
+      <h1>
+        <span class="logo">Off Grid</span>
+        Admin
+      </h1>
+      <div class="header-actions">
+        <a class="btn" href="../" target="_blank" title="Open player page">View Player</a>
+        <button class="btn" id="btn-import">Import JSON</button>
+        <button class="btn btn-primary" id="btn-export">Export JSON</button>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="mixes">Mixes</button>
+      <button class="tab" data-tab="playlists">Playlists</button>
+    </div>
+
+    <!-- Mixes Tab -->
+    <div class="tab-panel active" id="panel-mixes">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input type="text" class="search-input" id="mix-search" placeholder="Search mixes...">
+        </div>
+        <button class="btn btn-primary" id="btn-add-mix">+ Add Mix</button>
+      </div>
+
+      <table class="data-table" id="mix-table">
+        <thead>
+          <tr>
+            <th class="thumb-cell"></th>
+            <th data-sort="title">Title <span class="sort-arrow">&#9650;</span></th>
+            <th data-sort="artist">Artist <span class="sort-arrow">&#9650;</span></th>
+            <th data-sort="duration">Duration <span class="sort-arrow">&#9650;</span></th>
+            <th>Tags</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="mix-tbody"></tbody>
+      </table>
+
+      <div class="empty-state" id="mix-empty" style="display:none">
+        No mixes yet. Click "Add Mix" to get started.
+      </div>
+    </div>
+
+    <!-- Playlists Tab -->
+    <div class="tab-panel" id="panel-playlists">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input type="text" class="search-input" id="playlist-search" placeholder="Search playlists...">
+        </div>
+        <button class="btn btn-primary" id="btn-add-playlist">+ Add Playlist</button>
+      </div>
+
+      <table class="data-table" id="playlist-table">
+        <thead>
+          <tr>
+            <th data-sort="title">Title <span class="sort-arrow">&#9650;</span></th>
+            <th data-sort="creator">Creator <span class="sort-arrow">&#9650;</span></th>
+            <th>Tracks</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="playlist-tbody"></tbody>
+      </table>
+
+      <div class="empty-state" id="playlist-empty" style="display:none">
+        No playlists yet. Click "Add Playlist" to get started.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Mix Modal -->
+  <div class="modal-overlay" id="mix-modal">
+    <div class="modal">
+      <h2 id="mix-modal-title">Add Mix</h2>
+      <form id="mix-form">
+        <input type="hidden" id="mix-edit-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mix-id">ID (slug)</label>
+            <input type="text" id="mix-id" required pattern="[a-z0-9\-]+" placeholder="my-mix-name">
+            <div class="hint">Lowercase letters, numbers, hyphens only</div>
+          </div>
+          <div class="form-group">
+            <label for="mix-title">Title</label>
+            <input type="text" id="mix-title" required placeholder="Mix Title">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mix-artist">Artist</label>
+            <input type="text" id="mix-artist" placeholder="Artist Name">
+          </div>
+          <div class="form-group">
+            <label for="mix-color">Color <span class="color-preview" id="mix-color-preview"></span></label>
+            <input type="text" id="mix-color" placeholder="#ff5500" value="#ff5500">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="mix-description">Description</label>
+          <textarea id="mix-description" rows="2" placeholder="Optional description"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="mix-src">Audio Source (URL or path)</label>
+          <div class="upload-row">
+            <input type="text" id="mix-src" required placeholder="mixes/my-mix.mp3">
+            <label class="btn btn-sm upload-btn" id="upload-audio-btn">
+              Upload
+              <input type="file" accept="audio/*" data-upload="audio" style="display:none">
+            </label>
+          </div>
+          <div class="upload-progress" id="upload-audio-progress"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mix-thumb">Thumbnail (URL or path)</label>
+            <div class="upload-row">
+              <input type="text" id="mix-thumb" placeholder="cover.jpg">
+              <label class="btn btn-sm upload-btn" id="upload-thumb-btn">
+                Upload
+                <input type="file" accept="image/*" data-upload="covers" style="display:none">
+              </label>
+            </div>
+            <div class="upload-progress" id="upload-thumb-progress"></div>
+          </div>
+          <div class="form-group">
+            <label for="mix-peaks">Peaks (URL or path)</label>
+            <div class="upload-row">
+              <input type="text" id="mix-peaks" placeholder="my-mix.peaks.json">
+              <label class="btn btn-sm upload-btn" id="upload-peaks-btn">
+                Upload
+                <input type="file" accept=".json" data-upload="peaks" style="display:none">
+              </label>
+            </div>
+            <div class="upload-progress" id="upload-peaks-progress"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mix-tags">Tags</label>
+            <input type="text" id="mix-tags" placeholder="jungle, hardcore, breakcore">
+            <div class="hint">Comma-separated</div>
+          </div>
+          <div class="form-group">
+            <label for="mix-release-date">Release Date</label>
+            <input type="date" id="mix-release-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="mix-duration">Duration (seconds)</label>
+          <input type="number" id="mix-duration" step="0.01" placeholder="Auto-detected from peaks">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="btn-cancel-mix">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-mix">Save Mix</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Playlist Modal -->
+  <div class="modal-overlay" id="playlist-modal">
+    <div class="modal">
+      <h2 id="playlist-modal-title">Add Playlist</h2>
+      <form id="playlist-form">
+        <input type="hidden" id="playlist-edit-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="playlist-id">ID (slug)</label>
+            <input type="text" id="playlist-id" required pattern="[a-z0-9\-]+" placeholder="my-playlist">
+            <div class="hint">Lowercase letters, numbers, hyphens only</div>
+          </div>
+          <div class="form-group">
+            <label for="playlist-title">Title</label>
+            <input type="text" id="playlist-title" required placeholder="Playlist Title">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="playlist-creator">Creator</label>
+            <input type="text" id="playlist-creator" placeholder="Creator Name">
+          </div>
+          <div class="form-group">
+            <label for="playlist-color">Color <span class="color-preview" id="playlist-color-preview"></span></label>
+            <input type="text" id="playlist-color" placeholder="#ff5500" value="#ff5500">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="playlist-description">Description</label>
+          <textarea id="playlist-description" rows="2" placeholder="Optional description"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="playlist-thumb">Thumbnail (URL or path)</label>
+          <input type="text" id="playlist-thumb" placeholder="playlist-cover.jpg">
+        </div>
+        <div class="form-group">
+          <label>Mixes (check to include, drag ≡ to reorder)</label>
+          <ul class="playlist-mix-list" id="playlist-mix-list"></ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="btn-cancel-playlist">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-playlist">Save Playlist</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div class="confirm-overlay" id="confirm-dialog">
+    <div class="confirm-box">
+      <p id="confirm-message">Are you sure?</p>
+      <div class="confirm-actions">
+        <button class="btn" id="btn-confirm-cancel">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-ok">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="import-file" accept=".json" style="display:none">
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

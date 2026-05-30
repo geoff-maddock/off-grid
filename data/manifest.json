@@ -1,0 +1,46 @@
+{
+  "site": {
+    "title": "My Mixes",
+    "tagline": "Self-hosted, embeddable audio player for DJ mixes and playlists.",
+    "accent": "#ff5500"
+  },
+  "mixes": [
+    {
+      "id": "sample-mix-01",
+      "title": "Sample Mix 01",
+      "artist": "Your Name",
+      "description": "Replace this with your own mix. Upload the audio, cover, and peaks to R2 via the admin UI, then Publish.",
+      "src": "https://pub-xxxxxxxx.r2.dev/audio/sample-mix-01.mp3",
+      "thumb": "https://pub-xxxxxxxx.r2.dev/covers/sample-mix-01.jpg",
+      "peaks": "https://pub-xxxxxxxx.r2.dev/peaks/sample-mix-01.peaks.json",
+      "color": "#ff5500",
+      "tags": ["sample", "demo"],
+      "duration": 0,
+      "releaseDate": null
+    },
+    {
+      "id": "sample-mix-02",
+      "title": "Sample Mix 02",
+      "artist": "Your Name",
+      "description": "A second placeholder entry so you can see how multiple mixes render.",
+      "src": "https://pub-xxxxxxxx.r2.dev/audio/sample-mix-02.mp3",
+      "thumb": "https://pub-xxxxxxxx.r2.dev/covers/sample-mix-02.jpg",
+      "peaks": "https://pub-xxxxxxxx.r2.dev/peaks/sample-mix-02.peaks.json",
+      "color": "#3388ff",
+      "tags": ["sample"],
+      "duration": 0,
+      "releaseDate": null
+    }
+  ],
+  "playlists": [
+    {
+      "id": "all-mixes",
+      "title": "All Mixes",
+      "description": "An example playlist containing every sample mix.",
+      "creator": "Your Name",
+      "thumb": null,
+      "color": "#ff5500",
+      "mixIds": ["sample-mix-01", "sample-mix-02"]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+name = "offgrid-api"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "offgrid-media"   # name of the R2 bucket you created
+
+# Run `wrangler d1 create offgrid-db` and paste the returned database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "offgrid-db"
+database_id = "YOUR_DATABASE_ID"
+
+[vars]
+# Allowed origin for the API. "*" is fine to start; lock this down to your
+# own domain(s) once you go to production.
+CORS_ORIGIN = "*"
+# Must match bucket_name above. Used when generating presigned upload URLs.
+R2_BUCKET_NAME = "offgrid-media"
+
+# Secrets (NOT stored in this file) — set each with `wrangler secret put <NAME>`:
+#   ADMIN_TOKEN            — password the admin UI logs in with
+#   R2_ACCESS_KEY_ID       — R2 API token access key (for presigned uploads)
+#   R2_SECRET_ACCESS_KEY   — R2 API token secret
+#   CF_ACCOUNT_ID          — your Cloudflare account ID

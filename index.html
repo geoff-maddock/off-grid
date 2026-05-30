@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Off Grid — Mixes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent: #ff5500;
+      --bg: #111;
+      --bg2: #161616;
+      --text: #f0f0f0;
+      --text-muted: #666;
+      --border: #2a2a2a;
+      --max-w: 720px;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* subtle grid texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,85,0,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,85,0,0.015) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: var(--max-w);
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+
+    /* Header */
+    .site-header {
+      margin-bottom: 64px;
+    }
+
+    .logo {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .site-title {
+      font-size: clamp(36px, 6vw, 54px);
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .site-title strong {
+      font-weight: 600;
+    }
+
+    .site-tagline {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      font-weight: 300;
+    }
+
+    /* Orange underline accent */
+    .accent-line {
+      width: 48px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      margin-top: 20px;
+    }
+
+    /* Section headers */
+    .section {
+      margin-bottom: 64px;
+    }
+
+    .section-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Individual player stack */
+    .player-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .player-entry {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeUp 0.4s ease forwards;
+    }
+
+    .player-entry:nth-child(1) { animation-delay: 0.05s; }
+    .player-entry:nth-child(2) { animation-delay: 0.12s; }
+    .player-entry:nth-child(3) { animation-delay: 0.19s; }
+    .player-entry:nth-child(4) { animation-delay: 0.26s; }
+    .player-entry:nth-child(5) { animation-delay: 0.33s; }
+    .player-entry:nth-child(6) { animation-delay: 0.40s; }
+    .player-entry:nth-child(7) { animation-delay: 0.47s; }
+    .player-entry:nth-child(8) { animation-delay: 0.54s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Search bar */
+    .search-bar {
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .search-bar input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      padding: 12px 16px 12px 42px;
+      font-size: 14px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-bar input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(255, 85, 0, 0.1);
+    }
+
+    .search-bar input::placeholder {
+      color: #555;
+    }
+
+    .search-bar .search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #555;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .search-bar input:focus ~ .search-icon {
+      color: var(--accent);
+    }
+
+    .search-bar .search-clear {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 4px;
+      display: none;
+      transition: color 0.15s;
+    }
+
+    .search-bar .search-clear:hover {
+      color: var(--text);
+    }
+
+    .search-bar.has-value .search-clear {
+      display: block;
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-family: 'IBM Plex Mono', monospace;
+      display: none;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, var(--accent) 0%, transparent 100%);
+      opacity: 0.3;
+      margin: 64px 0;
+    }
+
+    /* Embed code block */
+    .embed-section {
+      margin-top: 64px;
+    }
+
+    .code-block {
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 20px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: #aaa;
+      line-height: 1.7;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .code-block .kw { color: #ff5500; }
+    .code-block .attr { color: #88aaff; }
+    .code-block .val { color: #88dd88; }
+    .code-block .tag { color: #f0f0f0; }
+    .code-block .cm { color: #555; }
+
+    .embed-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    /* Loading / error states */
+    .manifest-status {
+      text-align: center;
+      padding: 40px 0;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+    }
+
+    .manifest-status.error {
+      color: #ff4444;
+    }
+
+    .manifest-status.loading {
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 80px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'IBM Plex Mono', monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="site-header">
+      <span class="logo">Off Grid</span>
+      <h1 class="site-title">The <strong>Mixes</strong></h1>
+      <p class="site-tagline">Self hosted embedded audio player for DJ mixes and playlists.</p>
+      <div class="accent-line"></div>
+    </header>
+
+    <!-- Search -->
+    <div class="search-bar" id="search-bar">
+      <input type="text" id="mix-search" placeholder="Search by title, artist, or tag..." autocomplete="off">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <button class="search-clear" id="search-clear">&times;</button>
+    </div>
+
+    <!-- Individual players (loaded from manifest) -->
+    <section class="section">
+      <div class="section-label">Individual Tracks</div>
+      <div class="player-stack" id="player-stack">
+        <div class="manifest-status loading" id="manifest-loading">Loading mixes...</div>
+      </div>
+      <div class="no-results" id="no-results">No mixes match your search.</div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- Playlists (loaded from manifest) -->
+    <div id="playlists-container"></div>
+
+    <!-- -- EMBED CODE -- -->
+    <section class="embed-section">
+      <div class="section-label">Embed Anywhere</div>
+      <div class="code-block"><span class="cm">&lt;!-- Drop this on any page --&gt;</span>
+<span class="tag">&lt;script</span> <span class="attr">src</span>=<span class="val">"https://your-domain.com/audio-player.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
+
+<span class="cm">&lt;!-- Single track --&gt;</span>
+<span class="tag">&lt;offgrid-player</span>
+  <span class="attr">src</span>=<span class="val">"https://cdn.your-domain.com/mix.mp3"</span>
+  <span class="attr">title</span>=<span class="val">"My Mix"</span>
+  <span class="attr">artist</span>=<span class="val">"DJ Name"</span>
+  <span class="attr">thumb</span>=<span class="val">"https://cdn.your-domain.com/thumb.jpg"</span>
+  <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;
+&lt;/offgrid-player&gt;</span>
+
+<span class="cm">&lt;!-- Playlist --&gt;</span>
+<span class="tag">&lt;offgrid-playlist</span> <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;script</span> <span class="attr">type</span>=<span class="val">"application/json"</span><span class="tag">&gt;</span>
+    [{"src": "track1.mp3", "title": "Track 1", "artist": "DJ Name"},
+     {"src": "track2.mp3", "title": "Track 2", "artist": "DJ Name"}]
+  <span class="tag">&lt;/script&gt;
+&lt;/offgrid-playlist&gt;</span></div>
+      <p class="embed-note">// Files served from Cloudflare R2. Zero egress fees.</p>
+    </section>
+
+    <footer>
+      <span>Off Grid &mdash; Self-hosted audio</span>
+      <span>Powered by <a href="https://wavesurfer.xyz">WaveSurfer.js</a> + <a href="https://developers.cloudflare.com/r2/">Cloudflare R2</a></span>
+    </footer>
+
+  </div>
+
+  <!-- Load the web component -->
+  <script src="audio-player.js"></script>
+
+  <!-- Load manifest and render players dynamically -->
+  <script>
+    // Manifest URL — change to your R2 public URL for production
+    // e.g., 'https://pub-xxxxx.r2.dev/data/manifest.json'
+    // const MANIFEST_URL = 'data/manifest.json';
+    const MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
+
+    (async function loadManifest() {
+      const stack = document.getElementById('player-stack');
+      const playlistsContainer = document.getElementById('playlists-container');
+      const loadingEl = document.getElementById('manifest-loading');
+
+      try {
+        const resp = await fetch(MANIFEST_URL);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        // Build mix lookup
+        const mixMap = new Map(data.mixes.map(m => [m.id, m]));
+
+        // Remove loading indicator
+        if (loadingEl) loadingEl.remove();
+
+        // Store mixes for search filtering
+        window._mixes = data.mixes;
+
+        // Render individual players
+        for (const mix of data.mixes) {
+          const div = document.createElement('div');
+          div.className = 'player-entry';
+          div.dataset.title = (mix.title || '').toLowerCase();
+          div.dataset.artist = (mix.artist || '').toLowerCase();
+          div.dataset.tags = (mix.tags || []).join(',').toLowerCase();
+
+          const player = document.createElement('offgrid-player');
+          player.setAttribute('src', mix.src);
+          player.setAttribute('title', mix.title);
+          if (mix.artist) player.setAttribute('artist', mix.artist);
+          if (mix.thumb) player.setAttribute('thumb', mix.thumb);
+          if (mix.peaks) player.setAttribute('peaks', mix.peaks);
+          if (mix.color) player.setAttribute('color', mix.color);
+          if (mix.description) player.setAttribute('description', mix.description);
+          if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
+
+          div.appendChild(player);
+          stack.appendChild(div);
+        }
+
+        // Wire up search
+        initSearch();
+
+        // Render playlists
+        for (const pl of data.playlists) {
+          const section = document.createElement('section');
+          section.className = 'section';
+
+          const label = document.createElement('div');
+          label.className = 'section-label';
+          label.textContent = pl.title;
+          section.appendChild(label);
+
+          const playlist = document.createElement('offgrid-playlist');
+          playlist.setAttribute('color', pl.color || data.site.accent);
+          if (pl.creator) playlist.setAttribute('artist', pl.creator);
+
+          // Resolve mix IDs to track objects
+          const tracks = pl.mixIds
+            .map(id => mixMap.get(id))
+            .filter(Boolean)
+            .map(m => ({
+              src: m.src,
+              title: m.title,
+              artist: m.artist,
+              thumb: m.thumb,
+              peaks: m.peaks
+            }));
+
+          playlist.tracks = tracks;
+          section.appendChild(playlist);
+          playlistsContainer.appendChild(section);
+        }
+      } catch (err) {
+        console.error('Failed to load manifest:', err);
+        if (loadingEl) {
+          loadingEl.className = 'manifest-status error';
+          loadingEl.textContent = 'Failed to load mix data.';
+        }
+      }
+    })();
+
+    // Search filtering
+    function initSearch() {
+      const searchInput = document.getElementById('mix-search');
+      const searchBar = document.getElementById('search-bar');
+      const clearBtn = document.getElementById('search-clear');
+      const noResults = document.getElementById('no-results');
+
+      searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        searchBar.classList.toggle('has-value', query.length > 0);
+
+        const entries = document.querySelectorAll('.player-entry');
+        let visible = 0;
+
+        entries.forEach(entry => {
+          const title = entry.dataset.title || '';
+          const artist = entry.dataset.artist || '';
+          const tags = entry.dataset.tags || '';
+
+          const match = !query
+            || title.includes(query)
+            || artist.includes(query)
+            || tags.includes(query);
+
+          entry.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+
+        noResults.style.display = (visible === 0 && query) ? 'block' : 'none';
+      });
+
+      clearBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input'));
+        searchInput.focus();
+      });
+    }
+
+    // Click a tag pill inside any player → filter by that tag
+    document.addEventListener('tagclick', (e) => {
+      const searchInput = document.getElementById('mix-search');
+      if (searchInput && e.detail && e.detail.tag) {
+        searchInput.value = e.detail.tag;
+        searchInput.dispatchEvent(new Event('input'));
+        searchInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+
+    // Global play-one-at-a-time: pause any other player when one starts
+    document.addEventListener('trackplay', (e) => {
+      document.querySelectorAll('offgrid-player').forEach(p => {
+        if (p !== e.target) p.pause();
+      });
+    });
+  </script>
+</body>
+</html>
