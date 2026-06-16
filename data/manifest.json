@@ -16,7 +16,12 @@
       "color": "#ff5500",
       "tags": ["sample", "demo"],
       "duration": 0,
-      "releaseDate": null
+      "releaseDate": null,
+      "tracklist": "00:00 Artist A - Opening Track\n04:32 Artist B - Second Track",
+      "tracks": [
+        { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track" },
+        { "time": "04:32", "seconds": 272, "artist": "Artist B", "title": "Second Track" }
+      ]
     },
     {
       "id": "sample-mix-02",

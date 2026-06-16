@@ -440,6 +440,62 @@ html, body {
   color: var(--success);
 }
 
+/* Tracklist parse preview */
+.tracklist-preview:not(:empty) {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg2, #161616);
+  border: 1px solid var(--bg3);
+  border-radius: 6px;
+}
+
+.tracklist-preview-head {
+  font-size: 11px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.tracklist-preview-list {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tracklist-preview-list .tl-time {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--accent);
+  margin-right: 6px;
+}
+
+/* Advanced disclosure (peaks / duration overrides) */
+.advanced-group {
+  margin-bottom: 16px;
+  border: 1px solid var(--bg3);
+  border-radius: 6px;
+  padding: 0 12px;
+}
+
+.advanced-group[open] {
+  padding-bottom: 4px;
+}
+
+.advanced-group > summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.advanced-group > summary:hover {
+  color: var(--text);
+}
+
 /* Confirm dialog */
 .confirm-overlay {
   display: none;

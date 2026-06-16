@@ -1,3 +1,7 @@
+# Copy this file to `wrangler.toml` and fill in your own values.
+#   cp wrangler.toml.example wrangler.toml
+# The real wrangler.toml is gitignored so your account-specific IDs never get committed.
+
 name = "offgrid-api"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
@@ -20,7 +24,9 @@ CORS_ORIGIN = "*"
 R2_BUCKET_NAME = "offgrid-media"
 
 # Secrets (NOT stored in this file) — set each with `wrangler secret put <NAME>`:
-#   ADMIN_TOKEN            — password the admin UI logs in with
+#   ADMIN_TOKEN            — bootstrap/legacy admin token (creates the first user)
+#   JWT_SECRET             — random string used to sign login sessions (user accounts)
 #   R2_ACCESS_KEY_ID       — R2 API token access key (for presigned uploads)
 #   R2_SECRET_ACCESS_KEY   — R2 API token secret
 #   CF_ACCOUNT_ID          — your Cloudflare account ID
+# Generate JWT_SECRET with e.g.: openssl rand -hex 32

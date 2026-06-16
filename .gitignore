@@ -9,6 +9,10 @@ worker/node_modules/
 .dev.vars.*
 wrangler.toml.bak
 
+# Real Wrangler config holds account-specific IDs — keep it local.
+# Commit wrangler.toml.example instead (copy it to wrangler.toml to start).
+worker/wrangler.toml
+
 # Local D1 / SQLite databases
 *.sqlite
 *.sqlite3
