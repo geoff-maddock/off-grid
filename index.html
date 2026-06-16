@@ -417,12 +417,20 @@
   <!-- Load the web component -->
   <script src="audio-player.js"></script>
 
+  <!-- Optional local override (gitignored): copy config.local.example.js to
+       config.local.js and set window.OFFGRID_MANIFEST_URL. Harmless 404 if absent. -->
+  <script src="config.local.js"></script>
+
   <!-- Load manifest and render players dynamically -->
   <script>
-    // Manifest URL — change to your R2 public URL for production
-    // e.g., 'https://pub-xxxxx.r2.dev/data/manifest.json'
-    // const MANIFEST_URL = 'data/manifest.json';
-    const MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
+    // Manifest URL, resolved in order:
+    //   1. ?manifest=<url>            (quick local testing, no file edits)
+    //   2. window.OFFGRID_MANIFEST_URL (from gitignored config.local.js)
+    //   3. the placeholder below      (edit only for a committed default)
+    const MANIFEST_URL =
+      new URLSearchParams(location.search).get('manifest')
+      || window.OFFGRID_MANIFEST_URL
+      || 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
 
     (async function loadManifest() {
       const stack = document.getElementById('player-stack');

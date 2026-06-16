@@ -48,6 +48,9 @@ yarn-error.log*
 offline/
 .claude/settings.local.json
 
+# Local player-page config (holds your real R2 manifest URL)
+config.local.js
+
 # OS / editor cruft
 .DS_Store
 Thumbs.db
