@@ -109,8 +109,9 @@ credentials, re-check the three R2/account secrets.
 
 **Stage 5 — First content**
 Serve the admin locally (`python3 -m http.server 8080` → `http://localhost:8080/admin/`), log in
-with your Worker URL + R2 public URL + admin token, add a mix, upload its files, generate peaks
-(`node generate-peaks.js mixes/my-mix.mp3`), upload the peaks, then click **Publish**.
+with your Worker URL + R2 public URL + admin token, click **Add Mix**, and **Choose File** to
+select your audio. The admin uploads it and **automatically generates the waveform and duration**
+in your browser — just fill in the title/artist/cover, then **Save** and click **Publish**.
 ✓ Checkpoint: `https://pub-xxxxxxxx.r2.dev/data/manifest.json` now lists your mix.
 
 **Stage 6 — Go live**
@@ -166,6 +167,10 @@ Needed for uploading large files (>95 MB) via presigned URLs:
 cd worker
 npm install
 
+# Create your local Wrangler config from the template (it's gitignored, so your
+# account-specific IDs stay out of version control).
+cp wrangler.toml.example wrangler.toml
+
 # Authenticate with Cloudflare
 npx wrangler login
 # If login hangs (e.g. on WSL), use an API token instead:
@@ -176,11 +181,14 @@ npx wrangler login
 # Create the D1 database, then paste the returned database_id into wrangler.toml
 npx wrangler d1 create offgrid-db
 
-# Apply the database schema
+# Apply the database schema (run every migration in order)
 npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql
+npx wrangler d1 execute offgrid-db --remote --file=migrations/002_users_multitenant.sql
+npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
 
 # Set secrets
-npx wrangler secret put ADMIN_TOKEN          # Choose your admin password
+npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
+npx wrangler secret put JWT_SECRET           # Random string, e.g. `openssl rand -hex 32`
 npx wrangler secret put R2_ACCESS_KEY_ID     # From step 2
 npx wrangler secret put R2_SECRET_ACCESS_KEY # From step 2
 npx wrangler secret put CF_ACCOUNT_ID        # Your Cloudflare account ID
@@ -205,10 +213,14 @@ So you can embed the player on other sites, upload `audio-player.js` to R2 (or a
 
 ### 6. Add your first mix
 
-1. Run the admin UI (below), log in, and add a mix with metadata.
-2. Generate peaks locally: `node generate-peaks.js mixes/my-mix.mp3`.
-3. Upload the audio, cover, and peaks via the admin.
+1. Run the admin UI (below) and log in.
+2. Click **Add Mix** → **Choose File** and select your audio. The admin uploads it and
+   **auto-generates the waveform peaks and duration in your browser** — no manual peak step.
+3. Fill in the title, artist, and cover image, then **Save**.
 4. Click **Publish** to regenerate `manifest.json` on R2 — the public player page updates instantly.
+
+> Prefer the command line, or have a big back catalog? `generate-peaks.js` still works for
+> generating peaks in bulk (see [Peaks](#peaks)); the admin just makes it automatic for everyday use.
 
 ---
 
@@ -232,11 +244,20 @@ Or click **Use offline** to edit the local `data/manifest.json` without a backen
 **Features**
 
 - **Mixes** — add / edit / delete with metadata (title, artist, tags, color, etc.)
-- **File uploads** — push audio, cover art, and peaks straight to R2
+- **Automatic waveforms** — choosing an audio file uploads it and generates the waveform peaks and
+  duration **in your browser** (Web Audio), then uploads the peaks JSON — no `ffmpeg`, no manual
+  step. Override or supply peaks manually under **Advanced** if you ever need to.
+- **File uploads** — push audio and cover art straight to R2
 - **Playlists** — build playlists by selecting and ordering mixes
+- **Tracklists** — paste a tracklist into one field; the admin parses each line (timestamp, artist,
+  title) into individual tracks on save. The structured `tracks` array is included in the manifest.
 - **Search & sort** — filter by title, artist, or tags
 - **Publish** — generate `manifest.json` from D1 and write it to R2
 - **Import / Export** — back up or restore `manifest.json`
+
+> Auto-generation decodes the audio at a low sample rate to stay memory-friendly. For an
+> exceptionally long mix where in-browser decoding fails, the audio still uploads — generate its
+> peaks with `node generate-peaks.js` (see below) and add the file under **Advanced**.
 
 ---
 
@@ -332,6 +353,10 @@ Pause every other player when one starts:
 
 Pre-computed waveform peaks let the player draw an accurate waveform on load without downloading the full audio file. Strongly recommended for large mixes.
 
+**You usually don't need to do this manually** — the admin UI generates peaks in your browser when
+you choose an audio file (see [Admin UI](#admin-ui)). The CLI below is for bulk processing or as a
+fallback. Both produce the same `{peaks, duration}` format, so they're interchangeable.
+
 ```bash
 # Single file
 node generate-peaks.js mixes/my-mix.mp3
@@ -376,10 +401,11 @@ node scripts/migrate-to-r2.js
 off-grid/
   index.html             # Public player page (loads manifest.json from R2)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
-  generate-peaks.js      # Waveform peak generation (Node.js + ffmpeg)
+  generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   admin/
     index.html           # Admin SPA shell
     admin.js             # Admin logic (CRUD, uploads, auth)
+    peaks.js             # In-browser waveform/duration generation (Web Audio)
     admin.css            # Admin styles (dark theme)
   data/
     manifest.json        # Local/sample manifest (dev & offline use)
@@ -388,18 +414,24 @@ off-grid/
     images/              # Cover art
     peaks/               # Pre-computed waveform peaks
   worker/
-    wrangler.toml        # Worker config (R2 + D1 bindings, vars)
+    wrangler.toml.example # Template — copy to wrangler.toml (gitignored) and fill in IDs
     package.json         # Worker scripts & deps
     r2-cors.json         # R2 CORS configuration
     migrations/
       001_init.sql       # D1 database schema
+      002_users_multitenant.sql  # Auth columns + invites (multi-user)
+      003_tracklist.sql  # Per-mix tracklist + mix_tracks table
     src/
       index.js           # Worker entry point (routing, CORS)
-      auth.js            # Bearer-token authentication
+      auth.js            # Session auth — verifies JWT, loads user
+      jwt.js             # HS256 JWT sign/verify (WebCrypto)
+      crypto.js          # Password hashing (PBKDF2) + token helpers
       r2.js              # R2 operations (presigned URLs, upload, list, delete)
       aws-sign.js        # AWS Signature V4 for R2 presigned URLs
       db.js              # D1 query helpers + manifest generation
       api/
+        auth.js          # Login, invite acceptance, bootstrap, change-password
+        users.js         # Admin user management (invite/list/patch/delete)
         mixes.js         # Mix CRUD endpoints
         playlists.js     # Playlist CRUD endpoints
         manifest.js      # Manifest generation + publish to R2
@@ -412,7 +444,27 @@ off-grid/
 
 ## API reference
 
-All endpoints require an `Authorization: Bearer <ADMIN_TOKEN>` header.
+Authenticated endpoints take an `Authorization: Bearer <token>` header, where the token is a
+**login JWT** (from `/auth/login`) or — for bootstrap/legacy use — the shared `ADMIN_TOKEN`.
+
+### Auth
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/auth/login` | public | Email + password → `{ token, user }` |
+| `POST` | `/auth/accept-invite` | public | Set password from an invite token → `{ token, user }` |
+| `POST` | `/auth/bootstrap` | `ADMIN_TOKEN` | Create the first admin (only when none exists) |
+| `GET`  | `/auth/me` | user | Current user |
+| `POST` | `/auth/change-password` | user | Rotate password (invalidates other sessions) |
+
+### Users (admin)
+
+| Method   | Path | Description |
+|----------|------|-------------|
+| `POST`   | `/api/users/invite` | Create an invite (`{ email, role? }`) → one-time `inviteToken` |
+| `GET`    | `/api/users` | List users |
+| `PATCH`  | `/api/users/:id` | Set `role` / `status` |
+| `DELETE` | `/api/users/:id` | Delete a user |
 
 ### R2 file operations
 

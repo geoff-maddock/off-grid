@@ -23,42 +23,84 @@ export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'a
   sql += ` ORDER BY ${sortCol} ${sortDir}`;
 
   const result = await db.prepare(sql).bind(...params).all();
-  return result.results.map(parseMixRow);
+  const mixes = result.results.map(parseMixRow);
+  for (const mix of mixes) {
+    mix.tracks = await getMixTracks(db, mix.id);
+  }
+  return mixes;
 }
 
 export async function getMix(db, id) {
   const result = await db.prepare('SELECT * FROM mixes WHERE id = ?').bind(id).first();
-  return result ? parseMixRow(result) : null;
+  if (!result) return null;
+  const mix = parseMixRow(result);
+  mix.tracks = await getMixTracks(db, id);
+  return mix;
 }
 
 export async function createMix(db, mix) {
-  const sql = `INSERT INTO mixes (id, title, artist, description, src, thumb, peaks, color, tags, duration, release_date, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const sql = `INSERT INTO mixes (id, title, artist, description, src, thumb, peaks, color, tags, duration, release_date, sort_order, tracklist)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   await db.prepare(sql).bind(
     mix.id, mix.title, mix.artist || '', mix.description || '',
     mix.src, mix.thumb || '', mix.peaks || '', mix.color || '#ff5500',
     JSON.stringify(mix.tags || []), mix.duration || null,
-    mix.releaseDate || null, mix.sortOrder || 0
+    mix.releaseDate || null, mix.sortOrder || 0, mix.tracklist || ''
   ).run();
+  await setMixTracks(db, mix.id, mix.tracks);
   return getMix(db, mix.id);
 }
 
 export async function updateMix(db, id, mix) {
   const sql = `UPDATE mixes SET title=?, artist=?, description=?, src=?, thumb=?, peaks=?,
-               color=?, tags=?, duration=?, release_date=?, sort_order=?, updated_at=datetime('now')
+               color=?, tags=?, duration=?, release_date=?, sort_order=?, tracklist=?, updated_at=datetime('now')
                WHERE id=?`;
   await db.prepare(sql).bind(
     mix.title, mix.artist || '', mix.description || '',
     mix.src, mix.thumb || '', mix.peaks || '', mix.color || '#ff5500',
     JSON.stringify(mix.tags || []), mix.duration || null,
-    mix.releaseDate || null, mix.sortOrder || 0, id
+    mix.releaseDate || null, mix.sortOrder || 0, mix.tracklist || '', id
   ).run();
+  // Only replace tracks when the caller actually sent a tracklist payload.
+  if (mix.tracks !== undefined) {
+    await setMixTracks(db, id, mix.tracks);
+  }
   return getMix(db, id);
 }
 
 export async function deleteMix(db, id) {
+  await db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(id).run();
   await db.prepare('DELETE FROM playlist_mixes WHERE mix_id = ?').bind(id).run();
   await db.prepare('DELETE FROM mixes WHERE id = ?').bind(id).run();
+}
+
+// ── Mix Tracks (parsed tracklist) ──────────────────────────────────
+
+async function getMixTracks(db, mixId) {
+  const result = await db.prepare(
+    'SELECT position, time, time_seconds, artist, title FROM mix_tracks WHERE mix_id = ? ORDER BY position ASC'
+  ).bind(mixId).all();
+  return (result.results || []).map((t) => ({
+    position: t.position,
+    time: t.time || '',
+    seconds: t.time_seconds,
+    artist: t.artist || '',
+    title: t.title || '',
+  }));
+}
+
+// Replace all of a mix's tracks with the provided array (already parsed by the client).
+async function setMixTracks(db, mixId, tracks) {
+  await db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(mixId).run();
+  if (!Array.isArray(tracks)) return;
+  for (let i = 0; i < tracks.length; i++) {
+    const t = tracks[i] || {};
+    const seconds = Number.isFinite(t.seconds) ? Math.round(t.seconds)
+      : (Number.isFinite(t.timeSeconds) ? Math.round(t.timeSeconds) : null);
+    await db.prepare(
+      'INSERT INTO mix_tracks (mix_id, position, time, time_seconds, artist, title) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(mixId, i, String(t.time || ''), seconds, String(t.artist || ''), String(t.title || '')).run();
+  }
 }
 
 // ── Playlists ──────────────────────────────────────────────────────
@@ -205,6 +247,7 @@ function parseMixRow(row) {
     duration: row.duration,
     releaseDate: row.release_date,
     sortOrder: row.sort_order,
+    tracklist: row.tracklist || '',
   };
 }
 

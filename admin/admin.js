@@ -132,13 +132,21 @@ function bindEvents() {
   document.getElementById('mix-color').addEventListener('input', (e) => {
     document.getElementById('mix-color-preview').style.background = e.target.value;
   });
+
+  // Live tracklist parse preview
+  document.getElementById('mix-tracklist').addEventListener('input', renderTracklistPreview);
   document.getElementById('playlist-color').addEventListener('input', (e) => {
     document.getElementById('playlist-color-preview').style.background = e.target.value;
   });
 
-  // Upload buttons
+  // Upload buttons. The audio picker drives the full auto-pipeline
+  // (upload + peaks + duration); covers/peaks use the simple uploader.
   document.querySelectorAll('.upload-btn input[type="file"]').forEach(input => {
-    input.addEventListener('change', (e) => handleFileUpload(e.target));
+    if (input.dataset.upload === 'audio') {
+      input.addEventListener('change', (e) => handleAudioSelected(e.target));
+    } else {
+      input.addEventListener('change', (e) => handleFileUpload(e.target));
+    }
   });
 
   // Confirm dialog
@@ -250,6 +258,7 @@ function openMixModal(mix) {
     document.getElementById('mix-tags').value = (mix.tags || []).join(', ');
     document.getElementById('mix-release-date').value = mix.releaseDate || '';
     document.getElementById('mix-duration').value = mix.duration || '';
+    document.getElementById('mix-tracklist').value = mix.tracklist || '';
   } else {
     title.textContent = 'Add Mix';
     document.getElementById('mix-edit-id').value = '';
@@ -260,6 +269,7 @@ function openMixModal(mix) {
 
   document.getElementById('mix-color-preview').style.background =
     document.getElementById('mix-color').value;
+  renderTracklistPreview();
   modal.classList.add('open');
 }
 
@@ -285,6 +295,8 @@ async function saveMix(e) {
     }
   }
 
+  const tracklistText = document.getElementById('mix-tracklist').value;
+
   const mixData = {
     id,
     title: document.getElementById('mix-title').value.trim(),
@@ -296,7 +308,9 @@ async function saveMix(e) {
     color: document.getElementById('mix-color').value.trim() || '#ff5500',
     tags: tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [],
     duration: durationStr ? parseFloat(durationStr) : null,
-    releaseDate: document.getElementById('mix-release-date').value || null
+    releaseDate: document.getElementById('mix-release-date').value || null,
+    tracklist: tracklistText,
+    tracks: parseTracklist(tracklistText),
   };
 
   if (API_URL && authToken) {
@@ -706,6 +720,84 @@ function toast(message, type = 'success') {
 }
 
 // ── File Upload to R2 ──────────────────────────────────────────────
+
+// Render/update an inline progress widget (text + bar) in a .upload-progress el.
+function setProgress(el, text, pct = 0) {
+  let fill = el.querySelector('.progress-fill');
+  if (!fill) {
+    el.className = 'upload-progress';
+    el.innerHTML = `<span class="progress-text"></span> <div class="progress-bar"><div class="progress-fill"></div></div>`;
+    fill = el.querySelector('.progress-fill');
+  }
+  el.querySelector('.progress-text').textContent = text;
+  fill.style.width = `${pct}%`;
+}
+
+function setProgressDone(el, text) {
+  el.className = 'upload-progress success';
+  el.textContent = text;
+}
+
+function setProgressError(el, text) {
+  el.className = 'upload-progress error';
+  el.textContent = text;
+}
+
+/**
+ * Upload a Blob/File to R2 under `key`. Direct upload through the Worker for
+ * files < 95MB, presigned PUT for larger. Returns the public R2 URL.
+ */
+async function uploadBlobToR2(blob, key, { onProgress } = {}) {
+  const contentType = blob.type || 'application/octet-stream';
+
+  if (blob.size < 95 * 1024 * 1024) {
+    const resp = await fetch(`${API_URL}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': contentType,
+        'X-File-Key': key,
+      },
+      body: blob,
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `Upload failed: ${resp.status}`);
+    }
+    const data = await resp.json();
+    return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${data.key}` : data.key;
+  }
+
+  // Large file — presigned URL with upload progress
+  const presignResp = await apiFetch('/presign', {
+    method: 'POST',
+    body: JSON.stringify({ key, contentType }),
+  });
+  if (!presignResp.ok) {
+    const err = await presignResp.json().catch(() => ({ error: 'Presign failed' }));
+    throw new Error(err.error);
+  }
+  const { url: presignedUrl } = await presignResp.json();
+
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', presignedUrl);
+    if (contentType) xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`Upload failed: ${xhr.status}`));
+    });
+    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+    xhr.send(blob);
+  });
+
+  return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
+}
+
+// Simple uploader for cover images and manual peaks overrides.
 async function handleFileUpload(input) {
   if (!API_URL || !authToken) {
     toast('Upload requires API mode. Log in with your Worker URL first.', 'error');
@@ -716,97 +808,135 @@ async function handleFileUpload(input) {
   const file = input.files[0];
   if (!file) return;
 
-  const prefix = input.dataset.upload; // 'audio', 'covers', or 'peaks'
+  const prefix = input.dataset.upload; // 'covers' or 'peaks'
   const key = `${prefix}/${file.name}`;
   const btn = input.closest('.upload-btn');
   const progressEl = btn.closest('.form-group').querySelector('.upload-progress');
 
-  // Map prefix to the target input field
   const fieldMap = { audio: 'mix-src', covers: 'mix-thumb', peaks: 'mix-peaks' };
   const targetInput = document.getElementById(fieldMap[prefix]);
 
   btn.classList.add('uploading');
-  progressEl.className = 'upload-progress';
-  progressEl.innerHTML = `Uploading ${file.name}... <div class="progress-bar"><div class="progress-fill" id="pf-${prefix}"></div></div>`;
+  setProgress(progressEl, `Uploading ${file.name}…`, 0);
 
   try {
-    // Use direct upload through Worker for files under 95MB, presigned URL for larger
-    if (file.size < 95 * 1024 * 1024) {
-      const resp = await fetch(`${API_URL}/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': file.type || 'application/octet-stream',
-          'X-File-Key': key,
-        },
-        body: file,
-      });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
-        throw new Error(err.error || `Upload failed: ${resp.status}`);
-      }
-
-      const data = await resp.json();
-      progressEl.className = 'upload-progress success';
-      progressEl.textContent = `Uploaded: ${data.key}`;
-
-      // Set the field value to the full R2 public URL
-      const fullUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${data.key}` : data.key;
-      if (targetInput) targetInput.value = fullUrl;
-
-    } else {
-      // Large file — use presigned URL
-      const presignResp = await apiFetch('/presign', {
-        method: 'POST',
-        body: JSON.stringify({ key, contentType: file.type }),
-      });
-
-      if (!presignResp.ok) {
-        const err = await presignResp.json().catch(() => ({ error: 'Presign failed' }));
-        throw new Error(err.error);
-      }
-
-      const { url: presignedUrl } = await presignResp.json();
-
-      // Upload directly to R2 via presigned URL with progress
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', presignedUrl);
-        if (file.type) xhr.setRequestHeader('Content-Type', file.type);
-
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            const fill = document.getElementById(`pf-${prefix}`);
-            if (fill) fill.style.width = `${pct}%`;
-            progressEl.firstChild.textContent = `Uploading ${file.name}... ${pct}% `;
-          }
-        });
-
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) resolve();
-          else reject(new Error(`Upload failed: ${xhr.status}`));
-        });
-        xhr.addEventListener('error', () => reject(new Error('Upload network error')));
-        xhr.send(file);
-      });
-
-      progressEl.className = 'upload-progress success';
-      progressEl.textContent = `Uploaded: ${key}`;
-      const fullUrl = R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
-      if (targetInput) targetInput.value = fullUrl;
-    }
-
+    const url = await uploadBlobToR2(file, key, {
+      onProgress: (pct) => setProgress(progressEl, `Uploading ${file.name}… ${pct}%`, pct),
+    });
+    setProgressDone(progressEl, `Uploaded: ${key}`);
+    if (targetInput) targetInput.value = url;
     toast(`${file.name} uploaded to R2.`);
   } catch (err) {
-    progressEl.className = 'upload-progress error';
-    progressEl.textContent = `Failed: ${err.message}`;
+    setProgressError(progressEl, `Failed: ${err.message}`);
     toast(`Upload failed: ${err.message}`, 'error');
   } finally {
     btn.classList.remove('uploading');
     input.value = '';
   }
+}
+
+/**
+ * Audio picker pipeline: upload the audio, auto-generate the waveform peaks
+ * and duration in the browser, upload the peaks JSON, and fill every field —
+ * so adding a mix is just "choose the file + type the details".
+ */
+async function handleAudioSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const offline = !API_URL || !authToken;
+  const btn = input.closest('.upload-btn');
+  const progressEl = document.getElementById('upload-audio-progress');
+  const base = file.name.replace(/\.[^.]+$/, '');
+
+  btn.classList.add('uploading');
+  try {
+    // 1. Duration from metadata (instant) — fill the field right away.
+    setProgress(progressEl, 'Reading audio…', 0);
+    let duration = 0;
+    try {
+      duration = await OffgridPeaks.getAudioDuration(file);
+      if (duration) setMixDuration(duration);
+    } catch (_) { /* non-fatal — peaks decode also yields duration */ }
+
+    // 2. Generate peaks in the browser; upload audio concurrently (API mode).
+    setProgress(progressEl, offline ? 'Generating waveform…' : `Uploading ${file.name} & generating waveform…`, 0);
+
+    let peaksResult = null;
+    const peaksPromise = OffgridPeaks.generatePeaks(file)
+      .then((r) => { peaksResult = r; })
+      .catch((err) => { console.warn('Peak generation failed:', err); });
+
+    let audioUrl = null;
+    if (!offline) {
+      const uploadPromise = uploadBlobToR2(file, `audio/${file.name}`, {
+        onProgress: (pct) => setProgress(progressEl, `Uploading ${file.name}… ${pct}%`, pct),
+      });
+      [audioUrl] = await Promise.all([uploadPromise, peaksPromise]);
+      document.getElementById('mix-src').value = audioUrl;
+    } else {
+      await peaksPromise;
+    }
+
+    // 3. Persist the peaks JSON.
+    if (peaksResult && peaksResult.peaks && peaksResult.peaks.length) {
+      if (peaksResult.duration && !document.getElementById('mix-duration').value) {
+        setMixDuration(peaksResult.duration);
+      }
+      const peaksBlob = new Blob([JSON.stringify(peaksResult)], { type: 'application/json' });
+
+      if (!offline) {
+        setProgress(progressEl, 'Saving waveform…', 100);
+        const peaksUrl = await uploadBlobToR2(peaksBlob, `peaks/${base}.peaks.json`, {});
+        document.getElementById('mix-peaks').value = peaksUrl;
+        setProgressDone(progressEl, `Ready — audio + waveform (${formatDuration(peaksResult.duration)})`);
+        toast('Audio uploaded, waveform generated.');
+      } else {
+        // Offline: no R2 — hand the peaks file to the user to place locally.
+        downloadBlob(peaksBlob, `${base}.peaks.json`);
+        document.getElementById('mix-peaks').value = `${base}.peaks.json`;
+        setProgressDone(progressEl, `Waveform generated (${formatDuration(peaksResult.duration)}) — peaks file downloaded.`);
+        toast('Waveform generated and downloaded. Place it next to your audio.');
+      }
+      maybePrefillFromFilename(base);
+    } else {
+      setProgressError(progressEl, offline
+        ? `Couldn't generate the waveform for this file.`
+        : `Audio uploaded — waveform couldn't be generated. Add peaks under Advanced.`);
+      toast('Waveform could not be auto-generated (see Advanced).', 'error');
+      maybePrefillFromFilename(base);
+    }
+  } catch (err) {
+    setProgressError(progressEl, `Failed: ${err.message}`);
+    toast(`Upload failed: ${err.message}`, 'error');
+  } finally {
+    btn.classList.remove('uploading');
+    input.value = '';
+  }
+}
+
+function setMixDuration(secs) {
+  const el = document.getElementById('mix-duration');
+  if (el) el.value = Math.round(secs * 100) / 100;
+}
+
+// Fill ID/title from the filename when the user hasn't typed them yet.
+function maybePrefillFromFilename(base) {
+  const idEl = document.getElementById('mix-id');
+  const titleEl = document.getElementById('mix-title');
+  if (idEl && !idEl.readOnly && !idEl.value.trim()) idEl.value = slugify(base);
+  if (titleEl && !titleEl.value.trim()) {
+    titleEl.value = base.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Auth / Login ───────────────────────────────────────────────────
@@ -974,4 +1104,68 @@ function formatDuration(secs) {
     return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ── Tracklist parsing ──────────────────────────────────────────────
+// Turn a raw tracklist textarea into structured tracks. Tolerant of common
+// formats: "04:32 Artist - Title", "1. Artist – Title [04:32]", "[04:32] ...",
+// and lines with no timestamp.
+function parseTracklist(text) {
+  if (!text) return [];
+  const tracks = [];
+  for (const line of text.split(/\r?\n/)) {
+    let rest = line.trim();
+    if (!rest) continue;
+
+    // Strip a leading track number like "1." or "12)"
+    rest = rest.replace(/^\d{1,3}[.)]\s*/, '');
+
+    // Pull the first timestamp (MM:SS or HH:MM:SS), optionally bracketed.
+    let time = '';
+    let seconds = null;
+    const tm = rest.match(/\[?\(?\b(\d{1,2}:\d{2}(?::\d{2})?)\b\)?\]?/);
+    if (tm) {
+      time = tm[1];
+      seconds = timeToSeconds(time);
+      rest = (rest.slice(0, tm.index) + rest.slice(tm.index + tm[0].length)).trim();
+      rest = rest.replace(/^[-–—:.\s]+/, '').replace(/[-–—\s]+$/, '').trim();
+    }
+
+    // Split remaining "Artist - Title" on a dash surrounded by spaces.
+    let artist = '';
+    let title = rest;
+    const parts = rest.split(/\s[-–—]\s/);
+    if (parts.length >= 2) {
+      artist = parts[0].trim();
+      title = parts.slice(1).join(' - ').trim();
+    }
+
+    if (!artist && !title) continue;
+    tracks.push({ time, seconds, artist, title });
+  }
+  return tracks;
+}
+
+function timeToSeconds(t) {
+  const parts = t.split(':').map(Number);
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return null;
+}
+
+function renderTracklistPreview() {
+  const el = document.getElementById('tracklist-preview');
+  if (!el) return;
+  const input = document.getElementById('mix-tracklist');
+  const tracks = parseTracklist(input ? input.value : '');
+  if (!tracks.length) { el.innerHTML = ''; return; }
+  el.innerHTML =
+    `<div class="tracklist-preview-head">${tracks.length} track${tracks.length === 1 ? '' : 's'} detected</div>` +
+    '<ol class="tracklist-preview-list">' +
+    tracks.map((t) => {
+      const meta = [t.artist, t.title].filter(Boolean).map(esc).join(' — ');
+      return `<li><span class="tl-time">${esc(t.time || '–')}</span> ${meta || '<em>(unparsed)</em>'}</li>`;
+    }).join('') +
+    '</ol>';
 }

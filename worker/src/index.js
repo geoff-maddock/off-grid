@@ -1,20 +1,34 @@
 /**
  * Off Grid API — Cloudflare Worker
  *
- * Routes:
- *   POST   /presign        — Generate presigned PUT URL for R2 upload
- *   POST   /upload         — Direct upload (small files only, < 100MB)
- *   GET    /files          — List R2 objects
- *   DELETE /files/*        — Delete R2 object
- *   GET    /api/mixes      — List mixes (Phase 4)
- *   ...                    — More CRUD endpoints in Phase 4
+ * Public (no session):
+ *   POST   /auth/login            — email + password → JWT
+ *   POST   /auth/accept-invite    — set password from an invite → JWT
+ *   POST   /auth/bootstrap        — create the first admin (ADMIN_TOKEN)
+ *
+ * Authenticated:
+ *   GET    /auth/me               — current user
+ *   POST   /auth/change-password
+ *   *      /api/users             — admin: invite / list / patch / delete users
+ *   POST   /presign               — presigned PUT URL for R2 upload
+ *   POST   /upload                — direct upload (< 100MB)
+ *   GET    /files                 — list R2 objects
+ *   DELETE /files/*               — delete R2 object
+ *   *      /api/mixes             — mix CRUD
+ *   *      /api/playlists         — playlist CRUD
+ *   *      /api/manifest          — generate / publish manifest
  */
 
-import { requireAuth } from './auth.js';
+import { authenticate } from './auth.js';
+import { handlePublicAuth, handleAuth } from './api/auth.js';
+import { handleUsers } from './api/users.js';
 import { handlePresign, handleListFiles, handleDeleteFile, handleDirectUpload } from './r2.js';
 import { handleMixes } from './api/mixes.js';
 import { handlePlaylists } from './api/playlists.js';
 import { handleManifest } from './api/manifest.js';
+
+// Routes reachable without a session.
+const PUBLIC_AUTH_PATHS = new Set(['/auth/login', '/auth/accept-invite', '/auth/bootstrap']);
 
 export default {
   async fetch(request, env) {
@@ -27,17 +41,31 @@ export default {
       return corsResponse(env);
     }
 
-    // All routes require auth
-    const authError = requireAuth(request, env);
-    if (authError) {
-      return addCors(authError, env);
-    }
-
     let response;
 
     try {
+      // ── Public auth routes (no session) ──────────────────────
+      if (PUBLIC_AUTH_PATHS.has(path)) {
+        response = await handlePublicAuth(request, env, path, method);
+        return addCors(response || notFound(), env);
+      }
+
+      // ── Everything else requires an authenticated user ───────
+      const { user, error } = await authenticate(request, env);
+      if (error) {
+        return addCors(error, env);
+      }
+
+      // ── Auth (session-scoped) ────────────────────────────────
+      if (path === '/auth/me' || path === '/auth/change-password') {
+        response = await handleAuth(request, env, path, method, user);
+      }
+      // ── User management (admin) ──────────────────────────────
+      else if (path.startsWith('/api/users')) {
+        response = await handleUsers(request, env, path, method, user);
+      }
       // ── R2 File Operations ──────────────────────────────────
-      if (method === 'POST' && path === '/presign') {
+      else if (method === 'POST' && path === '/presign') {
         response = await handlePresign(request, env);
       } else if (method === 'POST' && path === '/upload') {
         response = await handleDirectUpload(request, env);
@@ -57,10 +85,7 @@ export default {
       }
 
       if (!response) {
-        response = new Response(JSON.stringify({ error: 'Not found' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        response = notFound();
       }
     } catch (err) {
       console.error('Worker error:', err);
@@ -73,6 +98,13 @@ export default {
     return addCors(response, env);
   },
 };
+
+function notFound() {
+  return new Response(JSON.stringify({ error: 'Not found' }), {
+    status: 404,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 function corsResponse(env) {
   return new Response(null, {

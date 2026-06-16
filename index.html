@@ -1,13 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Off Grid — Mixes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     :root {
       --accent: #ff5500;
@@ -19,7 +28,8 @@
       --max-w: 720px;
     }
 
-    html, body {
+    html,
+    body {
       background: var(--bg);
       color: var(--text);
       font-family: 'IBM Plex Sans', sans-serif;
@@ -33,8 +43,8 @@
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(255,85,0,0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,85,0,0.015) 1px, transparent 1px);
+        linear-gradient(rgba(255, 85, 0, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 85, 0, 0.015) 1px, transparent 1px);
       background-size: 40px 40px;
       pointer-events: none;
       z-index: 0;
@@ -128,17 +138,43 @@
       animation: fadeUp 0.4s ease forwards;
     }
 
-    .player-entry:nth-child(1) { animation-delay: 0.05s; }
-    .player-entry:nth-child(2) { animation-delay: 0.12s; }
-    .player-entry:nth-child(3) { animation-delay: 0.19s; }
-    .player-entry:nth-child(4) { animation-delay: 0.26s; }
-    .player-entry:nth-child(5) { animation-delay: 0.33s; }
-    .player-entry:nth-child(6) { animation-delay: 0.40s; }
-    .player-entry:nth-child(7) { animation-delay: 0.47s; }
-    .player-entry:nth-child(8) { animation-delay: 0.54s; }
+    .player-entry:nth-child(1) {
+      animation-delay: 0.05s;
+    }
+
+    .player-entry:nth-child(2) {
+      animation-delay: 0.12s;
+    }
+
+    .player-entry:nth-child(3) {
+      animation-delay: 0.19s;
+    }
+
+    .player-entry:nth-child(4) {
+      animation-delay: 0.26s;
+    }
+
+    .player-entry:nth-child(5) {
+      animation-delay: 0.33s;
+    }
+
+    .player-entry:nth-child(6) {
+      animation-delay: 0.40s;
+    }
+
+    .player-entry:nth-child(7) {
+      animation-delay: 0.47s;
+    }
+
+    .player-entry:nth-child(8) {
+      animation-delay: 0.54s;
+    }
 
     @keyframes fadeUp {
-      to { opacity: 1; transform: translateY(0); }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     /* Search bar */
@@ -179,7 +215,7 @@
       transition: color 0.2s;
     }
 
-    .search-bar input:focus ~ .search-icon {
+    .search-bar input:focus~.search-icon {
       color: var(--accent);
     }
 
@@ -243,11 +279,25 @@
       white-space: pre;
     }
 
-    .code-block .kw { color: #ff5500; }
-    .code-block .attr { color: #88aaff; }
-    .code-block .val { color: #88dd88; }
-    .code-block .tag { color: #f0f0f0; }
-    .code-block .cm { color: #555; }
+    .code-block .kw {
+      color: #ff5500;
+    }
+
+    .code-block .attr {
+      color: #88aaff;
+    }
+
+    .code-block .val {
+      color: #88dd88;
+    }
+
+    .code-block .tag {
+      color: #f0f0f0;
+    }
+
+    .code-block .cm {
+      color: #555;
+    }
 
     .embed-note {
       font-size: 12px;
@@ -291,6 +341,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="page">
 
@@ -304,7 +355,11 @@
     <!-- Search -->
     <div class="search-bar" id="search-bar">
       <input type="text" id="mix-search" placeholder="Search by title, artist, or tag..." autocomplete="off">
-      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
       <button class="search-clear" id="search-clear">&times;</button>
     </div>
 
@@ -326,30 +381,35 @@
     <section class="embed-section">
       <div class="section-label">Embed Anywhere</div>
       <div class="code-block"><span class="cm">&lt;!-- Drop this on any page --&gt;</span>
-<span class="tag">&lt;script</span> <span class="attr">src</span>=<span class="val">"https://your-domain.com/audio-player.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
+        <span class="tag">&lt;script</span> <span class="attr">src</span>=<span
+          class="val">"https://your-domain.com/audio-player.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
 
-<span class="cm">&lt;!-- Single track --&gt;</span>
-<span class="tag">&lt;offgrid-player</span>
-  <span class="attr">src</span>=<span class="val">"https://cdn.your-domain.com/mix.mp3"</span>
-  <span class="attr">title</span>=<span class="val">"My Mix"</span>
-  <span class="attr">artist</span>=<span class="val">"DJ Name"</span>
-  <span class="attr">thumb</span>=<span class="val">"https://cdn.your-domain.com/thumb.jpg"</span>
-  <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;
-&lt;/offgrid-player&gt;</span>
+        <span class="cm">&lt;!-- Single track --&gt;</span>
+        <span class="tag">&lt;offgrid-player</span>
+        <span class="attr">src</span>=<span class="val">"https://cdn.your-domain.com/mix.mp3"</span>
+        <span class="attr">title</span>=<span class="val">"My Mix"</span>
+        <span class="attr">artist</span>=<span class="val">"DJ Name"</span>
+        <span class="attr">thumb</span>=<span class="val">"https://cdn.your-domain.com/thumb.jpg"</span>
+        <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;
+          &lt;/offgrid-player&gt;</span>
 
-<span class="cm">&lt;!-- Playlist --&gt;</span>
-<span class="tag">&lt;offgrid-playlist</span> <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;</span>
-  <span class="tag">&lt;script</span> <span class="attr">type</span>=<span class="val">"application/json"</span><span class="tag">&gt;</span>
-    [{"src": "track1.mp3", "title": "Track 1", "artist": "DJ Name"},
-     {"src": "track2.mp3", "title": "Track 2", "artist": "DJ Name"}]
-  <span class="tag">&lt;/script&gt;
-&lt;/offgrid-playlist&gt;</span></div>
+        <span class="cm">&lt;!-- Playlist --&gt;</span>
+        <span class="tag">&lt;offgrid-playlist</span> <span class="attr">color</span>=<span
+          class="val">"#ff5500"</span><span class="tag">&gt;</span>
+        <span class="tag">&lt;script</span> <span class="attr">type</span>=<span
+          class="val">"application/json"</span><span class="tag">&gt;</span>
+        [{"src": "track1.mp3", "title": "Track 1", "artist": "DJ Name"},
+        {"src": "track2.mp3", "title": "Track 2", "artist": "DJ Name"}]
+        <span class="tag">&lt;/script&gt;
+          &lt;/offgrid-playlist&gt;</span>
+      </div>
       <p class="embed-note">// Files served from Cloudflare R2. Zero egress fees.</p>
     </section>
 
     <footer>
       <span>Off Grid &mdash; Self-hosted audio</span>
-      <span>Powered by <a href="https://wavesurfer.xyz">WaveSurfer.js</a> + <a href="https://developers.cloudflare.com/r2/">Cloudflare R2</a></span>
+      <span>Powered by <a href="https://wavesurfer.xyz">WaveSurfer.js</a> + <a
+          href="https://developers.cloudflare.com/r2/">Cloudflare R2</a></span>
     </footer>
 
   </div>
@@ -503,4 +563,5 @@
     });
   </script>
 </body>
+
 </html>

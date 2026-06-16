@@ -117,39 +117,33 @@
           <textarea id="mix-description" rows="2" placeholder="Optional description"></textarea>
         </div>
         <div class="form-group">
-          <label for="mix-src">Audio Source (URL or path)</label>
+          <label for="mix-tracklist">Tracklist</label>
+          <textarea id="mix-tracklist" rows="6" placeholder="One track per line, e.g.&#10;00:00 Artist - Title&#10;04:32 Another Artist - Another Title"></textarea>
+          <div class="hint">Paste a tracklist — timestamp, artist, and title are detected automatically on save.</div>
+          <div class="tracklist-preview" id="tracklist-preview"></div>
+        </div>
+        <div class="form-group">
+          <label for="mix-src">Audio File</label>
           <div class="upload-row">
             <input type="text" id="mix-src" required placeholder="mixes/my-mix.mp3">
             <label class="btn btn-sm upload-btn" id="upload-audio-btn">
-              Upload
+              Choose File
               <input type="file" accept="audio/*" data-upload="audio" style="display:none">
             </label>
           </div>
+          <div class="hint">Pick your mix — the waveform and duration are generated automatically.</div>
           <div class="upload-progress" id="upload-audio-progress"></div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="mix-thumb">Thumbnail (URL or path)</label>
-            <div class="upload-row">
-              <input type="text" id="mix-thumb" placeholder="cover.jpg">
-              <label class="btn btn-sm upload-btn" id="upload-thumb-btn">
-                Upload
-                <input type="file" accept="image/*" data-upload="covers" style="display:none">
-              </label>
-            </div>
-            <div class="upload-progress" id="upload-thumb-progress"></div>
+        <div class="form-group">
+          <label for="mix-thumb">Cover Image (URL or path)</label>
+          <div class="upload-row">
+            <input type="text" id="mix-thumb" placeholder="cover.jpg">
+            <label class="btn btn-sm upload-btn" id="upload-thumb-btn">
+              Upload
+              <input type="file" accept="image/*" data-upload="covers" style="display:none">
+            </label>
           </div>
-          <div class="form-group">
-            <label for="mix-peaks">Peaks (URL or path)</label>
-            <div class="upload-row">
-              <input type="text" id="mix-peaks" placeholder="my-mix.peaks.json">
-              <label class="btn btn-sm upload-btn" id="upload-peaks-btn">
-                Upload
-                <input type="file" accept=".json" data-upload="peaks" style="display:none">
-              </label>
-            </div>
-            <div class="upload-progress" id="upload-peaks-progress"></div>
-          </div>
+          <div class="upload-progress" id="upload-thumb-progress"></div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -162,10 +156,25 @@
             <input type="date" id="mix-release-date">
           </div>
         </div>
-        <div class="form-group">
-          <label for="mix-duration">Duration (seconds)</label>
-          <input type="number" id="mix-duration" step="0.01" placeholder="Auto-detected from peaks">
-        </div>
+        <details class="advanced-group">
+          <summary>Advanced — peaks &amp; duration (auto-filled)</summary>
+          <div class="form-group">
+            <label for="mix-peaks">Peaks (URL or path)</label>
+            <div class="upload-row">
+              <input type="text" id="mix-peaks" placeholder="my-mix.peaks.json">
+              <label class="btn btn-sm upload-btn" id="upload-peaks-btn">
+                Upload
+                <input type="file" accept=".json" data-upload="peaks" style="display:none">
+              </label>
+            </div>
+            <div class="hint">Generated automatically from the audio file. Override only if needed.</div>
+            <div class="upload-progress" id="upload-peaks-progress"></div>
+          </div>
+          <div class="form-group">
+            <label for="mix-duration">Duration (seconds)</label>
+            <input type="number" id="mix-duration" step="0.01" placeholder="Auto-set from the audio file">
+          </div>
+        </details>
         <div class="modal-footer">
           <button type="button" class="btn" id="btn-cancel-mix">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-save-mix">Save Mix</button>
@@ -238,6 +247,7 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <script src="peaks.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

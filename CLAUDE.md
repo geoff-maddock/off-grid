@@ -17,8 +17,8 @@ What tracks what:
 | Web component attributes, methods, or events (`audio-player.js`) | **Embedding** section tables in `README.md`      |
 | Custom element names (`customElements.define`)  | All embed examples in `README.md` + `index.html`          |
 | Manifest shape / fields (`worker/src/db.js`, manifest generation) | `data/schema.md` **and** the sample `data/manifest.json` |
-| Setup/deploy steps, secrets, or `wrangler.toml` | **Onboarding** + **Quick start** in `README.md`           |
-| Bucket/DB/Worker default names                  | `README.md`, `wrangler.toml` comments, `worker/src/r2.js` |
+| Setup/deploy steps, secrets, or Worker config   | **Onboarding** + **Quick start** in `README.md` + `worker/wrangler.toml.example` |
+| Bucket/DB/Worker default names                  | `README.md`, `wrangler.toml.example` comments, `worker/src/r2.js` |
 | Files added/removed/moved                       | **Project structure** tree in `README.md`                 |
 | Build/run/peak commands or scripts              | The relevant `README.md` command blocks                   |
 
@@ -35,6 +35,8 @@ identifier you changed.
 - Private notes and prod-specific material go in the gitignored `offline/` folder, never in
   tracked files.
 - Secrets are set via `wrangler secret put` and must never appear in `wrangler.toml` or source.
+- The real `worker/wrangler.toml` is **gitignored** (it holds account-specific `database_id`s etc.).
+  Edit the committed `worker/wrangler.toml.example` template instead; keep it on generic placeholders.
 
 ## Conventions
 

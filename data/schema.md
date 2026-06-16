@@ -37,6 +37,20 @@ Each entry represents a single audio track/mix.
 | `tags`        | string[] | No       | Array of tag strings for categorization |
 | `duration`    | number   | No       | Duration in seconds (from peaks data) |
 | `releaseDate` | string   | No       | ISO date string (e.g. `"2024-01-15"`) |
+| `tracklist`   | string   | No       | Raw tracklist text as authored (one track per line) |
+| `tracks`      | object[] | No       | Parsed tracklist — see [`tracks`](#tracks-array) |
+
+### `tracks` Array
+
+Each mix may carry a parsed tracklist. The admin generates this from the raw `tracklist`
+text on save; each entry is one track.
+
+| Field     | Type   | Required | Description |
+|-----------|--------|----------|-------------|
+| `time`    | string | No       | Timestamp as written, e.g. `"04:32"` |
+| `seconds` | number | No       | `time` parsed to seconds (for seeking); `null` if none |
+| `artist`  | string | No       | Track artist |
+| `title`   | string | No       | Track title |
 
 ## `playlists` Array
 
@@ -73,7 +87,12 @@ Each entry defines an ordered collection of mixes.
       "color": "#ff5500",
       "tags": ["jungle", "hardcore"],
       "duration": 5355.23,
-      "releaseDate": "2024-01-01"
+      "releaseDate": "2024-01-01",
+      "tracklist": "00:00 Artist A - Opening Track\n04:32 Artist B - Second Track",
+      "tracks": [
+        { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track" },
+        { "time": "04:32", "seconds": 272, "artist": "Artist B", "title": "Second Track" }
+      ]
     }
   ],
   "playlists": [
