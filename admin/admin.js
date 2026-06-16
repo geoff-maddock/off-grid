@@ -23,20 +23,44 @@ let playlistSortField = 'title';
 let playlistSortDir = 'asc';
 let confirmCallback = null;
 let authToken = localStorage.getItem('offgrid_token') || '';
+let currentUser = null;
 
 // ── Init ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Always show login if no API URL is configured yet
+  // An invite link (#invite=<token>) always lands on the accept-invite screen.
+  if (getInviteToken()) {
+    showLogin();
+    return;
+  }
+  // Show login if no API URL / session yet
   if (!API_URL || !authToken) {
     showLogin();
     return;
   }
+  // Validate the session and learn who we are (admin gating, identity).
+  try {
+    const meResp = await apiFetch('/auth/me');
+    if (meResp.status === 401) {
+      // Stale/invalid token — clear it and re-login.
+      localStorage.removeItem('offgrid_token');
+      authToken = '';
+      showLogin();
+      return;
+    }
+    if (meResp.ok) currentUser = (await meResp.json()).user;
+  } catch (_) { /* offline-ish; fall through and let loadManifest report */ }
+
   await loadManifest();
   bindEvents();
   renderMixes();
   renderPlaylists();
   showApp();
 });
+
+function getInviteToken() {
+  const m = (location.hash || '').match(/[#&]invite=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
 
 async function loadManifest() {
   try {
@@ -73,7 +97,20 @@ function bindEvents() {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+      if (tab.dataset.tab === 'users') renderUsers();
     });
+  });
+
+  // Users / invites (admin)
+  const btnInvite = document.getElementById('btn-invite');
+  if (btnInvite) btnInvite.addEventListener('click', openInviteModal);
+  const btnCancelInvite = document.getElementById('btn-cancel-invite');
+  if (btnCancelInvite) btnCancelInvite.addEventListener('click', closeInviteModal);
+  const inviteForm = document.getElementById('invite-form');
+  if (inviteForm) inviteForm.addEventListener('submit', submitInvite);
+  const inviteModal = document.getElementById('invite-modal');
+  if (inviteModal) inviteModal.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeInviteModal();
   });
 
   // Mix CRUD
@@ -940,84 +977,128 @@ function downloadBlob(blob, filename) {
 }
 
 // ── Auth / Login ───────────────────────────────────────────────────
+const LOGIN_FIELD_STYLE = "background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#f0f0f0;padding:10px 14px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;";
+
 function showLogin() {
   document.querySelector('.page').style.display = 'none';
   let loginEl = document.getElementById('login-screen');
   if (!loginEl) {
     loginEl = document.createElement('div');
     loginEl.id = 'login-screen';
-    loginEl.innerHTML = `
-      <div style="max-width:360px;margin:120px auto;padding:40px 24px;text-align:center;">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5500;margin-bottom:20px;">Off Grid Admin</div>
-        <form id="login-form" style="display:flex;flex-direction:column;gap:12px;">
-          <input type="text" id="login-api-url" placeholder="Worker URL (e.g., https://offgrid-api.workers.dev)"
-            value="${API_URL}" style="background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#f0f0f0;padding:10px 14px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;">
-          <input type="text" id="login-r2-url" placeholder="R2 Public URL (e.g., https://pub-xxxxx.r2.dev)"
-            value="${R2_PUBLIC_URL}" style="background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#f0f0f0;padding:10px 14px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;">
-          <input type="password" id="login-token" placeholder="Admin token"
-            style="background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#f0f0f0;padding:10px 14px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;">
-          <button type="submit" class="btn btn-primary" style="padding:10px 16px;">Login</button>
-          <div id="login-error" style="color:#ff4444;font-size:12px;display:none;"></div>
-          <div style="margin-top:12px;">
-            <button type="button" class="btn btn-sm" id="btn-offline-mode" style="font-size:11px;">Use offline (file mode)</button>
-          </div>
-        </form>
-      </div>
-    `;
     document.body.appendChild(loginEl);
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const apiUrl = document.getElementById('login-api-url').value.trim().replace(/\/+$/, '');
-      const token = document.getElementById('login-token').value.trim();
-      const errorEl = document.getElementById('login-error');
-
-      if (!apiUrl || !token) {
-        errorEl.textContent = 'Both fields are required.';
-        errorEl.style.display = 'block';
-        return;
-      }
-
-      try {
-        const resp = await fetch(`${apiUrl}/files?limit=1`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (resp.status === 401) {
-          errorEl.textContent = 'Invalid token.';
-          errorEl.style.display = 'block';
-          return;
-        }
-        if (!resp.ok) {
-          errorEl.textContent = `Server error: ${resp.status}`;
-          errorEl.style.display = 'block';
-          return;
-        }
-
-        // Save credentials
-        const r2Url = document.getElementById('login-r2-url').value.trim().replace(/\/+$/, '');
-        localStorage.setItem('offgrid_api_url', apiUrl);
-        localStorage.setItem('offgrid_r2_url', r2Url);
-        localStorage.setItem('offgrid_token', token);
-        authToken = token;
-
-        // Reload
-        location.reload();
-      } catch (err) {
-        errorEl.textContent = `Connection failed: ${err.message}`;
-        errorEl.style.display = 'block';
-      }
-    });
-
-    document.getElementById('btn-offline-mode').addEventListener('click', () => {
-      loginEl.remove();
-      document.querySelector('.page').style.display = 'block';
-      loadManifest().then(() => {
-        bindEvents();
-        renderMixes();
-        renderPlaylists();
-      });
-    });
   }
+  const inviteToken = getInviteToken();
+  renderLoginForm(loginEl, inviteToken ? 'invite' : 'signin', inviteToken);
+}
+
+function renderLoginForm(loginEl, mode, inviteToken) {
+  const field = (id, ph, type = 'text', val = '') =>
+    `<input type="${type}" id="${id}" placeholder="${ph}" value="${val}" style="${LOGIN_FIELD_STYLE}">`;
+
+  const titles = { signin: 'Off Grid Admin', bootstrap: 'First-time Setup', invite: 'Accept Invite' };
+  const submitLabels = { signin: 'Sign in', bootstrap: 'Create admin', invite: 'Set password & continue' };
+
+  let fields = field('login-api-url', 'Worker URL (e.g., https://offgrid-api.workers.dev)', 'text', API_URL) +
+    field('login-r2-url', 'R2 Public URL (e.g., https://pub-xxxxx.r2.dev)', 'text', R2_PUBLIC_URL);
+  if (mode === 'signin') {
+    fields += field('login-email', 'Email', 'email') + field('login-password', 'Password', 'password');
+  } else if (mode === 'bootstrap') {
+    fields += field('login-admin-token', 'ADMIN_TOKEN (bootstrap secret)', 'password') +
+      field('login-email', 'Your email', 'email') +
+      field('login-password', 'Choose a password (8+ chars)', 'password') +
+      field('login-name', 'Display name (optional)', 'text');
+  } else { // invite
+    fields += field('login-password', 'Choose a password (8+ chars)', 'password') +
+      field('login-name', 'Display name (optional)', 'text');
+  }
+
+  const switcher = mode === 'signin'
+    ? `<button type="button" class="btn btn-sm" id="link-bootstrap" style="font-size:11px;">First-time setup</button>`
+    : (mode === 'bootstrap'
+      ? `<button type="button" class="btn btn-sm" id="link-signin" style="font-size:11px;">Back to sign in</button>`
+      : '');
+  const offline = mode === 'signin'
+    ? `<button type="button" class="btn btn-sm" id="btn-offline-mode" style="font-size:11px;">Use offline (file mode)</button>`
+    : '';
+
+  loginEl.innerHTML = `
+    <div style="max-width:360px;margin:90px auto;padding:40px 24px;text-align:center;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#ff5500;margin-bottom:20px;">${titles[mode]}</div>
+      <form id="login-form" style="display:flex;flex-direction:column;gap:12px;">
+        ${fields}
+        <button type="submit" class="btn btn-primary" style="padding:10px 16px;">${submitLabels[mode]}</button>
+        <div id="login-error" style="color:#ff4444;font-size:12px;display:none;"></div>
+        <div style="margin-top:12px;display:flex;gap:10px;justify-content:center;">${switcher}${offline}</div>
+      </form>
+    </div>`;
+
+  const showErr = (msg) => {
+    const e = document.getElementById('login-error');
+    e.textContent = msg; e.style.display = 'block';
+  };
+
+  document.getElementById('login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitLogin(mode, inviteToken, showErr);
+  });
+
+  const lb = document.getElementById('link-bootstrap');
+  if (lb) lb.addEventListener('click', () => renderLoginForm(loginEl, 'bootstrap'));
+  const ls = document.getElementById('link-signin');
+  if (ls) ls.addEventListener('click', () => renderLoginForm(loginEl, 'signin'));
+
+  const off = document.getElementById('btn-offline-mode');
+  if (off) off.addEventListener('click', () => {
+    loginEl.remove();
+    document.querySelector('.page').style.display = 'block';
+    loadManifest().then(() => { bindEvents(); renderMixes(); renderPlaylists(); });
+  });
+}
+
+async function submitLogin(mode, inviteToken, showErr) {
+  const apiUrl = (document.getElementById('login-api-url').value || '').trim().replace(/\/+$/, '');
+  const r2Url = (document.getElementById('login-r2-url').value || '').trim().replace(/\/+$/, '');
+  if (!apiUrl) return showErr('Worker URL is required.');
+
+  try {
+    let resp;
+    if (mode === 'signin') {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      if (!email || !password) return showErr('Email and password are required.');
+      resp = await fetch(`${apiUrl}/auth/login`, jsonPost({ email, password }));
+    } else if (mode === 'bootstrap') {
+      const adminToken = document.getElementById('login-admin-token').value.trim();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const displayName = document.getElementById('login-name').value.trim();
+      if (!adminToken || !email || !password) return showErr('ADMIN_TOKEN, email and password are required.');
+      resp = await fetch(`${apiUrl}/auth/bootstrap`, jsonPost({ email, password, displayName }, adminToken));
+    } else { // invite
+      const password = document.getElementById('login-password').value;
+      const displayName = document.getElementById('login-name').value.trim();
+      if (!password) return showErr('Password is required.');
+      resp = await fetch(`${apiUrl}/auth/accept-invite`, jsonPost({ token: inviteToken, password, displayName }));
+    }
+
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) return showErr(body.error || `Error ${resp.status}`);
+    if (!body.token) return showErr('No session token returned.');
+
+    localStorage.setItem('offgrid_api_url', apiUrl);
+    localStorage.setItem('offgrid_r2_url', r2Url);
+    localStorage.setItem('offgrid_token', body.token);
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    location.reload();
+  } catch (err) {
+    showErr(`Connection failed: ${err.message}`);
+  }
+}
+
+function jsonPost(data, bearer) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  return { method: 'POST', headers, body: JSON.stringify(data) };
 }
 
 function showApp() {
@@ -1052,6 +1133,17 @@ function showApp() {
       publishBtn.addEventListener('click', publishManifest);
       headerActions.insertBefore(publishBtn, headerActions.firstChild);
     }
+
+    // Reveal admin-only Users tab + show identity
+    if (currentUser && currentUser.role === 'admin') {
+      const usersTab = document.getElementById('tab-users');
+      if (usersTab) usersTab.style.display = '';
+      const me = document.getElementById('users-me');
+      if (me) me.textContent = currentUser.email
+        ? `Signed in as ${currentUser.email}`
+        : 'Signed in with bootstrap token';
+      renderUsers();
+    }
   }
 }
 
@@ -1068,6 +1160,107 @@ async function publishManifest() {
 }
 
 // ── API Helper ─────────────────────────────────────────────────────
+// ── Users management (admin) ───────────────────────────────────────
+async function renderUsers() {
+  const tbody = document.getElementById('users-tbody');
+  const empty = document.getElementById('users-empty');
+  if (!tbody) return;
+  try {
+    const resp = await apiFetch('/api/users');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const users = await resp.json();
+    tbody.innerHTML = '';
+    if (!users.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+
+    for (const u of users) {
+      const isSelf = currentUser && u.id === currentUser.id;
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${esc(u.email)}${isSelf ? ' <span class="hint">(you)</span>' : ''}</td>` +
+        `<td>${esc(u.displayName || '—')}</td>` +
+        `<td>${esc(u.role)}</td>` +
+        `<td>${esc(u.status)}</td>` +
+        `<td class="actions-cell"></td>`;
+      const actions = tr.querySelector('.actions-cell');
+      if (!isSelf) {
+        const roleBtn = mkBtn(u.role === 'admin' ? 'Make user' : 'Make admin', 'btn btn-sm',
+          () => patchUser(u.id, { role: u.role === 'admin' ? 'user' : 'admin' }));
+        const statusBtn = mkBtn(u.status === 'active' ? 'Disable' : 'Enable', 'btn btn-sm',
+          () => patchUser(u.id, { status: u.status === 'active' ? 'disabled' : 'active' }));
+        const delBtn = mkBtn('Delete', 'btn btn-sm btn-danger',
+          () => showConfirm(`Delete ${u.email}?`, () => deleteUser(u.id)));
+        actions.append(roleBtn, statusBtn, delBtn);
+      }
+      tbody.appendChild(tr);
+    }
+  } catch (err) {
+    toast(`Could not load users: ${err.message}`, 'error');
+  }
+}
+
+function mkBtn(label, className, onClick) {
+  const b = document.createElement('button');
+  b.className = className;
+  b.textContent = label;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+async function patchUser(id, changes) {
+  try {
+    const resp = await apiFetch(`/api/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(changes) });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) return toast(body.error || `Update failed: ${resp.status}`, 'error');
+    toast('User updated.');
+    renderUsers();
+  } catch (err) { toast(`Update failed: ${err.message}`, 'error'); }
+}
+
+async function deleteUser(id) {
+  try {
+    const resp = await apiFetch(`/api/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) return toast(body.error || `Delete failed: ${resp.status}`, 'error');
+    toast('User deleted.');
+    renderUsers();
+  } catch (err) { toast(`Delete failed: ${err.message}`, 'error'); }
+}
+
+function openInviteModal() {
+  document.getElementById('invite-form').reset();
+  document.getElementById('invite-result').style.display = 'none';
+  document.getElementById('btn-send-invite').style.display = '';
+  document.getElementById('invite-modal').classList.add('open');
+}
+
+function closeInviteModal() {
+  document.getElementById('invite-modal').classList.remove('open');
+}
+
+async function submitInvite(e) {
+  e.preventDefault();
+  const email = document.getElementById('invite-email').value.trim();
+  const role = document.getElementById('invite-role').value;
+  if (!email) return;
+  try {
+    const resp = await apiFetch('/api/users/invite', { method: 'POST', body: JSON.stringify({ email, role }) });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) return toast(body.error || `Invite failed: ${resp.status}`, 'error');
+
+    const link = `${location.origin}${location.pathname}#invite=${encodeURIComponent(body.inviteToken)}`;
+    const linkEl = document.getElementById('invite-link');
+    linkEl.value = link;
+    document.getElementById('invite-result').style.display = '';
+    document.getElementById('btn-send-invite').style.display = 'none';
+    linkEl.focus();
+    linkEl.select();
+    toast('Invite created — copy the link.');
+  } catch (err) {
+    toast(`Invite failed: ${err.message}`, 'error');
+  }
+}
+
 function apiFetch(path, options = {}) {
   const url = `${API_URL}${path}`;
   const headers = {

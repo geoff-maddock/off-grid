@@ -233,11 +233,14 @@ python3 -m http.server 8080
 # open http://localhost:8080/admin/
 ```
 
-**Login** with:
+**Login** with your **Worker URL**, **R2 Public URL**, and **email + password**.
 
-- **Worker URL** — your deployed Worker (e.g. `https://offgrid-api.YOUR-SUBDOMAIN.workers.dev`)
-- **R2 Public URL** — your bucket's public URL (e.g. `https://pub-xxxxxxxx.r2.dev`)
-- **Admin token** — the password you set with `wrangler secret put ADMIN_TOKEN`
+First time? There are no accounts yet, so click **First-time setup** and provide your `ADMIN_TOKEN`
+(the `wrangler secret`) plus the email/password for the initial admin — this calls `/auth/bootstrap`
+to create your account. After that you sign in with email + password (a JWT session).
+
+To add more people: as an admin, open the **Users** tab → **Invite User**, then send them the
+generated invite link (it opens the admin to an "accept invite" screen where they set a password).
 
 Or click **Use offline** to edit the local `data/manifest.json` without a backend.
 
@@ -252,6 +255,7 @@ Or click **Use offline** to edit the local `data/manifest.json` without a backen
 - **Tracklists** — paste a tracklist into one field; the admin parses each line (timestamp, artist,
   title) into individual tracks on save. The structured `tracks` array is included in the manifest.
 - **Search & sort** — filter by title, artist, or tags
+- **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
 - **Publish** — generate `manifest.json` from D1 and write it to R2
 - **Import / Export** — back up or restore `manifest.json`
 
@@ -297,6 +301,26 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `peaks`    | No       | URL to a pre-computed peaks JSON file (see [Peaks](#peaks)) |
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
+
+**Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
+click-to-seek. Provide it either as a JS property (used by the player page from the manifest):
+
+```js
+player.tracks = [
+  { time: "00:00", seconds: 0,   artist: "Artist A", title: "Opening Track" },
+  { time: "04:32", seconds: 272, artist: "Artist B", title: "Second Track"  }
+];
+```
+
+…or inline for a static embed, via a child `<script type="application/json" class="tracklist">`:
+
+```html
+<offgrid-player src="…" title="…">
+  <script type="application/json" class="tracklist">
+    [ { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track" } ]
+  </script>
+</offgrid-player>
+```
 
 ### `<offgrid-playlist>` — multiple tracks
 

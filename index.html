@@ -460,6 +460,7 @@
           if (mix.color) player.setAttribute('color', mix.color);
           if (mix.description) player.setAttribute('description', mix.description);
           if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
+          if (mix.tracks && mix.tracks.length > 0) player.tracks = mix.tracks;
 
           div.appendChild(player);
           stack.appendChild(div);

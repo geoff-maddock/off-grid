@@ -27,10 +27,21 @@ class OffgridPlayer extends HTMLElement {
     this._playOnReady = false;
     this._peaksData = null;
     this._peaksDuration = null;
+    this._tracks = [];
+    this._seekOnReady = null;
   }
 
   connectedCallback() {
     this._render();
+    // Optional inline tracklist for static embeds:
+    //   <script type="application/json" class="tracklist">[ {time, seconds, artist, title}, … ]</script>
+    if (!this._tracks.length) {
+      const tlEl = this.querySelector('script[type="application/json"].tracklist');
+      if (tlEl) {
+        try { this._tracks = JSON.parse(tlEl.textContent) || []; } catch (e) { /* ignore */ }
+      }
+    }
+    this._renderTracklist();
     this._peaksPromise = this._loadPeaksAndShow();
   }
 
@@ -470,6 +481,42 @@ class OffgridPlayer extends HTMLElement {
           display: inline-flex;
         }
 
+        /* Tracklist */
+        .tracklist-panel {
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 0.3s ease;
+        }
+        .tracklist-panel.open {
+          max-height: 320px;
+          overflow-y: auto;
+        }
+        .tracklist-list {
+          list-style: none;
+          margin: 0;
+          padding: 4px 14px 10px;
+          font-size: 12px;
+        }
+        .tracklist-list .tl-item {
+          display: flex;
+          gap: 8px;
+          padding: 4px 0;
+          color: var(--text);
+          border-top: 1px solid #2a2a2a;
+        }
+        .tracklist-list .tl-item:first-child { border-top: none; }
+        .tracklist-list .tl-time {
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          color: var(--text-muted);
+          flex-shrink: 0;
+          min-width: 42px;
+        }
+        .tracklist-list .tl-item.seekable { cursor: pointer; }
+        .tracklist-list .tl-item.seekable:hover,
+        .tracklist-list .tl-item.seekable:hover .tl-time { color: var(--accent); }
+        .tracklist-list .tl-label { line-height: 1.4; }
+
         .desc-panel {
           max-height: 0;
           overflow: hidden;
@@ -766,6 +813,9 @@ class OffgridPlayer extends HTMLElement {
             <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
+            <button class="more-btn tracklist-btn" id="tracklist-btn" style="display:none">
+              Tracklist <span class="tl-count"></span> <span class="chevron">&#9662;</span>
+            </button>
             <button class="more-btn" id="more-btn">
               More <span class="chevron">&#9662;</span>
             </button>
@@ -793,6 +843,10 @@ class OffgridPlayer extends HTMLElement {
 
         <div class="embed-panel" id="embed-panel">
           <div class="embed-code" id="embed-code"><button class="embed-copy-btn" id="embed-copy-btn">Copy</button></div>
+        </div>
+
+        <div class="tracklist-panel" id="tracklist-panel">
+          <ol class="tracklist-list" id="tracklist-list"></ol>
         </div>
       </div>
     `;
@@ -923,6 +977,25 @@ class OffgridPlayer extends HTMLElement {
         }, 2000);
       });
     });
+
+    // Tracklist toggle + click-to-seek
+    const tlBtn = this.shadowRoot.querySelector('#tracklist-btn');
+    const tlPanel = this.shadowRoot.querySelector('#tracklist-panel');
+    const tlList = this.shadowRoot.querySelector('#tracklist-list');
+    if (tlBtn && tlPanel) {
+      tlBtn.addEventListener('click', () => {
+        const isOpen = tlPanel.classList.toggle('open');
+        tlBtn.classList.toggle('open', isOpen);
+      });
+    }
+    if (tlList) {
+      tlList.addEventListener('click', (e) => {
+        const li = e.target.closest('.tl-item');
+        if (!li) return;
+        const t = this._tracks[parseInt(li.dataset.i, 10)];
+        if (t && Number.isFinite(t.seconds)) this._seekTo(t.seconds);
+      });
+    }
   }
 
   // Called on first play click — initializes WaveSurfer and auto-plays when ready
@@ -1036,6 +1109,10 @@ class OffgridPlayer extends HTMLElement {
       const dur = this._ws.getDuration();
       this.shadowRoot.querySelector('.time-total').textContent = this._fmt(dur);
 
+      if (this._seekOnReady != null) {
+        this._wsSeek(this._seekOnReady);
+        this._seekOnReady = null;
+      }
       if (this._playOnReady) {
         this._playOnReady = false;
         this._ws.play();
@@ -1229,6 +1306,65 @@ class OffgridPlayer extends HTMLElement {
   pause() { if (this._ws) this._ws.pause(); }
   stop() { if (this._ws) { this._ws.stop(); this.removeAttribute('playing'); } }
   isPlaying() { return this._ws ? this._ws.isPlaying() : false; }
+
+  // Tracklist: array of { time?, seconds?, artist?, title? }
+  set tracks(arr) {
+    this._tracks = Array.isArray(arr) ? arr : [];
+    this._renderTracklist();
+  }
+  get tracks() { return this._tracks; }
+
+  _renderTracklist() {
+    if (!this.shadowRoot) return;
+    const btn = this.shadowRoot.getElementById('tracklist-btn');
+    const list = this.shadowRoot.getElementById('tracklist-list');
+    if (!btn || !list) return;
+
+    const tracks = this._tracks || [];
+    if (!tracks.length) {
+      btn.style.display = 'none';
+      list.innerHTML = '';
+      return;
+    }
+    btn.style.display = 'inline-flex';
+    const count = btn.querySelector('.tl-count');
+    if (count) count.textContent = `(${tracks.length})`;
+
+    list.innerHTML = tracks.map((t, i) => {
+      const seekable = Number.isFinite(t.seconds);
+      const time = t.time || (seekable ? this._fmt(t.seconds) : '');
+      const label = [t.artist, t.title].filter(Boolean).map((s) => this._esc(s)).join(' &ndash; ');
+      return `<li class="tl-item${seekable ? ' seekable' : ''}" data-i="${i}">` +
+        `<span class="tl-time">${this._esc(time) || '&middot;'}</span>` +
+        `<span class="tl-label">${label || '<em>untitled</em>'}</span></li>`;
+    }).join('');
+  }
+
+  // Seek to a position (seconds), initializing/playing the audio if needed.
+  _seekTo(seconds) {
+    if (this._ready && this._ws) {
+      this._wsSeek(seconds);
+      if (!this._ws.isPlaying()) this._ws.play();
+      return;
+    }
+    this._seekOnReady = seconds;
+    if (!this._initialized) this._initAndPlay();
+  }
+
+  _wsSeek(seconds) {
+    if (!this._ws) return;
+    if (typeof this._ws.setTime === 'function') {
+      this._ws.setTime(seconds);
+    } else {
+      const dur = this._ws.getDuration() || this._peaksDuration || 0;
+      if (dur > 0) this._ws.seekTo(Math.min(1, Math.max(0, seconds / dur)));
+    }
+  }
+
+  _esc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   _fmt(secs) {
     if (!secs || isNaN(secs)) return '0:00';

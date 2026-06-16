@@ -27,6 +27,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="mixes">Mixes</button>
       <button class="tab" data-tab="playlists">Playlists</button>
+      <button class="tab" data-tab="users" id="tab-users" style="display:none">Users</button>
     </div>
 
     <!-- Mixes Tab -->
@@ -80,6 +81,33 @@
 
       <div class="empty-state" id="playlist-empty" style="display:none">
         No playlists yet. Click "Add Playlist" to get started.
+      </div>
+    </div>
+
+    <!-- Users Tab (admins only) -->
+    <div class="tab-panel" id="panel-users">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <span class="hint" id="users-me"></span>
+        </div>
+        <button class="btn btn-primary" id="btn-invite">+ Invite User</button>
+      </div>
+
+      <table class="data-table" id="users-table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th class="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+
+      <div class="empty-state" id="users-empty" style="display:none">
+        No users yet.
       </div>
     </div>
 
@@ -225,6 +253,35 @@
         <div class="modal-footer">
           <button type="button" class="btn" id="btn-cancel-playlist">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-save-playlist">Save Playlist</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Invite User Modal -->
+  <div class="modal-overlay" id="invite-modal">
+    <div class="modal">
+      <h2>Invite User</h2>
+      <form id="invite-form">
+        <div class="form-group">
+          <label for="invite-email">Email</label>
+          <input type="email" id="invite-email" required placeholder="person@example.com">
+        </div>
+        <div class="form-group">
+          <label for="invite-role">Role</label>
+          <select id="invite-role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="form-group" id="invite-result" style="display:none">
+          <label for="invite-link">Invite link — send this to the person</label>
+          <input type="text" id="invite-link" readonly onclick="this.select()">
+          <div class="hint">They open it to set a password. Shown once — copy it now.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="btn-cancel-invite">Close</button>
+          <button type="submit" class="btn btn-primary" id="btn-send-invite">Create Invite</button>
         </div>
       </form>
     </div>
