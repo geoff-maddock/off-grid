@@ -785,6 +785,11 @@ function setProgressError(el, text) {
  * files < 95MB, presigned PUT for larger. Returns the public R2 URL.
  */
 async function uploadBlobToR2(blob, key, { onProgress } = {}) {
+  // Without a public bucket URL we'd store a relative key, which the player
+  // page then resolves against its own origin (e.g. localhost). Refuse instead.
+  if (!R2_PUBLIC_URL) {
+    throw new Error('R2 Public URL is not set — log out and log in again, filling the "R2 Public URL" field.');
+  }
   const contentType = blob.type || 'application/octet-stream';
 
   if (blob.size < 95 * 1024 * 1024) {
@@ -1059,6 +1064,7 @@ async function submitLogin(mode, inviteToken, showErr) {
   const apiUrl = (document.getElementById('login-api-url').value || '').trim().replace(/\/+$/, '');
   const r2Url = (document.getElementById('login-r2-url').value || '').trim().replace(/\/+$/, '');
   if (!apiUrl) return showErr('Worker URL is required.');
+  if (!r2Url) return showErr('R2 Public URL is required (uploaded files are referenced from it).');
 
   try {
     let resp;
