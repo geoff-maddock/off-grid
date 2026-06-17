@@ -26,7 +26,7 @@ Later migration (Phase 2+): `user_storage` table (encrypted BYO-R2 creds), `owne
 
 ## Auth subsystem
 
-- `crypto.js` — PBKDF2-HMAC-SHA256 (~150k iters, per-user salt) `hashPassword`/`verifyPassword`;
+- `crypto.js` — PBKDF2-HMAC-SHA256 (100k iters — the Workers runtime cap, per-user salt) `hashPassword`/`verifyPassword`;
   SHA-256 `hashToken`; (later) AES-256-GCM `encryptSecret`/`decryptSecret` for BYO-R2 creds.
 - `jwt.js` — HS256 `signJwt`/`verifyJwt` using secret `JWT_SECRET`. Payload `{sub, role, tv, exp}`.
 - `auth.js` rewrite — `authenticate()` verifies JWT, loads the user, rejects if `status != active` or
@@ -69,7 +69,7 @@ Later migration (Phase 2+): `user_storage` table (encrypted BYO-R2 creds), `owne
 
 ## Security checklist
 
-PBKDF2 ≥150k + per-user salt + constant-time compare; JWT expiry + token_version revocation +
+PBKDF2 100k (Workers cap) + per-user salt + constant-time compare; JWT expiry + token_version revocation +
 per-request status check; encrypt BYO-R2 secrets at rest (server can decrypt for presign — documented
 residual trust); login rate-limiting; HTTPS; hard tenant-prefix enforcement on every R2 op.
 

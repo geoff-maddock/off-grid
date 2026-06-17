@@ -6,7 +6,8 @@
  * (bcrypt/scrypt/argon2 would require a WASM dependency; PBKDF2 is native.)
  */
 
-const PBKDF2_ITERATIONS = 150000;
+// Cloudflare Workers' WebCrypto caps PBKDF2 at 100,000 iterations.
+const PBKDF2_ITERATIONS = 100000;
 const SALT_BYTES = 16;
 const HASH_BITS = 256;
 
