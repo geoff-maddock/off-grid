@@ -281,6 +281,11 @@ Each account owns its own mixes and playlists — a user only sees and edits the
 any existing embeds keep working. Admins can invite people and manage accounts from the **Users**
 tab. (Roles today: an `admin` can manage users; a `user` cannot — content is otherwise per-owner.)
 
+Uploaded files are namespaced per user too: each account's audio, covers, and peaks live under
+`users/<id>/audio|covers|peaks/…` in R2, and the Worker enforces that prefix on every upload — so
+users can't collide with or reach each other's files. (Files uploaded before this change keep their
+original keys; their stored URLs are absolute, so they keep working.)
+
 ### Viewing & sharing a library
 
 After Publish, the admin shows your **manifest URL** and a **▶ Preview** button. There are three ways
