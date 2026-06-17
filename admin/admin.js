@@ -1188,9 +1188,37 @@ async function publishManifest() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     toast(`Published: ${data.mixCount} mixes, ${data.playlistCount} playlists.`);
+    if (data.manifestKey && R2_PUBLIC_URL) {
+      showManifestUrl(`${R2_PUBLIC_URL}/${data.manifestKey}`, data.legacyManifest);
+    }
   } catch (err) {
     toast('Publish failed: ' + err.message, 'error');
   }
+}
+
+// Show the user's manifest URL (what they embed) after a publish.
+function showManifestUrl(url, isLegacy) {
+  let bar = document.getElementById('manifest-url-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'manifest-url-bar';
+    bar.style.cssText = 'margin:0 0 16px;padding:10px 14px;background:#161616;border:1px solid #2a2a2a;border-radius:6px;font-size:12px;display:flex;gap:10px;align-items:center;';
+    const panel = document.getElementById('panel-mixes');
+    panel.insertBefore(bar, panel.firstChild);
+  }
+  // The admin lives at <site>/admin/, so the player page is one level up.
+  const playerBase = new URL('..', location.href).href;
+  const previewUrl = `${playerBase}?manifest=${encodeURIComponent(url)}`;
+
+  bar.innerHTML = `
+    <span style="color:#888;white-space:nowrap;">Your manifest URL${isLegacy ? ' (also at the legacy path)' : ''}:</span>
+    <input type="text" readonly value="${url}" onclick="this.select()"
+      style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:4px;color:#f0f0f0;padding:6px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;">
+    <button class="btn btn-sm" id="copy-manifest-url">Copy</button>
+    <a class="btn btn-sm btn-primary" id="preview-manifest" href="${previewUrl}" target="_blank" rel="noopener" style="white-space:nowrap;">▶ Preview</a>`;
+  document.getElementById('copy-manifest-url').addEventListener('click', () => {
+    navigator.clipboard.writeText(url).then(() => toast('Manifest URL copied.'));
+  });
 }
 
 // ── API Helper ─────────────────────────────────────────────────────

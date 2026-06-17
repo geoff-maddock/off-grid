@@ -4,15 +4,16 @@
 
 import {
   listPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist,
-  addMixToPlaylist, removeMixFromPlaylist
+  addMixToPlaylist, removeMixFromPlaylist, resolveOwnerId
 } from '../db.js';
 
-export async function handlePlaylists(request, env, path, method) {
+export async function handlePlaylists(request, env, path, method, user) {
   const db = env.DB;
+  const ownerId = await resolveOwnerId(db, user); // scope all reads/writes to this owner
 
   // GET /api/playlists
   if (method === 'GET' && path === '/api/playlists') {
-    const playlists = await listPlaylists(db);
+    const playlists = await listPlaylists(db, ownerId);
     return jsonResponse(playlists);
   }
 
@@ -23,7 +24,7 @@ export async function handlePlaylists(request, env, path, method) {
 
   // GET /api/playlists/:id
   if (method === 'GET' && plMatch) {
-    const pl = await getPlaylist(db, decodeURIComponent(plMatch[1]));
+    const pl = await getPlaylist(db, decodeURIComponent(plMatch[1]), ownerId);
     if (!pl) return jsonResponse({ error: 'Playlist not found' }, 404);
     return jsonResponse(pl);
   }
@@ -34,18 +35,18 @@ export async function handlePlaylists(request, env, path, method) {
     if (!body.id || !body.title) {
       return jsonResponse({ error: 'id and title are required' }, 400);
     }
-    const existing = await getPlaylist(db, body.id);
+    const existing = await getPlaylist(db, body.id); // IDs globally unique in this phase
     if (existing) {
       return jsonResponse({ error: 'Playlist with this ID already exists' }, 409);
     }
-    const pl = await createPlaylist(db, body);
+    const pl = await createPlaylist(db, { ...body, ownerId });
     return jsonResponse(pl, 201);
   }
 
   // PUT /api/playlists/:id
   if (method === 'PUT' && plMatch) {
     const id = decodeURIComponent(plMatch[1]);
-    const existing = await getPlaylist(db, id);
+    const existing = await getPlaylist(db, id, ownerId); // 404 if not yours
     if (!existing) return jsonResponse({ error: 'Playlist not found' }, 404);
     const body = await request.json();
     if (!body.title) {
@@ -58,7 +59,7 @@ export async function handlePlaylists(request, env, path, method) {
   // DELETE /api/playlists/:id
   if (method === 'DELETE' && plMatch) {
     const id = decodeURIComponent(plMatch[1]);
-    const existing = await getPlaylist(db, id);
+    const existing = await getPlaylist(db, id, ownerId); // 404 if not yours
     if (!existing) return jsonResponse({ error: 'Playlist not found' }, 404);
     await deletePlaylist(db, id);
     return jsonResponse({ deleted: id });
@@ -67,21 +68,23 @@ export async function handlePlaylists(request, env, path, method) {
   // POST /api/playlists/:id/mixes — add a mix to playlist
   if (method === 'POST' && plMixMatch) {
     const playlistId = decodeURIComponent(plMixMatch[1]);
+    if (!(await getPlaylist(db, playlistId, ownerId))) return jsonResponse({ error: 'Playlist not found' }, 404);
     const body = await request.json();
     if (!body.mixId) {
       return jsonResponse({ error: 'mixId is required' }, 400);
     }
     await addMixToPlaylist(db, playlistId, body.mixId);
-    const pl = await getPlaylist(db, playlistId);
+    const pl = await getPlaylist(db, playlistId, ownerId);
     return jsonResponse(pl);
   }
 
   // DELETE /api/playlists/:id/mixes/:mixId — remove a mix from playlist
   if (method === 'DELETE' && plMixDelMatch) {
     const playlistId = decodeURIComponent(plMixDelMatch[1]);
+    if (!(await getPlaylist(db, playlistId, ownerId))) return jsonResponse({ error: 'Playlist not found' }, 404);
     const mixId = decodeURIComponent(plMixDelMatch[2]);
     await removeMixFromPlaylist(db, playlistId, mixId);
-    const pl = await getPlaylist(db, playlistId);
+    const pl = await getPlaylist(db, playlistId, ownerId);
     return jsonResponse(pl);
   }
 

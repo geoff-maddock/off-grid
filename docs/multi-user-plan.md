@@ -75,8 +75,9 @@ residual trust); login rate-limiting; HTTPS; hard tenant-prefix enforcement on e
 
 ## Phasing
 
-1. **Accounts & auth** — migration, crypto/jwt, auth rewrite, login/invite/users endpoints, admin login + Users panel. *(content still global; legacy token bootstrap)*
-2. **Ownership** — owner_id + per-user mix-id uniqueness, query scoping, per-user manifest + player URL.
+1. ✅ **Accounts & auth** — migration 002, crypto/jwt, auth rewrite, login/invite/users endpoints, admin login + Users panel. *(shipped)*
+2a. ✅ **Ownership (basic)** — migration 004 adds `owner_id` (IDs stay global), query scoping by owner, per-user manifest publish (`users/<id>/data/manifest.json`); the instance owner also writes the legacy `data/manifest.json` for backward-compat. Admin shows your manifest URL on publish. *(shipped)*
+2b. **Ownership (namespaces)** — per-user mix-id uniqueness `(owner_id, id)` via a surrogate PK. *(deferred — riskiest migration)*
 3. **Per-user prefixes** — tenant-scoped R2 keys + public-URL derivation (shared mode).
 4. **BYO-R2** — user_storage, encryption, presign-with-user-creds, Storage panel.
 5. **Polish** — onboarding CLI, data-migration helpers, rate limiting, docs.
