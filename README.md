@@ -103,9 +103,10 @@ If you get `401`, your `ADMIN_TOKEN` header doesn't match the secret. If `500` a
 credentials, re-check the three R2/account secrets.
 
 **Stage 4 — Frontend wiring**
-- Set `MANIFEST_URL` in `index.html` to `https://pub-xxxxxxxx.r2.dev/data/manifest.json`.
+- Point the player page at your manifest (see [step 4](#4-point-the-player-page-at-your-manifest)) —
+  `cp config.local.example.js config.local.js` and set your R2 URL, or just use `?manifest=…`.
 - Upload `audio-player.js` to R2 (or your own host) so embeds elsewhere can load it.
-✓ Checkpoint: `index.html` points at your real R2 manifest URL.
+✓ Checkpoint: opening `index.html` (with the param or local config) lists your mixes.
 
 **Stage 5 — First content**
 Serve the admin locally (`python3 -m http.server 8080` → `http://localhost:8080/admin/`), log in
@@ -201,11 +202,17 @@ The deploy prints your Worker URL, e.g. `https://offgrid-api.YOUR-SUBDOMAIN.work
 
 ### 4. Point the player page at your manifest
 
-In `index.html`, set `MANIFEST_URL` to your R2 manifest:
+The public page (`index.html`) resolves its manifest URL in this order, so you don't have to edit
+(and risk committing) your real bucket URL in the tracked file:
 
-```javascript
-const MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
-```
+1. **`?manifest=<url>` query param** — best for quick local testing:
+   `index.html?manifest=https://pub-xxxxxxxx.r2.dev/data/manifest.json`
+2. **`config.local.js`** (gitignored) — a persistent local default:
+   ```bash
+   cp config.local.example.js config.local.js
+   # then set:  window.OFFGRID_MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
+   ```
+3. The placeholder in `index.html` — only change this if you want a committed default.
 
 ### 5. Host `audio-player.js`
 
@@ -425,6 +432,7 @@ node scripts/migrate-to-r2.js
 off-grid/
   index.html             # Public player page (loads manifest.json from R2)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
+  config.local.example.js # Copy to config.local.js (gitignored) to set your manifest URL
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   admin/
     index.html           # Admin SPA shell
