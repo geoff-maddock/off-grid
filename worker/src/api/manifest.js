@@ -2,32 +2,39 @@
  * Manifest generation and publish-to-R2 handler.
  */
 
-import { generateManifest } from '../db.js';
+import { generateManifest, resolveOwnerId, getOwnerUserId } from '../db.js';
 
-export async function handleManifest(request, env, path, method) {
+export async function handleManifest(request, env, path, method, user) {
   const db = env.DB;
+  const ownerId = await resolveOwnerId(db, user); // publish/return only this owner's content
 
-  // GET /api/manifest — generate and return manifest JSON
+  // GET /api/manifest — generate and return manifest JSON for the current owner
   if (method === 'GET' && path === '/api/manifest') {
-    const manifest = await generateManifest(db);
+    const manifest = await generateManifest(db, ownerId);
     return jsonResponse(manifest);
   }
 
-  // POST /api/manifest/publish — generate manifest and write to R2
+  // POST /api/manifest/publish — write the owner's manifest to R2
   if (method === 'POST' && path === '/api/manifest/publish') {
-    const manifest = await generateManifest(db);
-    const json = JSON.stringify(manifest, null, 2);
+    if (!ownerId) return jsonResponse({ error: 'No owner could be resolved for this session' }, 400);
 
-    // Write to R2 as a static file
-    await env.BUCKET.put('data/manifest.json', json, {
-      httpMetadata: {
-        contentType: 'application/json',
-        cacheControl: 'public, max-age=60',
-      },
-    });
+    const manifest = await generateManifest(db, ownerId);
+    const json = JSON.stringify(manifest, null, 2);
+    const opts = { httpMetadata: { contentType: 'application/json', cacheControl: 'public, max-age=60' } };
+
+    // Per-user manifest — this is the URL each user embeds.
+    const manifestKey = `users/${ownerId}/data/manifest.json`;
+    await env.BUCKET.put(manifestKey, json, opts);
+
+    // The instance owner also writes the legacy path so existing embeds that
+    // point at data/manifest.json keep working unchanged.
+    const isOwner = ownerId === (await getOwnerUserId(db));
+    if (isOwner) await env.BUCKET.put('data/manifest.json', json, opts);
 
     return jsonResponse({
       published: true,
+      manifestKey,
+      legacyManifest: isOwner,
       mixCount: manifest.mixes.length,
       playlistCount: manifest.playlists.length,
     });

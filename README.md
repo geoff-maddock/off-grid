@@ -186,6 +186,8 @@ npx wrangler d1 create offgrid-db
 npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/002_users_multitenant.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
+# 004 backfills existing content to the first admin — run it AFTER bootstrapping your admin account
+npx wrangler d1 execute offgrid-db --remote --file=migrations/004_content_ownership.sql
 
 # Set secrets
 npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
@@ -263,12 +265,35 @@ Or click **Use offline** to edit the local `data/manifest.json` without a backen
   title) into individual tracks on save. The structured `tracks` array is included in the manifest.
 - **Search & sort** — filter by title, artist, or tags
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
-- **Publish** — generate `manifest.json` from D1 and write it to R2
+- **Publish** — write your library's `manifest.json` to R2. Afterward the admin shows **your manifest
+  URL** plus a **▶ Preview** button (see [Viewing & sharing a library](#viewing--sharing-a-library)).
 - **Import / Export** — back up or restore `manifest.json`
 
 > Auto-generation decodes the audio at a low sample rate to stay memory-friendly. For an
 > exceptionally long mix where in-browser decoding fails, the audio still uploads — generate its
 > peaks with `node generate-peaks.js` (see below) and add the file under **Advanced**.
+
+### Multi-user & ownership
+
+Each account owns its own mixes and playlists — a user only sees and edits their own content, and
+**Publish** writes a **per-user manifest** to `users/<id>/data/manifest.json`. The instance owner
+(the first admin) additionally writes the shared `data/manifest.json`, so the main player page and
+any existing embeds keep working. Admins can invite people and manage accounts from the **Users**
+tab. (Roles today: an `admin` can manage users; a `user` cannot — content is otherwise per-owner.)
+
+### Viewing & sharing a library
+
+After Publish, the admin shows your **manifest URL** and a **▶ Preview** button. There are three ways
+to play/share a library:
+
+1. **▶ Preview** — opens the player page pointed at your manifest:
+   `https://<your-site>/?manifest=<your-manifest-url>`. Share that link and anyone can listen.
+2. **The whole library** renders from any manifest URL via the `?manifest=` param (see
+   [step 4](#4-point-the-player-page-at-your-manifest)) — no install needed.
+3. **A single mix** can be embedded anywhere with the web component (see [Embedding](#embedding)),
+   using the `src`/`peaks`/`tracks` values from the manifest.
+
+Everything is served from your public R2 bucket, so libraries and embeds work cross-origin from any site.
 
 ---
 

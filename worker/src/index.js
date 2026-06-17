@@ -75,13 +75,13 @@ export default {
         const key = decodeURIComponent(path.substring('/files/'.length));
         response = await handleDeleteFile(key, env);
       }
-      // ── API Routes (D1-backed CRUD) ──────────────────────────
+      // ── API Routes (D1-backed CRUD, scoped to the user) ──────
       else if (path.startsWith('/api/mixes')) {
-        response = await handleMixes(request, env, path, method);
+        response = await handleMixes(request, env, path, method, user);
       } else if (path.startsWith('/api/playlists')) {
-        response = await handlePlaylists(request, env, path, method);
+        response = await handlePlaylists(request, env, path, method, user);
       } else if (path.startsWith('/api/manifest')) {
-        response = await handleManifest(request, env, path, method);
+        response = await handleManifest(request, env, path, method, user);
       }
 
       if (!response) {

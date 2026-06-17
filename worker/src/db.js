@@ -4,22 +4,19 @@
 
 // ── Mixes ──────────────────────────────────────────────────────────
 
-export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'asc' } = {}) {
+export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'asc', ownerId } = {}) {
   const allowedSorts = ['title', 'artist', 'duration', 'release_date', 'sort_order', 'created_at'];
   const sortCol = allowedSorts.includes(sort) ? sort : 'sort_order';
   const sortDir = dir === 'desc' ? 'DESC' : 'ASC';
 
-  let sql = `SELECT * FROM mixes`;
+  const where = [];
   const params = [];
+  if (ownerId) { where.push('owner_id = ?'); params.push(ownerId); }
+  if (tag) { where.push('tags LIKE ?'); params.push(`%"${tag}"%`); }
+  else if (artist) { where.push('artist = ?'); params.push(artist); }
 
-  if (tag) {
-    sql += ` WHERE tags LIKE ?`;
-    params.push(`%"${tag}"%`);
-  } else if (artist) {
-    sql += ` WHERE artist = ?`;
-    params.push(artist);
-  }
-
+  let sql = `SELECT * FROM mixes`;
+  if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
   sql += ` ORDER BY ${sortCol} ${sortDir}`;
 
   const result = await db.prepare(sql).bind(...params).all();
@@ -30,8 +27,10 @@ export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'a
   return mixes;
 }
 
-export async function getMix(db, id) {
-  const result = await db.prepare('SELECT * FROM mixes WHERE id = ?').bind(id).first();
+// ownerId (optional) scopes the lookup — returns null if the mix isn't owned by them.
+export async function getMix(db, id, ownerId) {
+  const sql = ownerId ? 'SELECT * FROM mixes WHERE id = ? AND owner_id = ?' : 'SELECT * FROM mixes WHERE id = ?';
+  const result = await (ownerId ? db.prepare(sql).bind(id, ownerId) : db.prepare(sql).bind(id)).first();
   if (!result) return null;
   const mix = parseMixRow(result);
   mix.tracks = await getMixTracks(db, id);
@@ -39,13 +38,13 @@ export async function getMix(db, id) {
 }
 
 export async function createMix(db, mix) {
-  const sql = `INSERT INTO mixes (id, title, artist, description, src, thumb, peaks, color, tags, duration, release_date, sort_order, tracklist)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const sql = `INSERT INTO mixes (id, title, artist, description, src, thumb, peaks, color, tags, duration, release_date, sort_order, tracklist, owner_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
   await db.prepare(sql).bind(
     mix.id, mix.title, mix.artist || '', mix.description || '',
     mix.src, mix.thumb || '', mix.peaks || '', mix.color || '#ff5500',
     JSON.stringify(mix.tags || []), mix.duration || null,
-    mix.releaseDate || null, mix.sortOrder || 0, mix.tracklist || ''
+    mix.releaseDate || null, mix.sortOrder || 0, mix.tracklist || '', mix.ownerId || null
   ).run();
   await setMixTracks(db, mix.id, mix.tracks);
   return getMix(db, mix.id);
@@ -105,10 +104,11 @@ async function setMixTracks(db, mixId, tracks) {
 
 // ── Playlists ──────────────────────────────────────────────────────
 
-export async function listPlaylists(db) {
-  const result = await db.prepare(
-    'SELECT * FROM playlists ORDER BY sort_order ASC, title ASC'
-  ).all();
+export async function listPlaylists(db, ownerId) {
+  const sql = ownerId
+    ? 'SELECT * FROM playlists WHERE owner_id = ? ORDER BY sort_order ASC, title ASC'
+    : 'SELECT * FROM playlists ORDER BY sort_order ASC, title ASC';
+  const result = await (ownerId ? db.prepare(sql).bind(ownerId) : db.prepare(sql)).all();
 
   const playlists = [];
   for (const row of result.results) {
@@ -127,8 +127,9 @@ export async function listPlaylists(db) {
   return playlists;
 }
 
-export async function getPlaylist(db, id) {
-  const row = await db.prepare('SELECT * FROM playlists WHERE id = ?').bind(id).first();
+export async function getPlaylist(db, id, ownerId) {
+  const sql = ownerId ? 'SELECT * FROM playlists WHERE id = ? AND owner_id = ?' : 'SELECT * FROM playlists WHERE id = ?';
+  const row = await (ownerId ? db.prepare(sql).bind(id, ownerId) : db.prepare(sql).bind(id)).first();
   if (!row) return null;
 
   const mixes = await getPlaylistMixes(db, id);
@@ -145,11 +146,11 @@ export async function getPlaylist(db, id) {
 }
 
 export async function createPlaylist(db, pl) {
-  const sql = `INSERT INTO playlists (id, title, description, creator, thumb, color, sort_order)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`;
+  const sql = `INSERT INTO playlists (id, title, description, creator, thumb, color, sort_order, owner_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
   await db.prepare(sql).bind(
     pl.id, pl.title, pl.description || '', pl.creator || '',
-    pl.thumb || '', pl.color || '#ff5500', pl.sortOrder || 0
+    pl.thumb || '', pl.color || '#ff5500', pl.sortOrder || 0, pl.ownerId || null
   ).run();
 
   if (pl.mixIds && pl.mixIds.length > 0) {
@@ -216,9 +217,9 @@ export async function removeMixFromPlaylist(db, playlistId, mixId) {
 
 // ── Manifest Generation ────────────────────────────────────────────
 
-export async function generateManifest(db) {
-  const mixes = await listMixes(db);
-  const playlists = await listPlaylists(db);
+export async function generateManifest(db, ownerId) {
+  const mixes = await listMixes(db, { ownerId });
+  const playlists = await listPlaylists(db, ownerId);
 
   return {
     site: {
@@ -229,6 +230,23 @@ export async function generateManifest(db) {
     mixes,
     playlists,
   };
+}
+
+// ── Ownership helpers ──────────────────────────────────────────────
+
+// The instance owner = the first real admin (matches migration 004's backfill).
+export async function getOwnerUserId(db) {
+  const row = await db.prepare(
+    "SELECT id FROM users WHERE role = 'admin' AND password_hash IS NOT NULL ORDER BY created_at ASC LIMIT 1"
+  ).first();
+  return row ? row.id : null;
+}
+
+// Which owner's content a request acts on. A legacy ADMIN_TOKEN session has no
+// real user row, so it acts as the instance owner.
+export async function resolveOwnerId(db, user) {
+  if (user && user.legacy) return getOwnerUserId(db);
+  return user ? user.id : null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
