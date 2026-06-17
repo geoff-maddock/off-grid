@@ -57,9 +57,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   showApp();
 });
 
+// Parse the invite hash: #invite=<token>&api=<workerUrl>&r2=<r2PublicUrl>
+function getInviteParams() {
+  const p = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+  return { token: p.get('invite') || '', api: p.get('api') || '', r2: p.get('r2') || '' };
+}
+
 function getInviteToken() {
-  const m = (location.hash || '').match(/[#&]invite=([^&]+)/);
-  return m ? decodeURIComponent(m[1]) : '';
+  return getInviteParams().token;
 }
 
 async function loadManifest() {
@@ -1020,8 +1025,14 @@ function renderLoginForm(loginEl, mode, inviteToken) {
   const titles = { signin: 'Off Grid Admin', bootstrap: 'First-time Setup', invite: 'Accept Invite' };
   const submitLabels = { signin: 'Sign in', bootstrap: 'Create admin', invite: 'Set password & continue' };
 
-  let fields = field('login-api-url', 'Worker URL (e.g., https://offgrid-api.workers.dev)', 'text', API_URL) +
-    field('login-r2-url', 'R2 Public URL (e.g., https://pub-xxxxx.r2.dev)', 'text', R2_PUBLIC_URL);
+  // On an invite, prefill the Worker/R2 URLs the inviter embedded in the link
+  // so the invitee only needs to choose a password.
+  const inv = mode === 'invite' ? getInviteParams() : null;
+  const apiVal = (inv && inv.api) || API_URL;
+  const r2Val = (inv && inv.r2) || R2_PUBLIC_URL;
+
+  let fields = field('login-api-url', 'Worker URL (e.g., https://offgrid-api.workers.dev)', 'text', apiVal) +
+    field('login-r2-url', 'R2 Public URL (e.g., https://pub-xxxxx.r2.dev)', 'text', r2Val);
   if (mode === 'signin') {
     fields += field('login-email', 'Email', 'email') + field('login-password', 'Password', 'password');
   } else if (mode === 'bootstrap') {
@@ -1271,7 +1282,11 @@ async function submitInvite(e) {
     const body = await resp.json().catch(() => ({}));
     if (!resp.ok) return toast(body.error || `Invite failed: ${resp.status}`, 'error');
 
-    const link = `${location.origin}${location.pathname}#invite=${encodeURIComponent(body.inviteToken)}`;
+    // Embed the Worker + R2 URLs so the invitee doesn't have to be told them.
+    const hash = new URLSearchParams({ invite: body.inviteToken });
+    if (API_URL) hash.set('api', API_URL);
+    if (R2_PUBLIC_URL) hash.set('r2', R2_PUBLIC_URL);
+    const link = `${location.origin}${location.pathname}#${hash.toString()}`;
     const linkEl = document.getElementById('invite-link');
     linkEl.value = link;
     document.getElementById('invite-result').style.display = '';
