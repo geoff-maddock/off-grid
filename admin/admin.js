@@ -275,10 +275,19 @@ function renderMixes() {
 }
 
 // ── Mix Modal ──────────────────────────────────────────────────────
-function openMixModal(mix) {
+async function openMixModal(mix) {
   const modal = document.getElementById('mix-modal');
   const title = document.getElementById('mix-modal-title');
   const idField = document.getElementById('mix-id');
+
+  // In API mode, load the latest server copy so the form never edits stale data
+  // (a stale form would overwrite fields like peaks/src/thumb on save).
+  if (mix && API_URL && authToken) {
+    try {
+      const resp = await apiFetch(`/api/mixes/${encodeURIComponent(mix.id)}`);
+      if (resp.ok) mix = await resp.json();
+    } catch (_) { /* fall back to the in-memory copy */ }
+  }
 
   if (mix) {
     title.textContent = 'Edit Mix';
@@ -902,12 +911,18 @@ async function handleAudioSelected(input) {
     } catch (_) { /* non-fatal — peaks decode also yields duration */ }
 
     // 2. Generate peaks in the browser; upload audio concurrently (API mode).
-    setProgress(progressEl, offline ? 'Generating waveform…' : `Uploading ${file.name} & generating waveform…`, 0);
+    //    Very large files are skipped — decoding them in-browser would exhaust
+    //    memory. ~120 MB ≈ an hour-plus mix; use the CLI for those.
+    const sizeMb = Math.round(file.size / (1024 * 1024));
+    const tooBig = file.size > 120 * 1024 * 1024;
+    setProgress(progressEl, offline ? 'Generating waveform…' : `Uploading ${file.name}${tooBig ? '' : ' & generating waveform'}…`, 0);
 
     let peaksResult = null;
-    const peaksPromise = OffgridPeaks.generatePeaks(file)
-      .then((r) => { peaksResult = r; })
-      .catch((err) => { console.warn('Peak generation failed:', err); });
+    const peaksPromise = tooBig
+      ? Promise.resolve()
+      : OffgridPeaks.generatePeaks(file)
+        .then((r) => { peaksResult = r; })
+        .catch((err) => { console.warn('Peak generation failed:', err); });
 
     let audioUrl = null;
     if (!offline) {
@@ -942,10 +957,12 @@ async function handleAudioSelected(input) {
       }
       maybePrefillFromFilename(base);
     } else {
-      setProgressError(progressEl, offline
-        ? `Couldn't generate the waveform for this file.`
-        : `Audio uploaded — waveform couldn't be generated. Add peaks under Advanced.`);
-      toast('Waveform could not be auto-generated (see Advanced).', 'error');
+      const why = tooBig
+        ? `This mix is ${sizeMb} MB — too large to build a waveform in the browser.`
+        : `The waveform couldn't be generated in the browser.`;
+      const fix = 'Run `node generate-peaks.js <file>`, then upload the .peaks.json under Advanced and Save.';
+      setProgressError(progressEl, `${offline ? '' : 'Audio uploaded. '}${why} ${fix}`);
+      toast('Waveform needs the CLI for this file — see the upload status.', 'error');
       maybePrefillFromFilename(base);
     }
   } catch (err) {
