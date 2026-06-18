@@ -1210,7 +1210,12 @@ function showManifestUrl(url, isLegacy) {
   }
   // The admin lives at <site>/admin/, so the player page is one level up.
   const playerBase = new URL('..', location.href).href;
-  const previewUrl = `${playerBase}?manifest=${encodeURIComponent(url)}`;
+  // Prefer the clean ?user=<id> link (derived from the users/<id>/ manifest key);
+  // fall back to the explicit ?manifest=<url> form.
+  const idMatch = url.match(/\/users\/([^/]+)\/data\/manifest\.json$/);
+  const previewUrl = idMatch
+    ? `${playerBase}?user=${encodeURIComponent(idMatch[1])}`
+    : `${playerBase}?manifest=${encodeURIComponent(url)}`;
 
   bar.innerHTML = `
     <span style="color:#888;white-space:nowrap;">Your manifest URL${isLegacy ? ' (also at the legacy path)' : ''}:</span>

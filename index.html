@@ -424,11 +424,19 @@
   <!-- Load manifest and render players dynamically -->
   <script>
     // Manifest URL, resolved in order:
-    //   1. ?manifest=<url>            (quick local testing, no file edits)
-    //   2. window.OFFGRID_MANIFEST_URL (from gitignored config.local.js)
-    //   3. the placeholder below      (edit only for a committed default)
+    //   1. ?manifest=<url>            (explicit, any manifest)
+    //   2. ?user=<id>                 (a user's library: <r2 base>/users/<id>/data/manifest.json)
+    //   3. window.OFFGRID_MANIFEST_URL (from gitignored config.local.js)
+    //   4. the placeholder below      (edit only for a committed default)
+    const _params = new URLSearchParams(location.search);
+    // R2 base for ?user= — explicit OFFGRID_R2_BASE, else derived from the
+    // configured manifest URL by stripping the /data/manifest.json suffix.
+    const _r2Base = window.OFFGRID_R2_BASE
+      || (window.OFFGRID_MANIFEST_URL || '').replace(/\/data\/manifest\.json$/, '');
+    const _userId = _params.get('user');
     const MANIFEST_URL =
-      new URLSearchParams(location.search).get('manifest')
+      _params.get('manifest')
+      || (_userId && _r2Base ? `${_r2Base}/users/${encodeURIComponent(_userId)}/data/manifest.json` : '')
       || window.OFFGRID_MANIFEST_URL
       || 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
 

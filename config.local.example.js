@@ -11,3 +11,11 @@
 //
 // Alternatively, for a one-off without any file, just append a query param:
 //   index.html?manifest=https://pub-xxxxxxxx.r2.dev/data/manifest.json
+//
+// Per-user libraries can be opened with a clean route:
+//   index.html?user=<userId>
+// which resolves to <r2 base>/users/<userId>/data/manifest.json. The r2 base is
+// derived from OFFGRID_MANIFEST_URL above (its /data/manifest.json suffix is
+// stripped). If your manifest URL doesn't follow that layout, set it explicitly:
+//
+// window.OFFGRID_R2_BASE = 'https://pub-xxxxxxxx.r2.dev';
