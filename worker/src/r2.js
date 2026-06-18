@@ -1,31 +1,44 @@
 /**
  * R2 storage operations — upload via presigned URLs, list, delete.
+ *
+ * Every object key is namespaced under the caller's `users/<ownerId>/` prefix,
+ * so users can't collide with or reach each other's files.
  */
 
 import { AwsClient } from './aws-sign.js';
+import { resolveOwnerId } from './db.js';
+
+// Force a client-supplied key under the owner's namespace. Returns the scoped
+// key, or null if the key is malformed or targets another user's space.
+function scopeKey(key, ownerId) {
+  if (!ownerId) return null;
+  const k = String(key).replace(/^\/+/, '');
+  if (!k || k.includes('..') || !/^[a-zA-Z0-9\-_./]+$/.test(k)) return null;
+
+  const base = `users/${ownerId}/`;
+  if (k.startsWith(base)) return k;        // already correctly scoped
+  if (k.startsWith('users/')) return null; // attempt to target another user
+  return base + k;                         // prepend the owner's namespace
+}
 
 /**
  * Generate a presigned PUT URL for direct browser upload to R2.
  *
  * Request body: { key: "audio/my-mix.mp3", contentType: "audio/mpeg" }
- * Response: { url: "https://...", key: "audio/my-mix.mp3" }
+ * Response: { url, key }   // key is the scoped "users/<id>/audio/my-mix.mp3"
  */
-export async function handlePresign(request, env) {
+export async function handlePresign(request, env, user) {
   const { key, contentType } = await request.json();
-
   if (!key) {
     return jsonResponse({ error: 'Missing key' }, 400);
   }
 
-  // Sanitize key — only allow alphanumeric, hyphens, underscores, dots, and slashes
-  const safeKey = key.replace(/[^a-zA-Z0-9\-_./]/g, '');
-  if (safeKey !== key || key.includes('..')) {
+  const ownerId = await resolveOwnerId(env.DB, user);
+  const safeKey = scopeKey(key, ownerId);
+  if (!safeKey) {
     return jsonResponse({ error: 'Invalid key' }, 400);
   }
 
-  // Use the R2 binding to generate a presigned URL
-  // Workers R2 doesn't have native presigned URL support,
-  // so we use the S3-compatible API with AWS Signature V4
   const accountId = env.CF_ACCOUNT_ID || '';
   const accessKeyId = env.R2_ACCESS_KEY_ID || '';
   const secretAccessKey = env.R2_SECRET_ACCESS_KEY || '';
@@ -59,14 +72,19 @@ export async function handlePresign(request, env) {
 }
 
 /**
- * List objects in the R2 bucket.
- *
- * Query params: ?prefix=audio/&limit=100
- * Response: { objects: [{ key, size, uploaded }], truncated, cursor }
+ * List objects under the caller's namespace.
+ * Query params: ?prefix=audio/&limit=100  (clamped to users/<id>/)
  */
-export async function handleListFiles(request, env) {
+export async function handleListFiles(request, env, user) {
+  const ownerId = await resolveOwnerId(env.DB, user);
+  if (!ownerId) {
+    return jsonResponse({ objects: [], truncated: false, cursor: null });
+  }
+  const base = `users/${ownerId}/`;
+
   const url = new URL(request.url);
-  const prefix = url.searchParams.get('prefix') || '';
+  const requested = (url.searchParams.get('prefix') || '').replace(/^\/+/, '');
+  const prefix = requested.startsWith(base) ? requested : base + requested;
   const limit = Math.min(parseInt(url.searchParams.get('limit') || '100', 10), 1000);
   const cursor = url.searchParams.get('cursor') || undefined;
 
@@ -84,13 +102,16 @@ export async function handleListFiles(request, env) {
 }
 
 /**
- * Delete an object from R2.
- *
+ * Delete an object from R2 — only within the caller's namespace.
  * DELETE /files/:key
  */
-export async function handleDeleteFile(key, env) {
+export async function handleDeleteFile(key, env, user) {
   if (!key) {
     return jsonResponse({ error: 'Missing key' }, 400);
+  }
+  const ownerId = await resolveOwnerId(env.DB, user);
+  if (!ownerId || !key.startsWith(`users/${ownerId}/`)) {
+    return jsonResponse({ error: 'Forbidden' }, 403);
   }
 
   await env.BUCKET.delete(key);
@@ -99,19 +120,18 @@ export async function handleDeleteFile(key, env) {
 
 /**
  * Upload a file directly through the Worker (for small files < 100MB).
- * For larger files, use presigned URLs instead.
- *
- * POST /upload with file in request body
- * Headers: X-File-Key: audio/my-mix.mp3
+ * POST /upload with file in body; Header: X-File-Key: audio/my-mix.mp3
+ * Returns the scoped key.
  */
-export async function handleDirectUpload(request, env) {
+export async function handleDirectUpload(request, env, user) {
   const key = request.headers.get('X-File-Key');
   if (!key) {
     return jsonResponse({ error: 'Missing X-File-Key header' }, 400);
   }
 
-  const safeKey = key.replace(/[^a-zA-Z0-9\-_./]/g, '');
-  if (safeKey !== key || key.includes('..')) {
+  const ownerId = await resolveOwnerId(env.DB, user);
+  const safeKey = scopeKey(key, ownerId);
+  if (!safeKey) {
     return jsonResponse({ error: 'Invalid key' }, 400);
   }
 

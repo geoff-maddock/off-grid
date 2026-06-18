@@ -64,16 +64,16 @@ export default {
       else if (path.startsWith('/api/users')) {
         response = await handleUsers(request, env, path, method, user);
       }
-      // ── R2 File Operations ──────────────────────────────────
+      // ── R2 File Operations (scoped to the user's namespace) ──
       else if (method === 'POST' && path === '/presign') {
-        response = await handlePresign(request, env);
+        response = await handlePresign(request, env, user);
       } else if (method === 'POST' && path === '/upload') {
-        response = await handleDirectUpload(request, env);
+        response = await handleDirectUpload(request, env, user);
       } else if (method === 'GET' && path === '/files') {
-        response = await handleListFiles(request, env);
+        response = await handleListFiles(request, env, user);
       } else if (method === 'DELETE' && path.startsWith('/files/')) {
         const key = decodeURIComponent(path.substring('/files/'.length));
-        response = await handleDeleteFile(key, env);
+        response = await handleDeleteFile(key, env, user);
       }
       // ── API Routes (D1-backed CRUD, scoped to the user) ──────
       else if (path.startsWith('/api/mixes')) {

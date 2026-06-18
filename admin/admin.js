@@ -833,7 +833,9 @@ async function uploadBlobToR2(blob, key, { onProgress } = {}) {
     const err = await presignResp.json().catch(() => ({ error: 'Presign failed' }));
     throw new Error(err.error);
   }
-  const { url: presignedUrl } = await presignResp.json();
+  // The Worker scopes the key to the user's namespace and returns it.
+  const { url: presignedUrl, key: scopedKey } = await presignResp.json();
+  const finalKey = scopedKey || key;
 
   await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -850,7 +852,7 @@ async function uploadBlobToR2(blob, key, { onProgress } = {}) {
     xhr.send(blob);
   });
 
-  return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${key}` : key;
+  return R2_PUBLIC_URL ? `${R2_PUBLIC_URL}/${finalKey}` : finalKey;
 }
 
 // Simple uploader for cover images and manual peaks overrides.
