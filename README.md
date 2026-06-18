@@ -135,6 +135,10 @@ Open `index.html` (locally or hosted) — your mix renders and plays. Then drop 
 
 ## Quick start
 
+> Running your own independent instance? See the end-to-end
+> **[Self-hosting guide](docs/self-hosting.md)** — it ties these steps together and adds the
+> multi-user bootstrap, hosting, and invite specifics.
+
 **Prerequisites**
 
 - Node.js 18+
@@ -291,10 +295,12 @@ original keys; their stored URLs are absolute, so they keep working.)
 After Publish, the admin shows your **manifest URL** and a **▶ Preview** button. There are three ways
 to play/share a library:
 
-1. **▶ Preview** — opens the player page pointed at your manifest:
-   `https://<your-site>/?manifest=<your-manifest-url>`. Share that link and anyone can listen.
-2. **The whole library** renders from any manifest URL via the `?manifest=` param (see
-   [step 4](#4-point-the-player-page-at-your-manifest)) — no install needed.
+1. **▶ Preview / clean per-user link** — opens the player page at `https://<your-site>/?user=<id>`,
+   which the page resolves to that user's `users/<id>/data/manifest.json`. Share that link and anyone
+   can listen. (The page derives the R2 base from your configured manifest URL; override with
+   `window.OFFGRID_R2_BASE` if your layout differs.)
+2. **Any manifest** renders via the explicit `?manifest=<url>` param (see
+   [step 4](#4-point-the-player-page-at-your-manifest)) — handy for one-offs.
 3. **A single mix** can be embedded anywhere with the web component (see [Embedding](#embedding)),
    using the `src`/`peaks`/`tracks` values from the manifest.
 
