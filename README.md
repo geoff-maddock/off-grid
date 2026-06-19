@@ -301,8 +301,10 @@ to play/share a library:
    `window.OFFGRID_R2_BASE` if your layout differs.)
 2. **Any manifest** renders via the explicit `?manifest=<url>` param (see
    [step 4](#4-point-the-player-page-at-your-manifest)) — handy for one-offs.
-3. **A single mix** can be embedded anywhere with the web component (see [Embedding](#embedding)),
-   using the `src`/`peaks`/`tracks` values from the manifest.
+3. **A single mix** — add `?mix=<id>` to show just one mix on the player page (composes with the
+   above, e.g. `?user=<id>&mix=<id>` or `?manifest=<url>&mix=<id>`); the **Link** button on each row
+   in the admin copies this URL. Or embed it anywhere with the web component (see
+   [Embedding](#embedding)), using the `src`/`peaks`/`tracks` values from the manifest.
 
 Everything is served from your public R2 bucket, so libraries and embeds work cross-origin from any site.
 
