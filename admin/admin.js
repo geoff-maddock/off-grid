@@ -113,25 +113,26 @@ function bindEvents() {
   if (btnCancelInvite) btnCancelInvite.addEventListener('click', closeInviteModal);
   const inviteForm = document.getElementById('invite-form');
   if (inviteForm) inviteForm.addEventListener('submit', submitInvite);
-  const inviteModal = document.getElementById('invite-modal');
-  if (inviteModal) inviteModal.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeInviteModal();
-  });
 
   // Mix CRUD
   document.getElementById('btn-add-mix').addEventListener('click', () => openMixModal());
   document.getElementById('btn-cancel-mix').addEventListener('click', closeMixModal);
   document.getElementById('mix-form').addEventListener('submit', saveMix);
-  document.getElementById('mix-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeMixModal();
-  });
 
   // Playlist CRUD
   document.getElementById('btn-add-playlist').addEventListener('click', () => openPlaylistModal());
   document.getElementById('btn-cancel-playlist').addEventListener('click', closePlaylistModal);
   document.getElementById('playlist-form').addEventListener('submit', savePlaylist);
-  document.getElementById('playlist-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closePlaylistModal();
+
+  // Close the open modal/dialog on Escape. Modals otherwise close only via their
+  // Cancel/Save buttons — never by clicking or dragging outside the box.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const open = (id) => { const el = document.getElementById(id); return el && el.classList.contains('open'); };
+    if (open('mix-modal')) closeMixModal();
+    else if (open('playlist-modal')) closePlaylistModal();
+    else if (open('invite-modal')) closeInviteModal();
+    else if (open('confirm-dialog')) closeConfirm();
   });
 
   // Import/Export
@@ -177,6 +178,10 @@ function bindEvents() {
 
   // Live tracklist parse preview
   document.getElementById('mix-tracklist').addEventListener('input', renderTracklistPreview);
+  // After a paste, fill in any missing timestamps (evenly spaced over the mix).
+  document.getElementById('mix-tracklist').addEventListener('paste', () => {
+    setTimeout(fillMissingTimestamps, 0); // run once the pasted text has landed
+  });
   document.getElementById('playlist-color').addEventListener('input', (e) => {
     document.getElementById('playlist-color-preview').style.background = e.target.value;
   });
@@ -1446,4 +1451,46 @@ function renderTracklistPreview() {
       return `<li><span class="tl-time">${esc(t.time || '–')}</span> ${meta || '<em>(unparsed)</em>'}</li>`;
     }).join('') +
     '</ol>';
+}
+
+// Format seconds as a timestamp: "0:00", "4:32", or "1:23:45".
+function formatTimestamp(secs) {
+  secs = Math.max(0, Math.floor(secs || 0));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = String(secs % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+// Give every track line a timestamp. Lines that already have one are left
+// alone; lines without get an evenly-distributed time (position × mix duration
+// ÷ track count), so the user has sensible starting times to fine-tune.
+// Requires a known mix duration (auto-set from the audio); no-op otherwise.
+function fillMissingTimestamps() {
+  const ta = document.getElementById('mix-tracklist');
+  if (!ta) return;
+  const duration = parseFloat(document.getElementById('mix-duration').value);
+  if (!(duration > 0)) return;
+
+  const lines = ta.value.split(/\r?\n/);
+  const trackLines = [];
+  lines.forEach((ln, i) => { if (ln.trim()) trackLines.push(i); });
+  const n = trackLines.length;
+  if (!n) return;
+
+  const hasTimestamp = /\b\d{1,2}:\d{2}(?::\d{2})?\b/;
+  let changed = false;
+  trackLines.forEach((lineNo, pos) => {
+    const line = lines[lineNo];
+    if (hasTimestamp.test(line)) return; // already timestamped
+    const ts = formatTimestamp((pos * duration) / n);
+    const idx = line.match(/^(\s*\d{1,3}[.)]\s*)/); // preserve a leading "1." index
+    lines[lineNo] = idx ? `${idx[1]}${ts} ${line.slice(idx[1].length)}` : `${ts} ${line}`;
+    changed = true;
+  });
+
+  if (changed) {
+    ta.value = lines.join('\n');
+    renderTracklistPreview();
+  }
 }
