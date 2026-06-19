@@ -13,6 +13,9 @@
  *   description — Optional track description (shown via expandable "more" button)
  */
 
+// URL this script was loaded from — used to generate self-contained embed code.
+const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src) || '';
+
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
     return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags'];
@@ -1274,24 +1277,24 @@ class OffgridPlayer extends HTMLElement {
   }
 
   _generateEmbedCode() {
-    const src = this.getAttribute('src') || '';
-    const title = this.getAttribute('title') || '';
-    const artist = this.getAttribute('artist') || '';
-    const thumb = this.getAttribute('thumb') || '';
-    const peaks = this.getAttribute('peaks') || '';
-    const color = this.getAttribute('color') || '';
-    const description = this.getAttribute('description') || '';
-
+    // Every attribute the player understands, so the embed is self-contained.
+    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'duration', 'description', 'tags'];
     let attrs = '';
-    if (src) attrs += `\n  src="${src}"`;
-    if (title) attrs += `\n  title="${title}"`;
-    if (artist) attrs += `\n  artist="${artist}"`;
-    if (thumb) attrs += `\n  thumb="${thumb}"`;
-    if (peaks) attrs += `\n  peaks="${peaks}"`;
-    if (color) attrs += `\n  color="${color}"`;
-    if (description) attrs += `\n  description="${description}"`;
+    for (const name of attrNames) {
+      const value = this.getAttribute(name);
+      if (value) attrs += `\n  ${name}="${this._esc(value)}"`;
+    }
 
-    return `<script src="https://your-domain.com/audio-player.js"><\/script>\n\n<offgrid-player${attrs}>\n</offgrid-player>`;
+    // Tracklist arrives as a JS property, so serialize it as an inline JSON
+    // child — connectedCallback reads <script type="application/json" class="tracklist">.
+    let children = '\n';
+    if (this._tracks && this._tracks.length) {
+      const json = JSON.stringify(this._tracks);
+      children = `\n  <script type="application/json" class="tracklist">${json}<\/script>\n`;
+    }
+
+    const scriptSrc = OFFGRID_SCRIPT_SRC || 'https://your-domain.com/audio-player.js';
+    return `<script src="${scriptSrc}"><\/script>\n\n<offgrid-player${attrs}>${children}</offgrid-player>`;
   }
 
   // Public API
