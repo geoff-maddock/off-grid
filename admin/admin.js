@@ -261,6 +261,7 @@ function renderMixes() {
       <td>${(m.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</td>
       <td class="actions-cell">
         <button class="btn btn-sm" onclick="editMix('${esc(m.id)}')">Edit</button>
+        <button class="btn btn-sm" onclick="copyMixLink('${esc(m.id)}')" title="Copy a share link to just this mix">Link</button>
         <button class="btn btn-sm btn-danger" onclick="deleteMix('${esc(m.id)}')">Delete</button>
       </td>
     </tr>
@@ -405,6 +406,17 @@ async function saveMix(e) {
 window.editMix = function(id) {
   const mix = manifest.mixes.find(m => m.id === id);
   if (mix) openMixModal(mix);
+};
+
+// Copy a share link that opens the player page showing just this one mix.
+window.copyMixLink = function(id) {
+  const playerBase = new URL('..', location.href).href; // admin lives at <site>/admin/
+  // A real account scopes via ?user=<id>; the bootstrap/owner uses the default manifest.
+  const uid = (currentUser && currentUser.email) ? currentUser.id : null;
+  const url = uid
+    ? `${playerBase}?user=${encodeURIComponent(uid)}&mix=${encodeURIComponent(id)}`
+    : `${playerBase}?mix=${encodeURIComponent(id)}`;
+  navigator.clipboard.writeText(url).then(() => toast('Single-mix link copied.'));
 };
 
 window.deleteMix = function(id) {

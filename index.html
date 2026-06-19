@@ -260,51 +260,6 @@
       margin: 64px 0;
     }
 
-    /* Embed code block */
-    .embed-section {
-      margin-top: 64px;
-    }
-
-    .code-block {
-      background: #1a1a1a;
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
-      border-radius: 6px;
-      padding: 20px;
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 12px;
-      color: #aaa;
-      line-height: 1.7;
-      overflow-x: auto;
-      white-space: pre;
-    }
-
-    .code-block .kw {
-      color: #ff5500;
-    }
-
-    .code-block .attr {
-      color: #88aaff;
-    }
-
-    .code-block .val {
-      color: #88dd88;
-    }
-
-    .code-block .tag {
-      color: #f0f0f0;
-    }
-
-    .code-block .cm {
-      color: #555;
-    }
-
-    .embed-note {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 12px;
-      font-family: 'IBM Plex Mono', monospace;
-    }
 
     /* Loading / error states */
     .manifest-status {
@@ -377,35 +332,6 @@
     <!-- Playlists (loaded from manifest) -->
     <div id="playlists-container"></div>
 
-    <!-- -- EMBED CODE -- -->
-    <section class="embed-section">
-      <div class="section-label">Embed Anywhere</div>
-      <div class="code-block"><span class="cm">&lt;!-- Drop this on any page --&gt;</span>
-        <span class="tag">&lt;script</span> <span class="attr">src</span>=<span
-          class="val">"https://your-domain.com/audio-player.js"</span><span class="tag">&gt;&lt;/script&gt;</span>
-
-        <span class="cm">&lt;!-- Single track --&gt;</span>
-        <span class="tag">&lt;offgrid-player</span>
-        <span class="attr">src</span>=<span class="val">"https://cdn.your-domain.com/mix.mp3"</span>
-        <span class="attr">title</span>=<span class="val">"My Mix"</span>
-        <span class="attr">artist</span>=<span class="val">"DJ Name"</span>
-        <span class="attr">thumb</span>=<span class="val">"https://cdn.your-domain.com/thumb.jpg"</span>
-        <span class="attr">color</span>=<span class="val">"#ff5500"</span><span class="tag">&gt;
-          &lt;/offgrid-player&gt;</span>
-
-        <span class="cm">&lt;!-- Playlist --&gt;</span>
-        <span class="tag">&lt;offgrid-playlist</span> <span class="attr">color</span>=<span
-          class="val">"#ff5500"</span><span class="tag">&gt;</span>
-        <span class="tag">&lt;script</span> <span class="attr">type</span>=<span
-          class="val">"application/json"</span><span class="tag">&gt;</span>
-        [{"src": "track1.mp3", "title": "Track 1", "artist": "DJ Name"},
-        {"src": "track2.mp3", "title": "Track 2", "artist": "DJ Name"}]
-        <span class="tag">&lt;/script&gt;
-          &lt;/offgrid-playlist&gt;</span>
-      </div>
-      <p class="embed-note">// Files served from Cloudflare R2. Zero egress fees.</p>
-    </section>
-
     <footer>
       <span>Off Grid &mdash; Self-hosted audio</span>
       <span>Powered by <a href="https://wavesurfer.xyz">WaveSurfer.js</a> + <a
@@ -434,6 +360,7 @@
     const _r2Base = window.OFFGRID_R2_BASE
       || (window.OFFGRID_MANIFEST_URL || '').replace(/\/data\/manifest\.json$/, '');
     const _userId = _params.get('user');
+    const _mixId = _params.get('mix'); // optional: show just this one mix
     const MANIFEST_URL =
       _params.get('manifest')
       || (_userId && _r2Base ? `${_r2Base}/users/${encodeURIComponent(_userId)}/data/manifest.json` : '')
@@ -449,6 +376,19 @@
         const resp = await fetch(MANIFEST_URL);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
+
+        // Single-mix mode (?mix=<id>): show just that mix, no playlists/search.
+        if (_mixId) {
+          const one = (data.mixes || []).find(m => m.id === _mixId);
+          if (!one) {
+            if (loadingEl) { loadingEl.className = 'manifest-status error'; loadingEl.textContent = 'Mix not found.'; }
+            return;
+          }
+          data.mixes = [one];
+          data.playlists = [];
+          const searchBar = document.getElementById('search-bar');
+          if (searchBar) searchBar.style.display = 'none';
+        }
 
         // Build mix lookup
         const mixMap = new Map(data.mixes.map(m => [m.id, m]));
