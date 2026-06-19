@@ -36,16 +36,39 @@ class OffgridPlayer extends HTMLElement {
 
   connectedCallback() {
     this._render();
-    // Optional inline tracklist for static embeds:
-    //   <script type="application/json" class="tracklist">[ {time, seconds, artist, title}, … ]</script>
-    if (!this._tracks.length) {
-      const tlEl = this.querySelector('script[type="application/json"].tracklist');
-      if (tlEl) {
-        try { this._tracks = JSON.parse(tlEl.textContent) || []; } catch (e) { /* ignore */ }
-      }
-    }
-    this._renderTracklist();
+    this._initInlineTracklist();
     this._peaksPromise = this._loadPeaksAndShow();
+  }
+
+  // Read an optional inline tracklist for static embeds:
+  //   <script type="application/json" class="tracklist">[ {time, seconds, artist, title}, … ]</script>
+  // If this script runs during parsing (no `defer`, or placed before the
+  // element), the child <script> may not exist yet when we're upgraded — so
+  // re-check once the document has finished parsing.
+  _initInlineTracklist() {
+    this._readInlineTracklist();
+    this._renderTracklist();
+    if (!this._tracks.length && document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (this._readInlineTracklist()) this._renderTracklist();
+      }, { once: true });
+    }
+  }
+
+  // Returns true if it populated _tracks from the inline <script> (or it was
+  // already set via the `tracks` property).
+  _readInlineTracklist() {
+    if (this._tracks.length) return true;
+    const tlEl = this.querySelector('script[type="application/json"].tracklist');
+    if (!tlEl) return false;
+    try {
+      const data = JSON.parse(tlEl.textContent);
+      if (Array.isArray(data) && data.length) {
+        this._tracks = data;
+        return true;
+      }
+    } catch (e) { /* ignore */ }
+    return false;
   }
 
   disconnectedCallback() {
@@ -1289,7 +1312,9 @@ class OffgridPlayer extends HTMLElement {
     // child — connectedCallback reads <script type="application/json" class="tracklist">.
     let children = '\n';
     if (this._tracks && this._tracks.length) {
-      const json = JSON.stringify(this._tracks);
+      // Escape "<" so a track title containing "</script>" can't terminate the
+      // block early. "<" is valid JSON and parses back to "<".
+      const json = JSON.stringify(this._tracks).replace(/</g, '\\u003c');
       children = `\n  <script type="application/json" class="tracklist">${json}<\/script>\n`;
     }
 
