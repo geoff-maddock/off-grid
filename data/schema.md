@@ -51,6 +51,7 @@ text on save; each entry is one track.
 | `seconds` | number | No       | `time` parsed to seconds (for seeking); `null` if none |
 | `artist`  | string | No       | Track artist |
 | `title`   | string | No       | Track title |
+| `url`     | string | No       | Link for the track (e.g. Bandcamp/Discogs); rendered as a clickable link |
 
 ## `playlists` Array
 
@@ -88,10 +89,10 @@ Each entry defines an ordered collection of mixes.
       "tags": ["jungle", "hardcore"],
       "duration": 5355.23,
       "releaseDate": "2024-01-01",
-      "tracklist": "00:00 Artist A - Opening Track\n04:32 Artist B - Second Track",
+      "tracklist": "00:00 Artist A - Opening Track https://artista.bandcamp.com/track/opening\n04:32 Artist B - Second Track",
       "tracks": [
-        { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track" },
-        { "time": "04:32", "seconds": 272, "artist": "Artist B", "title": "Second Track" }
+        { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track", "url": "https://artista.bandcamp.com/track/opening" },
+        { "time": "04:32", "seconds": 272, "artist": "Artist B", "title": "Second Track", "url": "" }
       ]
     }
   ],

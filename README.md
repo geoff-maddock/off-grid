@@ -193,6 +193,7 @@ npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
 # 004 backfills existing content to the first admin — run it AFTER bootstrapping your admin account
 npx wrangler d1 execute offgrid-db --remote --file=migrations/004_content_ownership.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/005_login_attempts.sql
+npx wrangler d1 execute offgrid-db --remote --file=migrations/006_track_url.sql
 
 # Set secrets
 npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
@@ -267,7 +268,9 @@ Or click **Use offline** to edit the local `data/manifest.json` without a backen
 - **File uploads** — push audio and cover art straight to R2
 - **Playlists** — build playlists by selecting and ordering mixes
 - **Tracklists** — paste a tracklist into one field; the admin parses each line (timestamp, artist,
-  title) into individual tracks on save. The structured `tracks` array is included in the manifest.
+  title, and an optional link) into individual tracks on save. Missing timestamps are auto-filled
+  evenly across the mix; a URL on a line (e.g. a Bandcamp link) becomes a clickable link in the
+  player tracklist. The structured `tracks` array is included in the manifest.
 - **Search & sort** — filter by title, artist, or tags
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
 - **Publish** — write your library's `manifest.json` to R2. Afterward the admin shows **your manifest

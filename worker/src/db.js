@@ -77,7 +77,7 @@ export async function deleteMix(db, id) {
 
 async function getMixTracks(db, mixId) {
   const result = await db.prepare(
-    'SELECT position, time, time_seconds, artist, title FROM mix_tracks WHERE mix_id = ? ORDER BY position ASC'
+    'SELECT position, time, time_seconds, artist, title, url FROM mix_tracks WHERE mix_id = ? ORDER BY position ASC'
   ).bind(mixId).all();
   return (result.results || []).map((t) => ({
     position: t.position,
@@ -85,6 +85,7 @@ async function getMixTracks(db, mixId) {
     seconds: t.time_seconds,
     artist: t.artist || '',
     title: t.title || '',
+    url: t.url || '',
   }));
 }
 
@@ -97,8 +98,8 @@ async function setMixTracks(db, mixId, tracks) {
     const seconds = Number.isFinite(t.seconds) ? Math.round(t.seconds)
       : (Number.isFinite(t.timeSeconds) ? Math.round(t.timeSeconds) : null);
     await db.prepare(
-      'INSERT INTO mix_tracks (mix_id, position, time, time_seconds, artist, title) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(mixId, i, String(t.time || ''), seconds, String(t.artist || ''), String(t.title || '')).run();
+      'INSERT INTO mix_tracks (mix_id, position, time, time_seconds, artist, title, url) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(mixId, i, String(t.time || ''), seconds, String(t.artist || ''), String(t.title || ''), String(t.url || '')).run();
   }
 }
 
