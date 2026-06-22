@@ -542,6 +542,8 @@ class OffgridPlayer extends HTMLElement {
         .tracklist-list .tl-item.seekable:hover,
         .tracklist-list .tl-item.seekable:hover .tl-time { color: var(--accent); }
         .tracklist-list .tl-label { line-height: 1.4; }
+        .tracklist-list .tl-link { color: var(--accent); text-decoration: none; }
+        .tracklist-list .tl-link:hover { text-decoration: underline; }
 
         .desc-panel {
           max-height: 0;
@@ -1016,6 +1018,7 @@ class OffgridPlayer extends HTMLElement {
     }
     if (tlList) {
       tlList.addEventListener('click', (e) => {
+        if (e.target.closest('.tl-link')) return; // let the link open; don't seek
         const li = e.target.closest('.tl-item');
         if (!li) return;
         const t = this._tracks[parseInt(li.dataset.i, 10)];
@@ -1361,10 +1364,15 @@ class OffgridPlayer extends HTMLElement {
     list.innerHTML = tracks.map((t, i) => {
       const seekable = Number.isFinite(t.seconds);
       const time = t.time || (seekable ? this._fmt(t.seconds) : '');
-      const label = [t.artist, t.title].filter(Boolean).map((s) => this._esc(s)).join(' &ndash; ');
+      const label = [t.artist, t.title].filter(Boolean).map((s) => this._esc(s)).join(' &ndash; ') || '<em>untitled</em>';
+      // Only link http(s) URLs — never javascript:/data: etc.
+      const safeUrl = /^https?:\/\//i.test(t.url || '') ? t.url : '';
+      const labelHtml = safeUrl
+        ? `<a class="tl-link" href="${this._esc(safeUrl)}" target="_blank" rel="noopener">${label}</a>`
+        : label;
       return `<li class="tl-item${seekable ? ' seekable' : ''}" data-i="${i}">` +
         `<span class="tl-time">${this._esc(time) || '&middot;'}</span>` +
-        `<span class="tl-label">${label || '<em>untitled</em>'}</span></li>`;
+        `<span class="tl-label">${labelHtml}</span></li>`;
     }).join('');
   }
 

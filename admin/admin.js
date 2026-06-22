@@ -1403,6 +1403,17 @@ function parseTracklist(text) {
     // Strip a leading track number like "1." or "12)"
     rest = rest.replace(/^\d{1,3}[.)]\s*/, '');
 
+    // Pull out a link (e.g. Bandcamp/Discogs) before anything else, so its
+    // colons don't get mistaken for a timestamp.
+    let url = '';
+    const um = rest.match(/\bhttps?:\/\/\S+/i);
+    if (um) {
+      url = um[0].split(/["'<>`]/)[0]   // stop at any HTML/attribute-breakout char
+        .replace(/[)\].,;]+$/, '');     // trim trailing punctuation/brackets
+      rest = (rest.slice(0, um.index) + rest.slice(um.index + um[0].length)).trim();
+      rest = rest.replace(/[|–—-]\s*$/, '').trim(); // drop a trailing separator
+    }
+
     // Pull the first timestamp (MM:SS or HH:MM:SS), optionally bracketed.
     let time = '';
     let seconds = null;
@@ -1424,7 +1435,7 @@ function parseTracklist(text) {
     }
 
     if (!artist && !title) continue;
-    tracks.push({ time, seconds, artist, title });
+    tracks.push({ time, seconds, artist, title, url });
   }
   return tracks;
 }
@@ -1448,7 +1459,9 @@ function renderTracklistPreview() {
     '<ol class="tracklist-preview-list">' +
     tracks.map((t) => {
       const meta = [t.artist, t.title].filter(Boolean).map(esc).join(' — ');
-      return `<li><span class="tl-time">${esc(t.time || '–')}</span> ${meta || '<em>(unparsed)</em>'}</li>`;
+      const safe = /^https?:\/\//i.test(t.url || '');
+      const link = safe ? ` <a href="${esc(t.url)}" target="_blank" rel="noopener" title="${esc(t.url)}">🔗</a>` : '';
+      return `<li><span class="tl-time">${esc(t.time || '–')}</span> ${meta || '<em>(unparsed)</em>'}${link}</li>`;
     }).join('') +
     '</ol>';
 }
