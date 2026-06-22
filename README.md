@@ -192,6 +192,7 @@ npx wrangler d1 execute offgrid-db --remote --file=migrations/002_users_multiten
 npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
 # 004 backfills existing content to the first admin — run it AFTER bootstrapping your admin account
 npx wrangler d1 execute offgrid-db --remote --file=migrations/004_content_ownership.sql
+npx wrangler d1 execute offgrid-db --remote --file=migrations/005_login_attempts.sql
 
 # Set secrets
 npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
@@ -289,6 +290,14 @@ Uploaded files are namespaced per user too: each account's audio, covers, and pe
 `users/<id>/audio|covers|peaks/…` in R2, and the Worker enforces that prefix on every upload — so
 users can't collide with or reach each other's files. (Files uploaded before this change keep their
 original keys; their stored URLs are absolute, so they keep working.)
+
+**Production hardening.** Two things to set before a public deployment:
+- **CORS** — set `CORS_ORIGIN` (in `wrangler.toml`) to a comma-separated allowlist of the exact
+  origins your admin is served from instead of `*`, e.g. `https://your-domain.com,http://localhost:8080`.
+  The Worker echoes a request's Origin only when it's on the list.
+- **Login rate limiting** — `/auth/login` throttles failed attempts per IP (10 per 15 min) via the
+  `login_attempts` table (migration 005). It fails open on limiter errors. For distributed attacks,
+  pair it with a Cloudflare WAF rate-limit rule.
 
 ### Viewing & sharing a library
 

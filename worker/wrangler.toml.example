@@ -17,8 +17,11 @@ database_name = "offgrid-db"
 database_id = "YOUR_DATABASE_ID"
 
 [vars]
-# Allowed origin for the API. "*" is fine to start; lock this down to your
-# own domain(s) once you go to production.
+# Allowed origin(s) for the admin API. "*" is fine to start. For production,
+# lock it down to a comma-separated allowlist of the exact origins your admin is
+# served from (scheme + host + port), e.g.:
+#   CORS_ORIGIN = "https://your-domain.com,http://localhost:8080"
+# The Worker echoes a request's Origin when it matches the list.
 CORS_ORIGIN = "*"
 # Must match bucket_name above. Used when generating presigned upload URLs.
 R2_BUCKET_NAME = "offgrid-media"
