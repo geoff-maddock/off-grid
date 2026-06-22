@@ -14,6 +14,7 @@
 
 import { hashPassword, verifyPassword, sha256Hex } from '../crypto.js';
 import { signJwt } from '../jwt.js';
+import { tooManyAttempts, recordFailedLogin, clearFailedLogins } from '../ratelimit.js';
 
 const MIN_PASSWORD = 8;
 
@@ -38,22 +39,30 @@ export async function handleAuth(request, env, path, method, user) {
 
 async function login(request, env) {
   if (!env.JWT_SECRET) return json({ error: 'Auth not configured (set JWT_SECRET)' }, 500);
+  const db = env.DB;
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+
+  if (await tooManyAttempts(db, ip)) {
+    return json({ error: 'Too many login attempts. Please wait a few minutes and try again.' }, 429);
+  }
+
   const { email, password } = await readJson(request);
   if (!email || !password) return json({ error: 'Email and password are required' }, 400);
 
-  const user = await env.DB
+  const user = await db
     .prepare('SELECT id, email, display_name, role, status, token_version, password_hash FROM users WHERE email = ?')
     .bind(normalizeEmail(email))
     .first();
 
-  // Generic message — don't reveal whether the email exists.
-  if (!user || user.status !== 'active' || !user.password_hash) {
-    return json({ error: 'Invalid email or password' }, 401);
-  }
-  if (!(await verifyPassword(password, user.password_hash))) {
+  const ok = user && user.status === 'active' && user.password_hash
+    && (await verifyPassword(password, user.password_hash));
+  if (!ok) {
+    await recordFailedLogin(db, ip, normalizeEmail(email));
+    // Generic message — don't reveal whether the email exists.
     return json({ error: 'Invalid email or password' }, 401);
   }
 
+  await clearFailedLogins(db, ip);
   return json({ token: await mintToken(env, user), user: publicUser(user) });
 }
 

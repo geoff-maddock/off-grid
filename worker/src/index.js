@@ -38,7 +38,7 @@ export default {
 
     // CORS preflight
     if (method === 'OPTIONS') {
-      return corsResponse(env);
+      return corsResponse(env, request);
     }
 
     let response;
@@ -47,13 +47,13 @@ export default {
       // ── Public auth routes (no session) ──────────────────────
       if (PUBLIC_AUTH_PATHS.has(path)) {
         response = await handlePublicAuth(request, env, path, method);
-        return addCors(response || notFound(), env);
+        return addCors(response || notFound(), env, request);
       }
 
       // ── Everything else requires an authenticated user ───────
       const { user, error } = await authenticate(request, env);
       if (error) {
-        return addCors(error, env);
+        return addCors(error, env, request);
       }
 
       // ── Auth (session-scoped) ────────────────────────────────
@@ -95,7 +95,7 @@ export default {
       });
     }
 
-    return addCors(response, env);
+    return addCors(response, env, request);
   },
 };
 
@@ -106,26 +106,43 @@ function notFound() {
   });
 }
 
-function corsResponse(env) {
+function corsResponse(env, request) {
   return new Response(null, {
     status: 204,
-    headers: corsHeaders(env),
+    headers: corsHeaders(env, request),
   });
 }
 
-function addCors(response, env) {
+function addCors(response, env, request) {
   const newResponse = new Response(response.body, response);
-  for (const [key, value] of Object.entries(corsHeaders(env))) {
+  for (const [key, value] of Object.entries(corsHeaders(env, request))) {
     newResponse.headers.set(key, value);
   }
   return newResponse;
 }
 
-function corsHeaders(env) {
-  return {
-    'Access-Control-Allow-Origin': env.CORS_ORIGIN || '*',
+// CORS_ORIGIN may be "*" (allow any) or a comma-separated allowlist of exact
+// origins. For an allowlist we echo the request's Origin when it matches (and
+// set Vary: Origin); otherwise we return a non-matching origin so the browser
+// blocks the response.
+function corsHeaders(env, request) {
+  const configured = (env.CORS_ORIGIN || '*').trim();
+  const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-File-Key',
     'Access-Control-Max-Age': '86400',
   };
+
+  if (configured === '*') {
+    headers['Access-Control-Allow-Origin'] = '*';
+    return headers;
+  }
+
+  const allowlist = configured.split(',').map((s) => s.trim()).filter(Boolean);
+  const origin = request && request.headers.get('Origin');
+  // Echo the origin only when it's allowed; otherwise return "null" so the
+  // browser blocks the response (never echo a different real origin).
+  headers['Access-Control-Allow-Origin'] = (origin && allowlist.includes(origin)) ? origin : 'null';
+  headers['Vary'] = 'Origin';
+  return headers;
 }
