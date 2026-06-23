@@ -19,3 +19,11 @@
 // stripped). If your manifest URL doesn't follow that layout, set it explicitly:
 //
 // window.OFFGRID_R2_BASE = 'https://pub-xxxxxxxx.r2.dev';
+//
+// Canonical site URL for SEO. The page sets per-view meta tags (title,
+// description, Open Graph) and JSON-LD structured data, using this as the base
+// for canonical/og:url and absolute @id/url values. If unset, it's derived from
+// wherever the page is served (so it would read as localhost in dev). Pin it to
+// your real public URL:
+//
+// window.OFFGRID_SITE_URL = 'https://your-domain.com/';
