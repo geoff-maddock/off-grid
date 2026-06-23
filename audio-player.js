@@ -787,12 +787,23 @@ class OffgridPlayer extends HTMLElement {
 
         .more-btn .btn-icon { flex-shrink: 0; }
 
-        /* Narrow players (e.g. mobile): collapse buttons to icon-only. Keyed on
-           the player's own width, so it works wherever the player is embedded. */
+        /* Responsive collapse, keyed on the player's own width (works in any embed).
+           Medium width: the secondary buttons (More / Embed / Download) go icon-only;
+           the Tracklist button keeps its label + count. */
+        @container (max-width: 520px) {
+          #more-btn .btn-label,
+          .embed-btn .btn-label,
+          .download-btn .btn-label { display: none; }
+          #more-btn, .embed-btn, .download-btn { padding: 4px 6px; gap: 4px; }
+          #more-btn .chevron { display: none; }
+        }
+
+        /* Small (mobile): the Tracklist button collapses too (icon + count badge),
+           and the volume slider gives way to just the mute icon. */
         @container (max-width: 400px) {
-          .btn-label { display: none; }
-          .more-btn, .embed-btn, .download-btn { padding: 4px 6px; gap: 4px; }
-          .more-btn .chevron { display: none; }
+          .tracklist-btn .btn-label { display: none; }
+          .tracklist-btn { padding: 4px 6px; gap: 4px; }
+          .tracklist-btn .chevron { display: none; }
           .vol-wrap input[type="range"] { display: none; }
           .vol-wrap { gap: 0; }
         }
