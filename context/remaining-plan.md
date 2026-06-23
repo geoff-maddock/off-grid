@@ -5,7 +5,9 @@ _Updated 2026-06-23. Source of truth for design rationale: [docs/multi-user-plan
 ## Status
 **Shipped:** Phase 1 (accounts/auth), Phase 2a (ownership + per-user manifests), Phase 3 (per-user
 R2 prefixes); production hardening (CORS allowlist + login rate-limiting, migrations 005); per-track
-links (Bandcamp/Discogs, migration 006); plus extras — clean `?user=` and `?mix=` routes, self-host
+links (Bandcamp/Discogs, migration 006); landing-page browsing (issue 19 — hash-routed tag/artist
+views, sortable mix list, broadened search, and a client-side tracks database with per-track detail);
+plus extras — clean `?user=` and `?mix=` routes, self-host
 guide ([docs/self-hosting.md](../docs/self-hosting.md)), auto-peaks, tracklists with auto-timestamps,
 embed-code fixes, modal UX.
 

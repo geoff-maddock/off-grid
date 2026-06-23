@@ -294,6 +294,302 @@
       color: var(--accent);
       text-decoration: none;
     }
+
+    /* Toolbar: nav + sort */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .toolbar-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-link,
+    .browse-toggle {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+
+    .nav-link:hover,
+    .browse-toggle:hover {
+      color: var(--text);
+    }
+
+    .nav-link.active {
+      color: var(--accent);
+      border-color: var(--border);
+      background: #1a1a1a;
+    }
+
+    .toolbar-sort {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-sort label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .toolbar-sort select {
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      padding: 6px 10px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .toolbar-sort select:focus {
+      border-color: var(--accent);
+    }
+
+    /* Browse panel (tags + artists) */
+    .browse-panel {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+
+    .browse-group + .browse-group {
+      margin-top: 16px;
+    }
+
+    .browse-group-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #1a1a1a;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .chip-count {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .chip:hover .chip-count {
+      color: var(--accent);
+    }
+
+    /* Search helper line */
+    .search-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: -14px 0 24px 2px;
+    }
+
+    /* View heading / breadcrumb */
+    .view-heading {
+      margin-bottom: 22px;
+    }
+
+    .back-link {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .view-title {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-top: 8px;
+    }
+
+    .view-title .view-title-kind {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 400;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Tracks database list */
+    .track-list {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .track-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 16px;
+      text-decoration: none;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s;
+    }
+
+    .track-row:last-child {
+      border-bottom: none;
+    }
+
+    .track-row:hover {
+      background: #1a1a1a;
+    }
+
+    .track-row-main {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .track-row .track-artist {
+      color: var(--text);
+    }
+
+    .track-row .track-sep {
+      color: var(--text-muted);
+      margin: 0 4px;
+    }
+
+    .track-row .track-title {
+      color: var(--text-muted);
+    }
+
+    .track-row-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .mix-count {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .buy-dot {
+      color: var(--accent);
+      font-size: 13px;
+    }
+
+    /* Track detail header */
+    .track-detail-head {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 28px 24px;
+      margin-bottom: 40px;
+    }
+
+    .track-detail-kind {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .track-detail-title {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+
+    .track-detail-artist {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .buy-btn {
+      display: inline-block;
+      margin-top: 20px;
+      background: var(--accent);
+      color: #111;
+      font-weight: 600;
+      font-size: 14px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: filter 0.15s;
+    }
+
+    .buy-btn:hover {
+      filter: brightness(1.1);
+    }
+
+    .empty-note {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
   </style>
 </head>
 
@@ -307,9 +603,40 @@
       <div class="accent-line"></div>
     </header>
 
+    <!-- Toolbar: nav + sort -->
+    <nav class="toolbar" id="toolbar">
+      <div class="toolbar-nav">
+        <a href="#/" class="nav-link" data-nav="home">Mixes</a>
+        <a href="#/playlists" class="nav-link" data-nav="playlists">Playlists</a>
+        <a href="#/tracks" class="nav-link" data-nav="tracks">Tracks</a>
+        <button class="browse-toggle" id="browse-toggle" type="button">Browse &#9662;</button>
+      </div>
+      <div class="toolbar-sort" id="toolbar-sort">
+        <label for="sort-select">Sort</label>
+        <select id="sort-select">
+          <option value="default">Newest</option>
+          <option value="title">Title A&ndash;Z</option>
+          <option value="artist">Artist A&ndash;Z</option>
+        </select>
+      </div>
+    </nav>
+
+    <!-- Browse panel: artists + tags -->
+    <div class="browse-panel" id="browse-panel" hidden>
+      <div class="browse-group" id="artist-group">
+        <div class="browse-group-label">Artists</div>
+        <div class="chip-row" id="artist-chips"></div>
+      </div>
+      <div class="browse-group" id="tag-group">
+        <div class="browse-group-label">Tags</div>
+        <div class="chip-row" id="tag-chips"></div>
+      </div>
+    </div>
+
     <!-- Search -->
     <div class="search-bar" id="search-bar">
-      <input type="text" id="mix-search" placeholder="Search by title, artist, or tag..." autocomplete="off">
+      <input type="text" id="mix-search" placeholder="Search mixes &mdash; title, artist, tag, or track name..."
+        autocomplete="off">
       <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round">
         <circle cx="11" cy="11" r="8" />
@@ -317,20 +644,16 @@
       </svg>
       <button class="search-clear" id="search-clear">&times;</button>
     </div>
+    <p class="search-hint" id="search-hint">Searches mix titles, artists, tags, and the track names inside each mix.
+    </p>
 
-    <!-- Individual players (loaded from manifest) -->
-    <section class="section">
-      <div class="section-label">Individual Tracks</div>
-      <div class="player-stack" id="player-stack">
-        <div class="manifest-status loading" id="manifest-loading">Loading mixes...</div>
-      </div>
-      <div class="no-results" id="no-results">No mixes match your search.</div>
-    </section>
+    <!-- View heading / breadcrumb (filtered views) -->
+    <div class="view-heading" id="view-heading" hidden></div>
 
-    <div class="divider"></div>
-
-    <!-- Playlists (loaded from manifest) -->
-    <div id="playlists-container"></div>
+    <!-- Main view (router fills this) -->
+    <div id="main-view">
+      <div class="manifest-status loading" id="manifest-loading">Loading mixes...</div>
+    </div>
 
     <footer>
       <span>Off Grid &mdash; Self-hosted audio</span>
@@ -349,11 +672,24 @@
 
   <!-- Load manifest and render players dynamically -->
   <script>
+    // ---------------------------------------------------------------------
     // Manifest URL, resolved in order:
-    //   1. ?manifest=<url>            (explicit, any manifest)
-    //   2. ?user=<id>                 (a user's library: <r2 base>/users/<id>/data/manifest.json)
+    //   1. ?manifest=<url>             (explicit, any manifest)
+    //   2. ?user=<id>                  (a user's library: <r2 base>/users/<id>/data/manifest.json)
     //   3. window.OFFGRID_MANIFEST_URL (from gitignored config.local.js)
-    //   4. the placeholder below      (edit only for a committed default)
+    //   4. the placeholder below       (edit only for a committed default)
+    //
+    // In-page navigation uses hash routes (orthogonal to the params above):
+    //   #/                home — all mixes (sortable) + playlists
+    //   #/playlists       just the playlists
+    //   #/mix/<slug>      one mix by its id/slug (in-app, with a back link)
+    //   #/tag/<tag>       mixes carrying a tag
+    //   #/artist/<name>   mixes by an artist (the "user" page)
+    //   #/tracks          unique tracks across all mixes (searchable)
+    //   #/track/<slug>    one track + its buy link + every mix containing it
+    //
+    // Query param: ?tracklist=open renders every player with its tracklist open.
+    // ---------------------------------------------------------------------
     const _params = new URLSearchParams(location.search);
     // R2 base for ?user= — explicit OFFGRID_R2_BASE, else derived from the
     // configured manifest URL by stripping the /data/manifest.json suffix.
@@ -361,100 +697,495 @@
       || (window.OFFGRID_MANIFEST_URL || '').replace(/\/data\/manifest\.json$/, '');
     const _userId = _params.get('user');
     const _mixId = _params.get('mix'); // optional: show just this one mix
+    // ?tracklist=open|1|true → render every player with its tracklist expanded
+    const _openTracklist = ['open', '1', 'true'].includes((_params.get('tracklist') || '').toLowerCase());
     const MANIFEST_URL =
       _params.get('manifest')
       || (_userId && _r2Base ? `${_r2Base}/users/${encodeURIComponent(_userId)}/data/manifest.json` : '')
       || window.OFFGRID_MANIFEST_URL
       || 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
 
-    (async function loadManifest() {
-      const stack = document.getElementById('player-stack');
-      const playlistsContainer = document.getElementById('playlists-container');
-      const loadingEl = document.getElementById('manifest-loading');
+    // ---- App state ------------------------------------------------------
+    const state = {
+      site: {},
+      mixes: [],
+      playlists: [],
+      mixMap: new Map(),       // id -> mix
+      artistIndex: new Map(),  // artist -> [mix]
+      tagIndex: new Map(),     // tag -> [mix]
+      trackIndex: new Map(),   // slug -> { slug, artist, title, url, mixIds:Set }
+      sort: 'default',
+      singleMix: false,
+    };
+    let activeFilter = null;   // current view's search handler: (query) => void
 
+    // ---- Helpers --------------------------------------------------------
+    const view = () => document.getElementById('main-view');
+
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function slugify(s) {
+      return String(s || '').toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
+    }
+
+    function makePlayer(mix) {
+      const div = document.createElement('div');
+      div.className = 'player-entry';
+      div.dataset.title = (mix.title || '').toLowerCase();
+      div.dataset.artist = (mix.artist || '').toLowerCase();
+      div.dataset.tags = (mix.tags || []).join(',').toLowerCase();
+      div.dataset.tracks = (mix.tracks || [])
+        .map(t => `${t.artist || ''} ${t.title || ''}`).join(' ').toLowerCase();
+
+      const player = document.createElement('offgrid-player');
+      player.setAttribute('src', mix.src);
+      player.setAttribute('title', mix.title);
+      if (mix.artist) player.setAttribute('artist', mix.artist);
+      if (mix.thumb) player.setAttribute('thumb', mix.thumb);
+      if (mix.peaks) player.setAttribute('peaks', mix.peaks);
+      if (mix.color) player.setAttribute('color', mix.color);
+      if (mix.description) player.setAttribute('description', mix.description);
+      if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
+      if (_openTracklist) player.setAttribute('open-tracklist', '');
+      if (mix.tracks && mix.tracks.length > 0) player.tracks = mix.tracks;
+
+      div.appendChild(player);
+      return div;
+    }
+
+    function sortMixes(mixes) {
+      const arr = mixes.slice();
+      if (state.sort === 'title') {
+        arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      } else if (state.sort === 'artist') {
+        arr.sort((a, b) => (a.artist || '').localeCompare(b.artist || ''));
+      } else { // 'default' = newest by releaseDate desc; undated rows keep manifest order
+        arr.sort((a, b) => {
+          const da = a.releaseDate || '', db = b.releaseDate || '';
+          if (da && db) return db.localeCompare(da);
+          if (da) return -1;
+          if (db) return 1;
+          return 0;
+        });
+      }
+      return arr;
+    }
+
+    // ---- Index building -------------------------------------------------
+    function buildIndexes() {
+      state.mixMap = new Map(state.mixes.map(m => [m.id, m]));
+      state.artistIndex = new Map();
+      state.tagIndex = new Map();
+      state.trackIndex = new Map();
+
+      for (const mix of state.mixes) {
+        const artist = (mix.artist || '').trim();
+        if (artist) {
+          if (!state.artistIndex.has(artist)) state.artistIndex.set(artist, []);
+          state.artistIndex.get(artist).push(mix);
+        }
+        for (const tag of (mix.tags || [])) {
+          if (!state.tagIndex.has(tag)) state.tagIndex.set(tag, []);
+          state.tagIndex.get(tag).push(mix);
+        }
+        // No shared track entity in the data model — build one client-side by
+        // matching normalized artist+title across every mix's tracklist.
+        for (const t of (mix.tracks || [])) {
+          const artistT = (t.artist || '').trim();
+          const titleT = (t.title || '').trim();
+          if (!artistT && !titleT) continue;
+          const slug = slugify(`${artistT} ${titleT}`);
+          let entry = state.trackIndex.get(slug);
+          if (!entry) {
+            entry = { slug, artist: artistT, title: titleT, url: '', mixIds: new Set() };
+            state.trackIndex.set(slug, entry);
+          }
+          if (!entry.url && t.url) entry.url = t.url; // first non-empty buy link wins
+          entry.mixIds.add(mix.id);
+        }
+      }
+    }
+
+    function populateChips() {
+      const artistChips = document.getElementById('artist-chips');
+      const tagChips = document.getElementById('tag-chips');
+      artistChips.innerHTML = '';
+      tagChips.innerHTML = '';
+
+      const artists = [...state.artistIndex.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      for (const [name, mixes] of artists) {
+        const a = document.createElement('a');
+        a.className = 'chip';
+        a.href = '#/artist/' + encodeURIComponent(name);
+        a.innerHTML = `${esc(name)} <span class="chip-count">${mixes.length}</span>`;
+        artistChips.appendChild(a);
+      }
+      document.getElementById('artist-group').hidden = artists.length === 0;
+
+      const tags = [...state.tagIndex.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      for (const [tag, mixes] of tags) {
+        const a = document.createElement('a');
+        a.className = 'chip';
+        a.href = '#/tag/' + encodeURIComponent(tag);
+        a.innerHTML = `${esc(tag)} <span class="chip-count">${mixes.length}</span>`;
+        tagChips.appendChild(a);
+      }
+      document.getElementById('tag-group').hidden = tags.length === 0;
+
+      // Nothing to browse → hide the toggle entirely
+      document.getElementById('browse-toggle').hidden = artists.length === 0 && tags.length === 0;
+    }
+
+    // ---- Chrome visibility ----------------------------------------------
+    function showChrome({ sort = false, browse = false, search = null, heading = null }) {
+      document.getElementById('toolbar').style.display = state.singleMix ? 'none' : '';
+      document.getElementById('toolbar-sort').style.display = sort ? '' : 'none';
+      if (sort) document.getElementById('sort-select').value = state.sort;
+
+      const browseBtn = document.getElementById('browse-toggle');
+      browseBtn.style.display = browse ? '' : 'none';
+      if (!browse) document.getElementById('browse-panel').hidden = true;
+
+      const sb = document.getElementById('search-bar');
+      const hint = document.getElementById('search-hint');
+      const input = document.getElementById('mix-search');
+      if (search) {
+        sb.style.display = '';
+        hint.style.display = '';
+        input.value = '';
+        sb.classList.remove('has-value');
+        if (search === 'tracks') {
+          input.placeholder = 'Search tracks by artist or title...';
+          hint.textContent = 'Searches track artists and titles.';
+        } else {
+          input.placeholder = 'Search mixes — title, artist, tag, or track name...';
+          hint.textContent = 'Searches mix titles, artists, tags, and the track names inside each mix.';
+        }
+      } else {
+        sb.style.display = 'none';
+        hint.style.display = 'none';
+      }
+
+      const hb = document.getElementById('view-heading');
+      if (heading) {
+        hb.hidden = false;
+        const back = heading.back
+          ? `<a href="${heading.back}" class="back-link">&larr; ${esc(heading.backText || 'Back')}</a>` : '';
+        const title = heading.kind
+          ? `<div class="view-title"><span class="view-title-kind">${esc(heading.kind)}</span>${esc(heading.title)}</div>`
+          : '';
+        hb.innerHTML = back + title;
+      } else {
+        hb.hidden = true;
+      }
+
+      const activeNav = (heading && heading.nav) || 'home';
+      document.querySelectorAll('.nav-link').forEach(el => {
+        el.classList.toggle('active', el.dataset.nav === activeNav);
+      });
+    }
+
+    // ---- Search wiring (context-aware) ----------------------------------
+    function setMixFilter(stack, noResults) {
+      activeFilter = (q) => {
+        let visible = 0;
+        stack.querySelectorAll('.player-entry').forEach(entry => {
+          const match = !q
+            || entry.dataset.title.includes(q)
+            || entry.dataset.artist.includes(q)
+            || entry.dataset.tags.includes(q)
+            || entry.dataset.tracks.includes(q);
+          entry.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        if (noResults) noResults.style.display = (visible === 0 && q) ? 'block' : 'none';
+      };
+    }
+
+    function setTrackFilter(list, noResults) {
+      activeFilter = (q) => {
+        let visible = 0;
+        list.querySelectorAll('.track-row').forEach(row => {
+          const match = !q || row.dataset.search.includes(q);
+          row.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        if (noResults) noResults.style.display = (visible === 0 && q) ? 'block' : 'none';
+      };
+    }
+
+    // ---- View renderers -------------------------------------------------
+    function sectionEl(label) {
+      const section = document.createElement('section');
+      section.className = 'section';
+      const lbl = document.createElement('div');
+      lbl.className = 'section-label';
+      lbl.textContent = label;
+      section.appendChild(lbl);
+      return section;
+    }
+
+    function noResultsEl() {
+      const nr = document.createElement('div');
+      nr.className = 'no-results';
+      nr.textContent = 'Nothing matches your search.';
+      return nr;
+    }
+
+    function renderMixList(mixes, { label, withPlaylists = false }) {
+      const root = view();
+      root.innerHTML = '';
+      const section = sectionEl(`${label} · ${mixes.length}`);
+      const stack = document.createElement('div');
+      stack.className = 'player-stack';
+      sortMixes(mixes).forEach(m => stack.appendChild(makePlayer(m)));
+      const nr = noResultsEl();
+      if (mixes.length) {
+        section.appendChild(stack);
+        section.appendChild(nr);
+      } else {
+        const note = document.createElement('div');
+        note.className = 'empty-note';
+        note.textContent = 'No mixes here.';
+        section.appendChild(note);
+      }
+      root.appendChild(section);
+      if (withPlaylists) renderPlaylists(root);
+      setMixFilter(stack, nr);
+    }
+
+    function renderPlaylists(root) {
+      for (const pl of state.playlists) {
+        const section = sectionEl(pl.title);
+        const playlist = document.createElement('offgrid-playlist');
+        playlist.setAttribute('color', pl.color || state.site.accent || '#ff5500');
+        if (pl.creator) playlist.setAttribute('artist', pl.creator);
+        const tracks = (pl.mixIds || [])
+          .map(id => state.mixMap.get(id))
+          .filter(Boolean)
+          .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks }));
+        playlist.tracks = tracks;
+        section.appendChild(playlist);
+        root.appendChild(section);
+      }
+    }
+
+    function renderHome() {
+      showChrome({ sort: true, browse: true, search: 'mixes', heading: null });
+      renderMixList(state.mixes, { label: 'Mixes', withPlaylists: true });
+    }
+
+    function renderMixDetail(id) {
+      const mix = state.mixMap.get(id);
+      showChrome({
+        sort: false, browse: false, search: null,
+        heading: { back: '#/', backText: 'All mixes', kind: 'Mix', title: mix ? mix.title : id, nav: 'home' },
+      });
+      const root = view();
+      root.innerHTML = '';
+      if (!mix) {
+        const note = document.createElement('div');
+        note.className = 'manifest-status error';
+        note.textContent = 'Mix not found.';
+        root.appendChild(note);
+        activeFilter = null;
+        return;
+      }
+      root.appendChild(makePlayer(mix));
+      activeFilter = null;
+    }
+
+    function renderPlaylistsView() {
+      showChrome({
+        sort: false, browse: false, search: null,
+        heading: { back: '#/', backText: 'All mixes', nav: 'playlists' },
+      });
+      const root = view();
+      root.innerHTML = '';
+      if (!state.playlists.length) {
+        const note = document.createElement('div');
+        note.className = 'empty-note';
+        note.textContent = 'No playlists in this library yet.';
+        root.appendChild(note);
+      } else {
+        renderPlaylists(root);
+      }
+      activeFilter = null;
+    }
+
+    function renderTag(tag) {
+      showChrome({
+        sort: true, browse: true, search: 'mixes',
+        heading: { back: '#/', backText: 'All mixes', kind: 'Tag', title: tag, nav: 'home' },
+      });
+      renderMixList(state.tagIndex.get(tag) || [], { label: 'Mixes' });
+    }
+
+    function renderArtist(name) {
+      showChrome({
+        sort: true, browse: true, search: 'mixes',
+        heading: { back: '#/', backText: 'All mixes', kind: 'Artist', title: name, nav: 'home' },
+      });
+      renderMixList(state.artistIndex.get(name) || [], { label: 'Mixes' });
+    }
+
+    function renderTracks() {
+      showChrome({
+        sort: false, browse: false, search: 'tracks',
+        heading: { back: '#/', backText: 'All mixes', nav: 'tracks' },
+      });
+      const root = view();
+      root.innerHTML = '';
+      const tracks = [...state.trackIndex.values()].sort((a, b) =>
+        (a.artist || '').localeCompare(b.artist || '') || (a.title || '').localeCompare(b.title || ''));
+      const section = sectionEl(`Tracks · ${tracks.length}`);
+      if (!tracks.length) {
+        const note = document.createElement('div');
+        note.className = 'empty-note';
+        note.textContent = 'No track data in this library yet.';
+        section.appendChild(note);
+        root.appendChild(section);
+        activeFilter = null;
+        return;
+      }
+      const list = document.createElement('div');
+      list.className = 'track-list';
+      for (const t of tracks) {
+        const a = document.createElement('a');
+        a.className = 'track-row';
+        a.href = '#/track/' + encodeURIComponent(t.slug);
+        a.dataset.search = `${t.artist} ${t.title}`.toLowerCase();
+        const n = t.mixIds.size;
+        a.innerHTML =
+          `<span class="track-row-main"><span class="track-artist">${esc(t.artist || 'Unknown')}</span>` +
+          `<span class="track-sep">—</span><span class="track-title">${esc(t.title || 'Untitled')}</span></span>` +
+          `<span class="track-row-meta">${t.url ? '<span class="buy-dot" title="Has buy link">↗</span>' : ''}` +
+          `<span class="mix-count">${n} mix${n === 1 ? '' : 'es'}</span></span>`;
+        list.appendChild(a);
+      }
+      section.appendChild(list);
+      const nr = noResultsEl();
+      section.appendChild(nr);
+      root.appendChild(section);
+      setTrackFilter(list, nr);
+    }
+
+    function renderTrackDetail(slug) {
+      const t = state.trackIndex.get(slug);
+      showChrome({
+        sort: false, browse: false, search: null,
+        heading: { back: '#/tracks', backText: 'Tracks', nav: 'tracks' },
+      });
+      const root = view();
+      root.innerHTML = '';
+      if (!t) {
+        const note = document.createElement('div');
+        note.className = 'manifest-status error';
+        note.textContent = 'Track not found.';
+        root.appendChild(note);
+        activeFilter = null;
+        return;
+      }
+      const head = document.createElement('div');
+      head.className = 'track-detail-head';
+      head.innerHTML =
+        `<div class="track-detail-kind">Track</div>` +
+        `<div class="track-detail-title">${esc(t.title || 'Untitled')}</div>` +
+        `<div class="track-detail-artist">${esc(t.artist || 'Unknown artist')}</div>`;
+      if (t.url) {
+        const buy = document.createElement('a');
+        buy.className = 'buy-btn';
+        buy.href = t.url;
+        buy.target = '_blank';
+        buy.rel = 'noopener';
+        buy.textContent = 'Buy / View ↗';
+        head.appendChild(buy);
+      }
+      root.appendChild(head);
+
+      const mixes = [...t.mixIds].map(id => state.mixMap.get(id)).filter(Boolean);
+      const section = sectionEl(`Appears in · ${mixes.length} mix${mixes.length === 1 ? '' : 'es'}`);
+      const stack = document.createElement('div');
+      stack.className = 'player-stack';
+      mixes.forEach(m => stack.appendChild(makePlayer(m)));
+      section.appendChild(stack);
+      root.appendChild(section);
+      activeFilter = null;
+    }
+
+    function renderSingleMix() {
+      showChrome({}); // singleMix flag hides the toolbar; everything else off
+      const root = view();
+      root.innerHTML = '';
+      const mix = state.mixes[0];
+      if (!mix) {
+        root.innerHTML = '<div class="manifest-status error">Mix not found.</div>';
+        return;
+      }
+      root.appendChild(makePlayer(mix));
+      activeFilter = null;
+    }
+
+    // ---- Router ---------------------------------------------------------
+    function parseHash() {
+      const raw = location.hash.replace(/^#\/?/, '');
+      if (!raw) return { view: 'home' };
+      const slash = raw.indexOf('/');
+      const seg = slash === -1 ? raw : raw.slice(0, slash);
+      const arg = slash === -1 ? '' : decodeURIComponent(raw.slice(slash + 1));
+      if (seg === 'playlists') return { view: 'playlists' };
+      if (seg === 'mix') return { view: 'mix', arg };
+      if (seg === 'tracks') return { view: 'tracks' };
+      if (seg === 'track') return { view: 'track', arg };
+      if (seg === 'tag') return { view: 'tag', arg };
+      if (seg === 'artist') return { view: 'artist', arg };
+      return { view: 'home' };
+    }
+
+    function render() {
+      if (state.singleMix) { renderSingleMix(); return; }
+      const r = parseHash();
+      if (r.view === 'playlists') renderPlaylistsView();
+      else if (r.view === 'mix') renderMixDetail(r.arg);
+      else if (r.view === 'tracks') renderTracks();
+      else if (r.view === 'track') renderTrackDetail(r.arg);
+      else if (r.view === 'tag') renderTag(r.arg);
+      else if (r.view === 'artist') renderArtist(r.arg);
+      else renderHome();
+    }
+
+    // ---- Manifest load --------------------------------------------------
+    (async function loadManifest() {
+      const loadingEl = document.getElementById('manifest-loading');
       try {
         const resp = await fetch(MANIFEST_URL);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
 
-        // Single-mix mode (?mix=<id>): show just that mix, no playlists/search.
+        state.site = data.site || {};
+        state.mixes = data.mixes || [];
+        state.playlists = data.playlists || [];
+
+        // Single-mix mode (?mix=<id>): show just that mix, no chrome.
         if (_mixId) {
-          const one = (data.mixes || []).find(m => m.id === _mixId);
+          const one = state.mixes.find(m => m.id === _mixId);
           if (!one) {
             if (loadingEl) { loadingEl.className = 'manifest-status error'; loadingEl.textContent = 'Mix not found.'; }
             return;
           }
-          data.mixes = [one];
-          data.playlists = [];
-          const searchBar = document.getElementById('search-bar');
-          if (searchBar) searchBar.style.display = 'none';
+          state.mixes = [one];
+          state.playlists = [];
+          state.singleMix = true;
         }
 
-        // Build mix lookup
-        const mixMap = new Map(data.mixes.map(m => [m.id, m]));
-
-        // Remove loading indicator
-        if (loadingEl) loadingEl.remove();
-
-        // Store mixes for search filtering
-        window._mixes = data.mixes;
-
-        // Render individual players
-        for (const mix of data.mixes) {
-          const div = document.createElement('div');
-          div.className = 'player-entry';
-          div.dataset.title = (mix.title || '').toLowerCase();
-          div.dataset.artist = (mix.artist || '').toLowerCase();
-          div.dataset.tags = (mix.tags || []).join(',').toLowerCase();
-
-          const player = document.createElement('offgrid-player');
-          player.setAttribute('src', mix.src);
-          player.setAttribute('title', mix.title);
-          if (mix.artist) player.setAttribute('artist', mix.artist);
-          if (mix.thumb) player.setAttribute('thumb', mix.thumb);
-          if (mix.peaks) player.setAttribute('peaks', mix.peaks);
-          if (mix.color) player.setAttribute('color', mix.color);
-          if (mix.description) player.setAttribute('description', mix.description);
-          if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
-          if (mix.tracks && mix.tracks.length > 0) player.tracks = mix.tracks;
-
-          div.appendChild(player);
-          stack.appendChild(div);
-        }
-
-        // Wire up search
-        initSearch();
-
-        // Render playlists
-        for (const pl of data.playlists) {
-          const section = document.createElement('section');
-          section.className = 'section';
-
-          const label = document.createElement('div');
-          label.className = 'section-label';
-          label.textContent = pl.title;
-          section.appendChild(label);
-
-          const playlist = document.createElement('offgrid-playlist');
-          playlist.setAttribute('color', pl.color || data.site.accent);
-          if (pl.creator) playlist.setAttribute('artist', pl.creator);
-
-          // Resolve mix IDs to track objects
-          const tracks = pl.mixIds
-            .map(id => mixMap.get(id))
-            .filter(Boolean)
-            .map(m => ({
-              src: m.src,
-              title: m.title,
-              artist: m.artist,
-              thumb: m.thumb,
-              peaks: m.peaks
-            }));
-
-          playlist.tracks = tracks;
-          section.appendChild(playlist);
-          playlistsContainer.appendChild(section);
-        }
+        window._mixes = state.mixes; // back-compat for any external probes
+        buildIndexes();
+        if (!state.singleMix) populateChips();
+        render();
       } catch (err) {
         console.error('Failed to load manifest:', err);
         if (loadingEl) {
@@ -464,52 +1195,41 @@
       }
     })();
 
-    // Search filtering
-    function initSearch() {
-      const searchInput = document.getElementById('mix-search');
-      const searchBar = document.getElementById('search-bar');
-      const clearBtn = document.getElementById('search-clear');
-      const noResults = document.getElementById('no-results');
+    // ---- Global wiring --------------------------------------------------
+    window.addEventListener('hashchange', render);
 
-      searchInput.addEventListener('input', () => {
-        const query = searchInput.value.toLowerCase().trim();
-        searchBar.classList.toggle('has-value', query.length > 0);
-
-        const entries = document.querySelectorAll('.player-entry');
-        let visible = 0;
-
-        entries.forEach(entry => {
-          const title = entry.dataset.title || '';
-          const artist = entry.dataset.artist || '';
-          const tags = entry.dataset.tags || '';
-
-          const match = !query
-            || title.includes(query)
-            || artist.includes(query)
-            || tags.includes(query);
-
-          entry.style.display = match ? '' : 'none';
-          if (match) visible++;
-        });
-
-        noResults.style.display = (visible === 0 && query) ? 'block' : 'none';
+    // Single search box drives the active view's filter
+    (function initSearchBox() {
+      const input = document.getElementById('mix-search');
+      const sb = document.getElementById('search-bar');
+      const clr = document.getElementById('search-clear');
+      input.addEventListener('input', () => {
+        const q = input.value.toLowerCase().trim();
+        sb.classList.toggle('has-value', q.length > 0);
+        if (activeFilter) activeFilter(q);
       });
-
-      clearBtn.addEventListener('click', () => {
-        searchInput.value = '';
-        searchInput.dispatchEvent(new Event('input'));
-        searchInput.focus();
+      clr.addEventListener('click', () => {
+        input.value = '';
+        input.dispatchEvent(new Event('input'));
+        input.focus();
       });
-    }
+    })();
 
-    // Click a tag pill inside any player → filter by that tag
+    // Sort control re-renders the current view
+    document.getElementById('sort-select').addEventListener('change', (e) => {
+      state.sort = e.target.value;
+      render();
+    });
+
+    // Browse toggle shows/hides the tag + artist panel
+    document.getElementById('browse-toggle').addEventListener('click', () => {
+      const panel = document.getElementById('browse-panel');
+      panel.hidden = !panel.hidden;
+    });
+
+    // Click a tag pill inside any player → navigate to that tag view
     document.addEventListener('tagclick', (e) => {
-      const searchInput = document.getElementById('mix-search');
-      if (searchInput && e.detail && e.detail.tag) {
-        searchInput.value = e.detail.tag;
-        searchInput.dispatchEvent(new Event('input'));
-        searchInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      if (e.detail && e.detail.tag) location.hash = '#/tag/' + encodeURIComponent(e.detail.tag);
     });
 
     // Global play-one-at-a-time: pause any other player when one starts
