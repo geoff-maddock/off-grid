@@ -355,6 +355,29 @@ artist/title.
 > client-side by matching normalized `artist` + `title` across each mix's tracklist. In-page
 > navigation re-renders the view, which stops any in-progress playback.
 
+### Meta tags & structured data
+
+As you navigate, the page rewrites its `<head>` for the current view — `<title>`, `<meta name="description">`,
+a `<link rel="canonical">`, and Open Graph tags (`og:title`/`description`/`type`/`url`/`image`/`site_name`) —
+and emits [schema.org](https://schema.org) JSON-LD in `<script type="application/ld+json">`:
+
+| View | JSON-LD |
+|------|---------|
+| Single mix (`?mix=`, `#/mix/<slug>`) | `MusicRecording` with an `AudioObject` (the embed) and an `ItemList` of tracks (`MusicRecording` each, with the track's buy `url`) |
+| Track detail (`#/track/<slug>`) | `MusicRecording` for the track, `isPartOf` the mixes that contain it |
+| Artist (`#/artist/<name>`) | `MusicGroup` with the artist's mixes as `track` |
+| Playlists (`#/playlists`) | `CollectionPage` → `ItemList` of `MusicPlaylist` |
+| Home / tag / tracks | `CollectionPage` → `ItemList` of the listed mixes/tracks |
+
+Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. Absolute URLs (canonical,
+`og:url`, JSON-LD `@id`/`url`/`embedUrl`) are built from **`window.OFFGRID_SITE_URL`** when set (see
+`config.local.example.js`), falling back to the current page location.
+
+> These tags are set by JavaScript. Googlebot executes JS and will see them, and they're ideal for your
+> own tooling/crawlers — but most social scrapers (Facebook/Slack/etc.) and hash-fragment routes are not
+> JS-rendered, so link-preview cards won't reflect per-view tags without server-side prerendering. A
+> sensible no-JS baseline ships in the static `<head>`.
+
 ---
 
 ## Embedding
