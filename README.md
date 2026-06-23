@@ -320,6 +320,41 @@ to play/share a library:
 
 Everything is served from your public R2 bucket, so libraries and embeds work cross-origin from any site.
 
+### Browsing the public page
+
+The public page (`index.html`) is more than a flat list — it has client-side browsing built entirely
+on the loaded manifest (no extra requests, no backend). Navigation uses **hash routes**, so deep
+links are shareable and bookmarkable and work on a static host:
+
+| Route             | Shows                                                                       |
+|-------------------|-----------------------------------------------------------------------------|
+| `#/`              | All mixes (sortable) plus playlists                                          |
+| `#/playlists`     | Just the playlists                                                          |
+| `#/mix/<slug>`    | One mix by its id/slug, in-app with a back link                            |
+| `#/tag/<tag>`     | Mixes carrying that tag (tag chips and in-player tag pills link here)        |
+| `#/artist/<name>` | Mixes by that artist — the per-"user" view                                  |
+| `#/tracks`        | Every unique track across all mixes, searchable                             |
+| `#/track/<slug>`  | One track with its buy link, then every mix that contains it                |
+
+These hash routes are independent of the `?manifest=`/`?user=`/`?mix=` query params above (which pick
+*which* manifest to load). The **Browse** button reveals artist and tag chips; **Sort** orders the
+mix list by Newest (`releaseDate`), Title, or Artist.
+
+> `#/mix/<slug>` keeps the page chrome (nav + back link); the `?mix=<id>` query param is the
+> chrome-less single-mix mode meant for embeds. Add **`?tracklist=open`** to any URL to render every
+> player with its tracklist already expanded — including a single mix, e.g.
+> `?mix=dawn-patrol&tracklist=open` or `#/mix/dawn-patrol` with `?tracklist=open`. When a player is
+> showing its tracklist open, the **embed** code it generates carries `open-tracklist` too, so the
+> embedded copy opens the same way.
+
+**Search** matches mix title, artist, tags, **and the track names inside each mix**, so typing a track's
+artist or title surfaces the mixes that contain it. On `#/tracks` the same box filters tracks by
+artist/title.
+
+> Because tracks aren't a shared entity in the data model, "every mix containing a track" is computed
+> client-side by matching normalized `artist` + `title` across each mix's tracklist. In-page
+> navigation re-renders the view, which stops any in-progress playback.
+
 ---
 
 ## Embedding
@@ -358,6 +393,7 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `peaks`    | No       | URL to a pre-computed peaks JSON file (see [Peaks](#peaks)) |
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
+| `open-tracklist` | No | Boolean attribute — render with the tracklist panel expanded (when the player has tracks) |
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
 click-to-seek. Provide it either as a JS property (used by the player page from the manifest):

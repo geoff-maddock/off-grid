@@ -18,7 +18,7 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist'];
   }
 
   constructor() {
@@ -85,6 +85,9 @@ class OffgridPlayer extends HTMLElement {
     }
     if (['title', 'artist', 'thumb', 'description'].includes(name)) {
       this._updateMeta();
+    }
+    if (name === 'open-tracklist') {
+      this._applyTracklistOpen();
     }
   }
 
@@ -1349,6 +1352,9 @@ class OffgridPlayer extends HTMLElement {
       const value = this.getAttribute(name);
       if (value) attrs += `\n  ${name}="${this._esc(value)}"`;
     }
+    // Boolean attributes carry no value — emit the bare name when present so the
+    // embed reproduces the source player (e.g. a tracklist opened via ?tracklist=open).
+    if (this.hasAttribute('open-tracklist')) attrs += `\n  open-tracklist`;
 
     // Tracklist arrives as a JS property, so serialize it as an inline JSON
     // child — connectedCallback reads <script type="application/json" class="tracklist">.
@@ -1417,6 +1423,20 @@ class OffgridPlayer extends HTMLElement {
         `<span class="tl-time">${this._esc(time) || '&middot;'}</span>` +
         `<span class="tl-label">${label}</span>${linkHtml}</li>`;
     }).join('');
+
+    this._applyTracklistOpen();
+  }
+
+  // Open the tracklist panel by default when the `open-tracklist` attribute is
+  // present and there are tracks to show. Does not force-close otherwise, so a
+  // user's manual toggle is preserved.
+  _applyTracklistOpen() {
+    if (!this.shadowRoot || !this.hasAttribute('open-tracklist')) return;
+    if (!(this._tracks || []).length) return;
+    const panel = this.shadowRoot.getElementById('tracklist-panel');
+    const btn = this.shadowRoot.getElementById('tracklist-btn');
+    if (panel) panel.classList.add('open');
+    if (btn) btn.classList.add('open');
   }
 
   // Seek to a position (seconds), initializing/playing the audio if needed.
