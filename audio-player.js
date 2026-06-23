@@ -175,6 +175,7 @@ class OffgridPlayer extends HTMLElement {
 
         :host {
           display: block;
+          container-type: inline-size; /* responsive to the player's own width */
           font-family: 'IBM Plex Sans', sans-serif;
           --accent: ${this._color};
           --bg: #1a1a1a;
@@ -525,6 +526,7 @@ class OffgridPlayer extends HTMLElement {
         }
         .tracklist-list .tl-item {
           display: flex;
+          align-items: center;
           gap: 8px;
           padding: 4px 0;
           color: var(--text);
@@ -541,9 +543,17 @@ class OffgridPlayer extends HTMLElement {
         .tracklist-list .tl-item.seekable { cursor: pointer; }
         .tracklist-list .tl-item.seekable:hover,
         .tracklist-list .tl-item.seekable:hover .tl-time { color: var(--accent); }
-        .tracklist-list .tl-label { line-height: 1.4; }
-        .tracklist-list .tl-link { color: var(--accent); text-decoration: none; }
-        .tracklist-list .tl-link:hover { text-decoration: underline; }
+        .tracklist-list .tl-label { line-height: 1.4; flex: 1; min-width: 0; }
+        .tracklist-list .tl-link {
+          flex-shrink: 0;
+          margin-left: auto;
+          color: var(--accent);
+          text-decoration: none;
+          font-size: 14px;
+          line-height: 1;
+          padding: 0 4px;
+        }
+        .tracklist-list .tl-link:hover { opacity: 0.75; }
 
         .desc-panel {
           max-height: 0;
@@ -774,6 +784,29 @@ class OffgridPlayer extends HTMLElement {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
+
+        .more-btn .btn-icon { flex-shrink: 0; }
+
+        /* Responsive collapse, keyed on the player's own width (works in any embed).
+           Medium width: the secondary buttons (More / Embed / Download) go icon-only;
+           the Tracklist button keeps its label + count. */
+        @container (max-width: 520px) {
+          #more-btn .btn-label,
+          .embed-btn .btn-label,
+          .download-btn .btn-label { display: none; }
+          #more-btn, .embed-btn, .download-btn { padding: 4px 6px; gap: 4px; }
+          #more-btn .chevron { display: none; }
+        }
+
+        /* Small (mobile): the Tracklist button collapses too (icon + count badge),
+           and the volume slider gives way to just the mute icon. */
+        @container (max-width: 400px) {
+          .tracklist-btn .btn-label { display: none; }
+          .tracklist-btn { padding: 4px 6px; gap: 4px; }
+          .tracklist-btn .chevron { display: none; }
+          .vol-wrap input[type="range"] { display: none; }
+          .vol-wrap { gap: 0; }
+        }
       </style>
 
       <div class="player" part="player">
@@ -841,23 +874,29 @@ class OffgridPlayer extends HTMLElement {
             <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
-            <button class="more-btn tracklist-btn" id="tracklist-btn" style="display:none">
-              Tracklist <span class="tl-count"></span> <span class="chevron">&#9662;</span>
+            <button class="more-btn tracklist-btn" id="tracklist-btn" style="display:none" title="Tracklist" aria-label="Tracklist">
+              <svg class="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M4 6h11v2H4V6zm0 5h11v2H4v-2zm0 5h11v2H4v-2zm15-9.5l4 2.5-4 2.5V6.5zm0 7l4 2.5-4 2.5v-5z"/>
+              </svg>
+              <span class="btn-label">Tracklist</span> <span class="tl-count"></span> <span class="chevron">&#9662;</span>
             </button>
-            <button class="more-btn" id="more-btn">
-              More <span class="chevron">&#9662;</span>
+            <button class="more-btn" id="more-btn" title="More info" aria-label="More info">
+              <svg class="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+              </svg>
+              <span class="btn-label">More</span> <span class="chevron">&#9662;</span>
             </button>
-            <button class="embed-btn" id="embed-btn">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+            <button class="embed-btn" id="embed-btn" title="Embed" aria-label="Embed">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
               </svg>
-              Embed
+              <span class="btn-label">Embed</span>
             </button>
-            <a class="download-btn" id="dl-btn" href="#" download>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+            <a class="download-btn" id="dl-btn" href="#" download title="Download" aria-label="Download">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
               </svg>
-              Download
+              <span class="btn-label">Download</span>
             </a>
           </div>
         </div>
@@ -1360,19 +1399,23 @@ class OffgridPlayer extends HTMLElement {
     btn.style.display = 'inline-flex';
     const count = btn.querySelector('.tl-count');
     if (count) count.textContent = `(${tracks.length})`;
+    // Keep the button labeled when collapsed to icon-only.
+    btn.setAttribute('aria-label', `Tracklist (${tracks.length} tracks)`);
+    btn.setAttribute('title', `Tracklist (${tracks.length})`);
 
     list.innerHTML = tracks.map((t, i) => {
       const seekable = Number.isFinite(t.seconds);
       const time = t.time || (seekable ? this._fmt(t.seconds) : '');
+      // Label is plain text so clicking the row seeks. Any link is a separate
+      // trailing element. Only link http(s) URLs — never javascript:/data: etc.
       const label = [t.artist, t.title].filter(Boolean).map((s) => this._esc(s)).join(' &ndash; ') || '<em>untitled</em>';
-      // Only link http(s) URLs — never javascript:/data: etc.
       const safeUrl = /^https?:\/\//i.test(t.url || '') ? t.url : '';
-      const labelHtml = safeUrl
-        ? `<a class="tl-link" href="${this._esc(safeUrl)}" target="_blank" rel="noopener">${label}</a>`
-        : label;
+      const linkHtml = safeUrl
+        ? `<a class="tl-link" href="${this._esc(safeUrl)}" target="_blank" rel="noopener" title="Open link" aria-label="Open external link">&#8599;</a>`
+        : '';
       return `<li class="tl-item${seekable ? ' seekable' : ''}" data-i="${i}">` +
         `<span class="tl-time">${this._esc(time) || '&middot;'}</span>` +
-        `<span class="tl-label">${labelHtml}</span></li>`;
+        `<span class="tl-label">${label}</span>${linkHtml}</li>`;
     }).join('');
   }
 
