@@ -257,8 +257,8 @@ function renderMixes() {
     <tr data-id="${esc(m.id)}">
       <td class="thumb-cell">
         ${m.thumb
-          ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
-          : '<div class="thumb-placeholder"></div>'}
+      ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
+      : '<div class="thumb-placeholder"></div>'}
       </td>
       <td>${esc(m.title)}</td>
       <td>${esc(m.artist || '')}</td>
@@ -408,13 +408,13 @@ async function saveMix(e) {
 }
 
 // Global functions for inline onclick handlers
-window.editMix = function(id) {
+window.editMix = function (id) {
   const mix = manifest.mixes.find(m => m.id === id);
   if (mix) openMixModal(mix);
 };
 
 // Copy a share link that opens the player page showing just this one mix.
-window.copyMixLink = function(id) {
+window.copyMixLink = function (id) {
   const playerBase = new URL('..', location.href).href; // admin lives at <site>/admin/
   // A real account scopes via ?user=<id>; the bootstrap/owner uses the default manifest.
   const uid = (currentUser && currentUser.email) ? currentUser.id : null;
@@ -424,7 +424,7 @@ window.copyMixLink = function(id) {
   navigator.clipboard.writeText(url).then(() => toast('Single-mix link copied.'));
 };
 
-window.deleteMix = function(id) {
+window.deleteMix = function (id) {
   const mix = manifest.mixes.find(m => m.id === id);
   if (!mix) return;
   showConfirm(`Delete "${mix.title}"? This will also remove it from any playlists.`, async () => {
@@ -607,12 +607,12 @@ async function savePlaylist(e) {
   toast(editId ? 'Playlist updated.' : 'Playlist added.');
 }
 
-window.editPlaylist = function(id) {
+window.editPlaylist = function (id) {
   const pl = manifest.playlists.find(p => p.id === id);
   if (pl) openPlaylistModal(pl);
 };
 
-window.deletePlaylist = function(id) {
+window.deletePlaylist = function (id) {
   const pl = manifest.playlists.find(p => p.id === id);
   if (!pl) return;
   showConfirm(`Delete playlist "${pl.title}"?`, async () => {
@@ -938,7 +938,7 @@ async function handleAudioSelected(input) {
     //    Very large files are skipped — decoding them in-browser would exhaust
     //    memory. ~120 MB ≈ an hour-plus mix; use the CLI for those.
     const sizeMb = Math.round(file.size / (1024 * 1024));
-    const tooBig = file.size > 120 * 1024 * 1024;
+    const tooBig = file.size > 320 * 1024 * 1024;
     setProgress(progressEl, offline ? 'Generating waveform…' : `Uploading ${file.name}${tooBig ? '' : ' & generating waveform'}…`, 0);
 
     let peaksResult = null;
