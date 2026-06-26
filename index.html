@@ -591,6 +591,17 @@
       filter: brightness(1.1);
     }
 
+    .bandcamp-embed-wrap {
+      margin-top: 24px;
+    }
+
+    .bandcamp-embed {
+      border: 0;
+      width: 100%;
+      max-width: 400px;
+      height: 120px;
+    }
+
     .empty-note {
       text-align: center;
       padding: 40px 0;
@@ -713,6 +724,11 @@
       || window.OFFGRID_MANIFEST_URL
       || 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
 
+    // Optional Worker base URL (gitignored config.local.js). When set, the
+    // track page resolves Bandcamp links into inline embeds via the Worker's
+    // public /api/bandcamp-embed endpoint. Unset → embeds are skipped silently.
+    const API_BASE = (window.OFFGRID_API_BASE || '').replace(/\/+$/, '');
+
     // ---- App state ------------------------------------------------------
     const state = {
       site: {},
@@ -740,7 +756,7 @@
         .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
     }
 
-    function makePlayer(mix) {
+    function makePlayer(mix, startSeconds) {
       const div = document.createElement('div');
       div.className = 'player-entry';
       div.dataset.title = (mix.title || '').toLowerCase();
@@ -759,6 +775,9 @@
       if (mix.description) player.setAttribute('description', mix.description);
       if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
       if (_openTracklist) player.setAttribute('open-tracklist', '');
+      if (Number.isFinite(startSeconds) && startSeconds > 0) {
+        player.setAttribute('start-at', String(startSeconds));
+      }
       if (mix.tracks && mix.tracks.length > 0) player.tracks = mix.tracks;
 
       div.appendChild(player);
@@ -1115,14 +1134,70 @@
       }
       root.appendChild(head);
 
+      // If the buy link is a Bandcamp page, render its embedded player too
+      // (in addition to the Buy / View button). Resolved lazily via the Worker.
+      if (t.url && isBandcampUrl(t.url) && API_BASE) {
+        renderBandcampEmbed(root, t.url);
+      }
+
       const mixes = [...t.mixIds].map(id => state.mixMap.get(id)).filter(Boolean);
       const section = sectionEl(`Appears in · ${mixes.length} mix${mixes.length === 1 ? '' : 'es'}`);
       const stack = document.createElement('div');
       stack.className = 'player-stack';
-      mixes.forEach(m => stack.appendChild(makePlayer(m)));
+      mixes.forEach(m => {
+        // Cue each mix to the moment this track appears in it (per-mix — the
+        // same track can sit at different times across mixes).
+        const start = trackSecondsInMix(m, slug);
+        stack.appendChild(makePlayer(m, start));
+      });
       section.appendChild(stack);
       root.appendChild(section);
       activeFilter = null;
+    }
+
+    // Seconds at which the track identified by `slug` appears in `mix`, or
+    // undefined. Matches on the same normalized artist+title used by the index.
+    function trackSecondsInMix(mix, slug) {
+      for (const tr of (mix.tracks || [])) {
+        const s = slugify(`${(tr.artist || '').trim()} ${(tr.title || '').trim()}`);
+        if (s === slug && Number.isFinite(tr.seconds)) return tr.seconds;
+      }
+      return undefined;
+    }
+
+    function isBandcampUrl(u) {
+      try {
+        const host = new URL(u).hostname.toLowerCase();
+        return host === 'bandcamp.com' || host.endsWith('.bandcamp.com');
+      } catch (e) { return false; }
+    }
+
+    // Fetch the embed URL from the Worker and insert a Bandcamp iframe. Fails
+    // silently — the Buy / View button already covers the no-embed case.
+    async function renderBandcampEmbed(root, url) {
+      const wrap = document.createElement('div');
+      wrap.className = 'bandcamp-embed-wrap';
+      root.appendChild(wrap);
+      try {
+        const resp = await fetch(`${API_BASE}/api/bandcamp-embed?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) { wrap.remove(); return; }
+        const data = await resp.json();
+        if (!data || !data.embedUrl) { wrap.remove(); return; }
+        const frame = document.createElement('iframe');
+        frame.className = 'bandcamp-embed';
+        frame.src = data.embedUrl;
+        frame.loading = 'lazy';
+        frame.setAttribute('seamless', '');
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Listen on Bandcamp';
+        frame.appendChild(link);
+        wrap.appendChild(frame);
+      } catch (e) {
+        wrap.remove();
+      }
     }
 
     function renderSingleMix() {

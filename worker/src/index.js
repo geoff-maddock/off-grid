@@ -5,6 +5,7 @@
  *   POST   /auth/login            — email + password → JWT
  *   POST   /auth/accept-invite    — set password from an invite → JWT
  *   POST   /auth/bootstrap        — create the first admin (ADMIN_TOKEN)
+ *   GET    /api/bandcamp-embed    — resolve a Bandcamp page URL → embed URL (cached)
  *
  * Authenticated:
  *   GET    /auth/me               — current user
@@ -26,6 +27,7 @@ import { handlePresign, handleListFiles, handleDeleteFile, handleDirectUpload } 
 import { handleMixes } from './api/mixes.js';
 import { handlePlaylists } from './api/playlists.js';
 import { handleManifest } from './api/manifest.js';
+import { handleBandcampEmbed } from './api/bandcamp.js';
 
 // Routes reachable without a session.
 const PUBLIC_AUTH_PATHS = new Set(['/auth/login', '/auth/accept-invite', '/auth/bootstrap']);
@@ -47,6 +49,14 @@ export default {
       // ── Public auth routes (no session) ──────────────────────
       if (PUBLIC_AUTH_PATHS.has(path)) {
         response = await handlePublicAuth(request, env, path, method);
+        return addCors(response || notFound(), env, request);
+      }
+
+      // ── Public Bandcamp embed resolver (no session) ──────────
+      // The static public player calls this to turn a Bandcamp page URL into
+      // an embeddable iframe URL; it stays ahead of authenticate().
+      if (method === 'GET' && path === '/api/bandcamp-embed') {
+        response = await handleBandcampEmbed(request, env);
         return addCors(response || notFound(), env, request);
       }
 

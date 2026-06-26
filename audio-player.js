@@ -18,7 +18,7 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at'];
   }
 
   constructor() {
@@ -37,7 +37,22 @@ class OffgridPlayer extends HTMLElement {
   connectedCallback() {
     this._render();
     this._initInlineTracklist();
+    this._applyStartAt();
     this._peaksPromise = this._loadPeaksAndShow();
+  }
+
+  // Cue the player to a start position (seconds) without auto-playing. The
+  // `ready` handler consumes `_seekOnReady` after the user presses play, so the
+  // audio begins at this timestamp instead of 0:00. Used by the track detail
+  // page to land on the moment a track appears within each mix.
+  _applyStartAt() {
+    if (this._initialized) return;
+    const seconds = parseFloat(this.getAttribute('start-at'));
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    this._seekOnReady = seconds;
+    // Reflect the cued position in the time readout before the first play.
+    const cur = this.shadowRoot && this.shadowRoot.querySelector('.time-current');
+    if (cur) cur.textContent = this._fmt(seconds);
   }
 
   // Read an optional inline tracklist for static embeds:

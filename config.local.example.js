@@ -27,3 +27,10 @@
 // your real public URL:
 //
 // window.OFFGRID_SITE_URL = 'https://your-domain.com/';
+//
+// Worker API base URL. When set, the track detail page resolves Bandcamp buy
+// links into inline embedded players via the Worker's public
+// /api/bandcamp-embed endpoint. Leave unset to skip embeds (the Buy / View
+// button still shows). No trailing slash needed.
+//
+// window.OFFGRID_API_BASE = 'https://offgrid-api.<account>.workers.dev';
