@@ -416,8 +416,15 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `peaks`    | No       | URL to a pre-computed peaks JSON file (see [Peaks](#peaks)) |
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
+| `description` | No | Free text shown in the collapsible "More" panel |
+| `release-date` | No | ISO date (`YYYY-MM-DD`) shown as a formatted "Released:" line in the "More" panel |
+| `title-href` | No | If set, the title renders as a link to this URL (used by the player page for `#/mix/<id>`); omit for plain text |
+| `artist-href` | No | If set, the artist renders as a link to this URL (used by the player page for `#/artist/<name>`); omit for plain text |
 | `open-tracklist` | No | Boolean attribute — render with the tracklist panel expanded (when the player has tracks) |
 | `start-at` | No | Cue position in seconds — the player shows this time and begins playback there on first play (no autoplay) |
+
+Clicking the cover art opens the full-size image in a built-in lightbox (click the backdrop or press
+`Escape` to close). The "More" panel appears whenever a `description` or `release-date` is present.
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
 click-to-seek. Provide it either as a JS property (used by the player page from the manifest):
@@ -441,7 +448,9 @@ player.tracks = [
 
 ### `<offgrid-playlist>` — multiple tracks
 
-Wraps an `<offgrid-player>` with a clickable track list, prev/next navigation, and autoplay. Tracks are defined as JSON in a child `<script type="application/json">`:
+Wraps an `<offgrid-player>` with a clickable track list, prev/next navigation, autoplay, and an
+**Embed** button in the footer that reveals a copy-to-clipboard `<offgrid-playlist>` snippet. Tracks
+are defined as JSON in a child `<script type="application/json">`:
 
 ```html
 <offgrid-playlist color="#ff5500" artist="Your Name">

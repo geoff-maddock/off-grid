@@ -740,7 +740,8 @@
         .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
     }
 
-    function makePlayer(mix, startSeconds) {
+    function makePlayer(mix, startSeconds, opts) {
+      opts = opts || {};
       const div = document.createElement('div');
       div.className = 'player-entry';
       div.dataset.title = (mix.title || '').toLowerCase();
@@ -757,7 +758,15 @@
       if (mix.peaks) player.setAttribute('peaks', mix.peaks);
       if (mix.color) player.setAttribute('color', mix.color);
       if (mix.description) player.setAttribute('description', mix.description);
+      if (mix.releaseDate) player.setAttribute('release-date', mix.releaseDate);
       if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
+      // Meta links: title -> mix page, artist -> artist filter. Suppress the
+      // title self-link on a mix's own detail page, and all links in single-mix
+      // embed mode where the app's hash routes don't navigate.
+      if (!opts.noLinks) {
+        if (mix.id && !opts.selfMix) player.setAttribute('title-href', '#/mix/' + encodeURIComponent(mix.id));
+        if (mix.artist) player.setAttribute('artist-href', '#/artist/' + encodeURIComponent(mix.artist));
+      }
       if (_openTracklist) player.setAttribute('open-tracklist', '');
       if (Number.isFinite(startSeconds) && startSeconds > 0) {
         player.setAttribute('start-at', String(startSeconds));
@@ -1006,7 +1015,7 @@
         activeFilter = null;
         return;
       }
-      root.appendChild(makePlayer(mix));
+      root.appendChild(makePlayer(mix, undefined, { selfMix: true }));
       activeFilter = null;
     }
 
@@ -1152,7 +1161,7 @@
         root.innerHTML = '<div class="manifest-status error">Mix not found.</div>';
         return;
       }
-      root.appendChild(makePlayer(mix));
+      root.appendChild(makePlayer(mix, undefined, { noLinks: true }));
       activeFilter = null;
     }
 
