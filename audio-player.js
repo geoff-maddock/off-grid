@@ -18,7 +18,7 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href'];
   }
 
   constructor() {
@@ -91,6 +91,10 @@ class OffgridPlayer extends HTMLElement {
       this._ws.destroy();
       this._ws = null;
     }
+    if (this._onLightboxKey) {
+      document.removeEventListener('keydown', this._onLightboxKey);
+      this._onLightboxKey = null;
+    }
   }
 
   attributeChangedCallback(name, oldVal, newVal) {
@@ -98,7 +102,7 @@ class OffgridPlayer extends HTMLElement {
     if (name === 'src' && oldVal !== newVal && this._ws) {
       this._loadAudio();
     }
-    if (['title', 'artist', 'thumb', 'description'].includes(name)) {
+    if (['title', 'artist', 'thumb', 'description', 'release-date', 'title-href', 'artist-href'].includes(name)) {
       this._updateMeta();
     }
     if (name === 'open-tracklist') {
@@ -200,6 +204,8 @@ class OffgridPlayer extends HTMLElement {
     const thumb = this.getAttribute('thumb') || '';
     const title = this.getAttribute('title') || 'Untitled Track';
     const artist = this.getAttribute('artist') || '';
+    const titleHref = this.getAttribute('title-href') || '';
+    const artistHref = this.getAttribute('artist-href') || '';
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -278,6 +284,31 @@ class OffgridPlayer extends HTMLElement {
           opacity: 0.3;
         }
 
+        .thumb-img { cursor: zoom-in; }
+
+        /* Full-size artwork lightbox */
+        .lightbox {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          cursor: zoom-out;
+          padding: 20px;
+        }
+
+        .lightbox.open { display: flex; }
+
+        .lightbox-img {
+          max-width: 90%;
+          max-height: 90%;
+          object-fit: contain;
+          border-radius: 4px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
         .meta-row {
           flex: 1;
           display: flex;
@@ -304,6 +335,17 @@ class OffgridPlayer extends HTMLElement {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        a.track-title, a.track-artist {
+          display: block;
+          color: inherit;
+          text-decoration: none;
+          cursor: pointer;
+        }
+
+        a.track-title:hover, a.track-artist:hover {
+          text-decoration: underline;
         }
 
         .time-row {
@@ -538,7 +580,8 @@ class OffgridPlayer extends HTMLElement {
           transform: rotate(180deg);
         }
 
-        :host([has-description]) .more-btn {
+        :host([has-description]) .more-btn,
+        :host([has-details]) .more-btn {
           display: inline-flex;
         }
 
@@ -621,6 +664,15 @@ class OffgridPlayer extends HTMLElement {
           padding-bottom: 8px;
           white-space: pre-wrap;
           word-break: break-word;
+        }
+
+        .desc-meta {
+          font-size: 12px;
+          color: var(--text-muted);
+          font-family: 'IBM Plex Mono', monospace;
+          border-top: 1px solid #2a2a2a;
+          padding-top: 10px;
+          padding-bottom: 8px;
         }
 
         .resize-handle {
@@ -856,8 +908,14 @@ class OffgridPlayer extends HTMLElement {
           </div>
 
           <div class="meta-row">
-            <div class="track-title">${title}</div>
-            ${artist ? `<div class="track-artist">${artist}</div>` : ''}
+            ${titleHref
+              ? `<a class="track-title" href="${this._esc(titleHref)}">${title}</a>`
+              : `<div class="track-title">${title}</div>`}
+            ${artist
+              ? (artistHref
+                ? `<a class="track-artist" href="${this._esc(artistHref)}">${artist}</a>`
+                : `<div class="track-artist">${artist}</div>`)
+              : ''}
             <div class="time-row">
               <span class="time-display time-current">0:00</span>
               <span class="time-display">/</span>
@@ -937,6 +995,7 @@ class OffgridPlayer extends HTMLElement {
 
         <div class="desc-panel" id="desc-panel">
           <div class="desc-text" id="desc-text"></div>
+          <div class="desc-meta" id="desc-meta" style="display:none"></div>
         </div>
         <div class="resize-handle" id="resize-handle">
           <div class="resize-grip"></div>
@@ -949,15 +1008,15 @@ class OffgridPlayer extends HTMLElement {
         <div class="tracklist-panel" id="tracklist-panel">
           <ol class="tracklist-list" id="tracklist-list"></ol>
         </div>
+
+        <div class="lightbox" id="lightbox">
+          <img class="lightbox-img" id="lightbox-img" alt="">
+        </div>
       </div>
     `;
 
-    // Set description if present
-    const desc = this.getAttribute('description') || '';
-    if (desc) {
-      this.setAttribute('has-description', '');
-      this.shadowRoot.querySelector('#desc-text').textContent = desc;
-    }
+    // Set description + release date in the "More" panel
+    this._renderDetails();
 
     // Set tags if present
     this._renderTags();
@@ -969,6 +1028,28 @@ class OffgridPlayer extends HTMLElement {
     const playBtn = this.shadowRoot.querySelector('.play-btn');
     const volSlider = this.shadowRoot.querySelector('#volume');
     const volIcon = this.shadowRoot.querySelector('#vol-icon');
+
+    // Artwork lightbox — click the cover to view the full-size image. Bound on
+    // the wrap (stable across _updateMeta rebuilds); no-op when only a
+    // placeholder is shown (no thumb).
+    const thumbWrap = this.shadowRoot.querySelector('.thumb-wrap');
+    const lightbox = this.shadowRoot.querySelector('#lightbox');
+    const lightboxImg = this.shadowRoot.querySelector('#lightbox-img');
+    if (thumbWrap && lightbox && lightboxImg) {
+      thumbWrap.addEventListener('click', () => {
+        const thumb = this.getAttribute('thumb');
+        if (!thumb) return;
+        lightboxImg.src = thumb;
+        lightbox.classList.add('open');
+      });
+      lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+      this._onLightboxKey = (e) => {
+        if (e.key === 'Escape' && lightbox.classList.contains('open')) {
+          lightbox.classList.remove('open');
+        }
+      };
+      document.addEventListener('keydown', this._onLightboxKey);
+    }
 
     playBtn.addEventListener('click', () => {
       if (!this._initialized) {
@@ -1319,34 +1400,78 @@ class OffgridPlayer extends HTMLElement {
     const title = this.getAttribute('title') || 'Untitled Track';
     const artist = this.getAttribute('artist') || '';
     const thumb = this.getAttribute('thumb') || '';
+    const titleHref = this.getAttribute('title-href') || '';
+    const artistHref = this.getAttribute('artist-href') || '';
 
-    const titleEl = this.shadowRoot.querySelector('.track-title');
-    const artistEl = this.shadowRoot.querySelector('.track-artist');
+    this._setMetaNode('.track-title', title, titleHref, false);
+    this._setMetaNode('.track-artist', artist, artistHref, !artist);
+
     const thumbWrap = this.shadowRoot.querySelector('.thumb-wrap');
-
-    if (titleEl) titleEl.textContent = title;
-    if (artistEl) {
-      if (artist) {
-        artistEl.textContent = artist;
-        artistEl.style.display = '';
-      } else {
-        artistEl.style.display = 'none';
-      }
-    }
     if (thumbWrap && thumb) {
       thumbWrap.innerHTML = `<img src="${thumb}" alt="thumbnail" class="thumb-img">`;
     }
 
+    this._renderDetails();
+    this._renderTags();
+  }
+
+  // Update a title/artist meta node, swapping between <a> (when an href is
+  // provided) and <div> (plain text) in place. Text is set via textContent so
+  // values are never interpreted as HTML.
+  _setMetaNode(selector, text, href, hide) {
+    let el = this.shadowRoot.querySelector(selector);
+    if (!el) return;
+    const cls = selector.slice(1);
+    const wantAnchor = !!href;
+    if (wantAnchor !== (el.tagName === 'A')) {
+      const neo = document.createElement(wantAnchor ? 'a' : 'div');
+      neo.className = cls;
+      el.replaceWith(neo);
+      el = neo;
+    }
+    el.textContent = text;
+    if (wantAnchor) el.setAttribute('href', href);
+    else el.removeAttribute('href');
+    el.style.display = hide ? 'none' : '';
+  }
+
+  // Populate the "More" panel with the description and formatted release date,
+  // and toggle the markers that reveal the More button.
+  _renderDetails() {
+    if (!this.shadowRoot) return;
     const desc = this.getAttribute('description') || '';
     const descText = this.shadowRoot.querySelector('#desc-text');
-    if (descText) descText.textContent = desc;
-    if (desc) {
-      this.setAttribute('has-description', '');
-    } else {
-      this.removeAttribute('has-description');
+    if (descText) {
+      descText.textContent = desc;
+      descText.style.display = desc ? '' : 'none';
+    }
+    if (desc) this.setAttribute('has-description', '');
+    else this.removeAttribute('has-description');
+
+    const rawDate = this.getAttribute('release-date') || '';
+    const metaEl = this.shadowRoot.querySelector('#desc-meta');
+    if (metaEl) {
+      if (rawDate) {
+        metaEl.textContent = 'Released: ' + this._fmtDate(rawDate);
+        metaEl.style.display = '';
+      } else {
+        metaEl.textContent = '';
+        metaEl.style.display = 'none';
+      }
     }
 
-    this._renderTags();
+    if (desc || rawDate) this.setAttribute('has-details', '');
+    else this.removeAttribute('has-details');
+  }
+
+  // Format an ISO date (YYYY-MM-DD) for display. Parse components explicitly to
+  // avoid the UTC-midnight off-by-one that `new Date("YYYY-MM-DD")` can cause.
+  _fmtDate(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+    if (!m) return s;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (isNaN(d.getTime())) return s;
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
   _renderTags() {
@@ -1377,7 +1502,7 @@ class OffgridPlayer extends HTMLElement {
 
   _generateEmbedCode() {
     // Every attribute the player understands, so the embed is self-contained.
-    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'duration', 'description', 'tags'];
+    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'duration', 'description', 'release-date', 'tags'];
     let attrs = '';
     for (const name of attrNames) {
       const value = this.getAttribute(name);
@@ -1828,6 +1953,85 @@ class OffgridPlaylist extends HTMLElement {
         .autoplay-toggle.on .toggle-pip::after {
           transform: translateX(12px);
         }
+
+        /* footer left group + embed button/panel */
+        .pl-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .pl-embed-btn {
+          background: none;
+          border: 1px solid #444;
+          border-radius: var(--radius);
+          color: var(--text-muted);
+          font-size: 11px;
+          font-family: 'IBM Plex Sans', sans-serif;
+          padding: 3px 8px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: color 0.15s, border-color 0.15s;
+        }
+
+        .pl-embed-btn:hover {
+          color: var(--text);
+          border-color: #666;
+        }
+
+        .embed-panel {
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 0.3s ease, padding 0.3s ease;
+          padding: 0 14px;
+          border-top: 1px solid var(--border);
+        }
+
+        .embed-panel.open {
+          max-height: 220px;
+          padding: 10px 14px;
+        }
+
+        .embed-code {
+          background: #111;
+          border: 1px solid #333;
+          border-radius: var(--radius);
+          padding: 10px 12px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          color: #ccc;
+          line-height: 1.5;
+          white-space: pre-wrap;
+          word-break: break-all;
+          position: relative;
+        }
+
+        .embed-copy-btn {
+          position: absolute;
+          top: 6px;
+          right: 6px;
+          background: #333;
+          border: 1px solid #555;
+          border-radius: 3px;
+          color: var(--text-muted);
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 10px;
+          padding: 2px 6px;
+          cursor: pointer;
+          transition: color 0.15s, background 0.15s;
+        }
+
+        .embed-copy-btn:hover {
+          background: #444;
+          color: var(--text);
+        }
+
+        .embed-copy-btn.copied {
+          color: #88dd88;
+          border-color: #88dd88;
+        }
       </style>
 
       <div class="playlist-wrap" part="playlist">
@@ -1862,7 +2066,15 @@ class OffgridPlaylist extends HTMLElement {
         </ul>
 
         <div class="pl-footer">
-          <div class="pl-count">${tracks.length} track${tracks.length !== 1 ? 's' : ''}</div>
+          <div class="pl-left">
+            <div class="pl-count">${tracks.length} track${tracks.length !== 1 ? 's' : ''}</div>
+            <button class="pl-embed-btn" id="pl-embed-btn" title="Embed" aria-label="Embed">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+              </svg>
+              <span>Embed</span>
+            </button>
+          </div>
           <div class="autoplay-toggle on" id="autoplay-toggle" title="Autoplay next track">
             <div class="toggle-pip"></div>
             <span>autoplay</span>
@@ -1879,6 +2091,10 @@ class OffgridPlaylist extends HTMLElement {
               </svg>
             </button>
           </div>
+        </div>
+
+        <div class="embed-panel" id="embed-panel">
+          <div class="embed-code" id="embed-code"><button class="embed-copy-btn" id="embed-copy-btn">Copy</button></div>
         </div>
       </div>
     `;
@@ -1947,6 +2163,31 @@ class OffgridPlaylist extends HTMLElement {
       autoToggle.classList.toggle('on');
     });
 
+    // Embed button — mirrors the single player's embed panel + copy behavior.
+    const embedBtn = this.shadowRoot.querySelector('#pl-embed-btn');
+    const embedPanel = this.shadowRoot.querySelector('#embed-panel');
+    const embedCode = this.shadowRoot.querySelector('#embed-code');
+    const embedCopyBtn = this.shadowRoot.querySelector('#embed-copy-btn');
+    if (embedBtn && embedPanel) {
+      embedBtn.addEventListener('click', () => {
+        const isOpen = embedPanel.classList.toggle('open');
+        if (isOpen) {
+          embedCode.textContent = this._generateEmbedCode();
+          embedCode.appendChild(embedCopyBtn);
+        }
+      });
+      embedCopyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(this._generateEmbedCode()).then(() => {
+          embedCopyBtn.textContent = 'Copied!';
+          embedCopyBtn.classList.add('copied');
+          setTimeout(() => {
+            embedCopyBtn.textContent = 'Copy';
+            embedCopyBtn.classList.remove('copied');
+          }, 2000);
+        });
+      });
+    }
+
     // Listen for play/pause to update bars
     this.shadowRoot.querySelector('#player-slot').addEventListener('trackplay', () => {
       this._updateListActive(this._current, true);
@@ -1976,6 +2217,33 @@ class OffgridPlaylist extends HTMLElement {
     const next = this.shadowRoot.querySelector('#next-btn');
     if (prev) prev.disabled = this._current === 0;
     if (next) next.disabled = this._current === this._tracks.length - 1;
+  }
+
+  _esc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Produce a self-contained <offgrid-playlist> embed snippet, mirroring
+  // OffgridPlayer._generateEmbedCode: attributes the element understands plus
+  // the tracks serialized as an inline JSON child (read in connectedCallback).
+  _generateEmbedCode() {
+    let attrs = '';
+    const color = this.getAttribute('color');
+    const artist = this.getAttribute('artist');
+    if (color) attrs += `\n  color="${this._esc(color)}"`;
+    if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
+
+    let children = '\n';
+    if (this._tracks && this._tracks.length) {
+      // Escape "<" so a track title containing "</script>" can't terminate the
+      // block early. "<" is valid JSON and parses back to "<".
+      const json = JSON.stringify(this._tracks).replace(/</g, '\\u003c');
+      children = `\n  <script type="application/json">${json}<\/script>\n`;
+    }
+
+    const scriptSrc = OFFGRID_SCRIPT_SRC || 'https://your-domain.com/audio-player.js';
+    return `<script src="${scriptSrc}"><\/script>\n\n<offgrid-playlist${attrs}>${children}</offgrid-playlist>`;
   }
 }
 
