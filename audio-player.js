@@ -158,7 +158,15 @@ class OffgridPlayer extends HTMLElement {
     const numBars = Math.floor(width / step);
     const samplesPerBar = Math.floor(peaks.length / numBars);
 
-    ctx.fillStyle = '#444';
+    // When cued to a start position (track page), pre-fill the waveform up to
+    // that point in the accent color — mirroring how WaveSurfer paints the
+    // played portion during playback — so it's clear where play will begin.
+    const dur = this._peaksDuration;
+    const startFrac = (this._seekOnReady > 0 && dur > 0)
+      ? Math.min(1, this._seekOnReady / dur)
+      : 0;
+    const accent = this._color;
+
     for (let i = 0; i < numBars; i++) {
       const start = i * samplesPerBar;
       let max = 0;
@@ -168,9 +176,17 @@ class OffgridPlayer extends HTMLElement {
       const barH = Math.max(2, max * (height - 4));
       const x = i * step;
       const y = (height - barH) / 2;
+      ctx.fillStyle = (startFrac > 0 && (i + 0.5) / numBars <= startFrac) ? accent : '#444';
       ctx.beginPath();
       ctx.roundRect(x, y, barWidth, barH, 2);
       ctx.fill();
+    }
+
+    // Marker line at the exact cue position.
+    if (startFrac > 0) {
+      const markerX = Math.min(width - 1, startFrac * width);
+      ctx.fillStyle = accent;
+      ctx.fillRect(markerX, 0, 2, height);
     }
 
     shimmer.style.animation = 'none';
