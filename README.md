@@ -646,12 +646,6 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 | `GET`  | `/api/manifest`          | Generate manifest JSON from D1 |
 | `POST` | `/api/manifest/publish`  | Write `manifest.json` to R2 |
 
-### Public (no session)
-
-| Method | Path                                | Description |
-|--------|-------------------------------------|-------------|
-| `GET`  | `/api/bandcamp-embed?url=<page url>` | Resolve a Bandcamp page URL → `{ embedUrl, kind, id }` for an inline embed. Restricted to `*.bandcamp.com`; cached ~1 day. Used by the public track page (set `OFFGRID_API_BASE`). |
-
 ---
 
 ## WSL notes
