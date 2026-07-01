@@ -688,7 +688,7 @@
     //   4. the placeholder below       (edit only for a committed default)
     //
     // In-page navigation uses hash routes (orthogonal to the params above):
-    //   #/                home — all mixes (sortable) + playlists
+    //   #/                home — all mixes (sortable)
     //   #/playlists       just the playlists
     //   #/mix/<slug>      one mix by its id/slug (in-app, with a back link)
     //   #/tag/<tag>       mixes carrying a tag
@@ -996,7 +996,7 @@
 
     function renderHome() {
       showChrome({ sort: true, browse: true, search: 'mixes', heading: null });
-      renderMixList(state.mixes, { label: 'Mixes', withPlaylists: true });
+      renderMixList(state.mixes, { label: 'Mixes' });
     }
 
     function renderMixDetail(id) {
