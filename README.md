@@ -417,6 +417,7 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
 | `open-tracklist` | No | Boolean attribute — render with the tracklist panel expanded (when the player has tracks) |
+| `start-at` | No | Cue position in seconds — the player shows this time and begins playback there on first play (no autoplay) |
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
 click-to-seek. Provide it either as a JS property (used by the player page from the manifest):

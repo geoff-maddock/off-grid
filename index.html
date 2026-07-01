@@ -740,7 +740,7 @@
         .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'untitled';
     }
 
-    function makePlayer(mix) {
+    function makePlayer(mix, startSeconds) {
       const div = document.createElement('div');
       div.className = 'player-entry';
       div.dataset.title = (mix.title || '').toLowerCase();
@@ -759,6 +759,9 @@
       if (mix.description) player.setAttribute('description', mix.description);
       if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
       if (_openTracklist) player.setAttribute('open-tracklist', '');
+      if (Number.isFinite(startSeconds) && startSeconds > 0) {
+        player.setAttribute('start-at', String(startSeconds));
+      }
       if (mix.tracks && mix.tracks.length > 0) player.tracks = mix.tracks;
 
       div.appendChild(player);
@@ -1119,10 +1122,25 @@
       const section = sectionEl(`Appears in · ${mixes.length} mix${mixes.length === 1 ? '' : 'es'}`);
       const stack = document.createElement('div');
       stack.className = 'player-stack';
-      mixes.forEach(m => stack.appendChild(makePlayer(m)));
+      mixes.forEach(m => {
+        // Cue each mix to the moment this track appears in it (per-mix — the
+        // same track can sit at different times across mixes).
+        const start = trackSecondsInMix(m, slug);
+        stack.appendChild(makePlayer(m, start));
+      });
       section.appendChild(stack);
       root.appendChild(section);
       activeFilter = null;
+    }
+
+    // Seconds at which the track identified by `slug` appears in `mix`, or
+    // undefined. Matches on the same normalized artist+title used by the index.
+    function trackSecondsInMix(mix, slug) {
+      for (const tr of (mix.tracks || [])) {
+        const s = slugify(`${(tr.artist || '').trim()} ${(tr.title || '').trim()}`);
+        if (s === slug && Number.isFinite(tr.seconds)) return tr.seconds;
+      }
+      return undefined;
     }
 
     function renderSingleMix() {
