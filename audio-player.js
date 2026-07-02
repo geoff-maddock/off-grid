@@ -8,6 +8,8 @@
  *   artist      — Artist name
  *   thumb       — URL to thumbnail image
  *   color       — Waveform accent color (default: #ff5500)
+ *   theme       — Color styling: "dark" (default) | "light" | "color" (accent as background)
+ *   size        — Layout: "standard" (default) | "slim" (compact)
  *   peaks       — URL to pre-computed peaks JSON ({peaks: number[], duration: number})
  *   duration    — Optional pre-known duration string (e.g. "3:42")
  *   description — Optional track description (shown via expandable "more" button)
@@ -18,7 +20,7 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href'];
   }
 
   constructor() {
@@ -114,6 +116,108 @@ class OffgridPlayer extends HTMLElement {
     return this.getAttribute('color') || '#ff5500';
   }
 
+  // Color styling mode: dark (default) | light | color
+  get _theme() {
+    const t = (this.getAttribute('theme') || 'dark').toLowerCase();
+    return ['dark', 'light', 'color'].includes(t) ? t : 'dark';
+  }
+
+  // Layout mode: standard (default) | slim
+  get _size() {
+    return (this.getAttribute('size') || 'standard').toLowerCase() === 'slim' ? 'slim' : 'standard';
+  }
+
+  // Pick a legible foreground (#111 or #fff) for a given background hex, based
+  // on relative luminance. Used by the "color" theme so any accent hue stays
+  // readable. Falls back to white for unparseable input.
+  _contrastColor(hex) {
+    const m = String(hex).trim().replace('#', '');
+    let r, g, b;
+    if (m.length === 3) {
+      r = parseInt(m[0] + m[0], 16); g = parseInt(m[1] + m[1], 16); b = parseInt(m[2] + m[2], 16);
+    } else if (m.length === 6) {
+      r = parseInt(m.slice(0, 2), 16); g = parseInt(m.slice(2, 4), 16); b = parseInt(m.slice(4, 6), 16);
+    } else {
+      return '#fff';
+    }
+    if ([r, g, b].some(v => Number.isNaN(v))) return '#fff';
+    // Relative luminance (sRGB, gamma-approx)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#111' : '#fff';
+  }
+
+  // CSS custom-property block for :host, driven by the current theme + accent.
+  _themeVars() {
+    const c = this._color;
+    if (this._theme === 'light') {
+      return `--accent: ${c};
+          --bg: #ffffff;
+          --bg2: #f4f4f4;
+          --bg3: #e8e8e8;
+          --text: #1a1a1a;
+          --text-muted: #666;
+          --wave-bg: #d0d0d0;
+          --border: #dddddd;
+          --border-hover: #c4c4c4;`;
+    }
+    if (this._theme === 'color') {
+      const fg = this._contrastColor(c);
+      return `--accent: ${fg};
+          --bg: ${c};
+          --bg2: color-mix(in srgb, ${c} 85%, black);
+          --bg3: color-mix(in srgb, ${c} 72%, black);
+          --text: ${fg};
+          --text-muted: color-mix(in srgb, ${fg} 60%, ${c});
+          --wave-bg: color-mix(in srgb, ${fg} 30%, ${c});
+          --border: color-mix(in srgb, ${fg} 25%, ${c});
+          --border-hover: color-mix(in srgb, ${fg} 45%, ${c});`;
+    }
+    // dark (default) — original values
+    return `--accent: ${c};
+          --bg: #1a1a1a;
+          --bg2: #252525;
+          --bg3: #2e2e2e;
+          --text: #f0f0f0;
+          --text-muted: #888;
+          --wave-bg: #333;
+          --border: #333;
+          --border-hover: #444;`;
+  }
+
+  // Parse a #rgb/#rrggbb string to [r,g,b], or null if unparseable.
+  _parseHex(hex) {
+    const m = String(hex).trim().replace('#', '');
+    if (m.length === 3) return [0, 1, 2].map(i => parseInt(m[i] + m[i], 16));
+    if (m.length === 6) return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16));
+    return null;
+  }
+
+  // Blend two hex colors, weightA in [0,1] toward `a`. Returns a concrete
+  // #rrggbb string (canvas/WaveSurfer need real colors, not CSS color-mix()).
+  _mixHex(a, b, weightA) {
+    const ca = this._parseHex(a), cb = this._parseHex(b);
+    if (!ca || !cb) return b;
+    const to = v => Math.round(v).toString(16).padStart(2, '0');
+    return '#' + [0, 1, 2].map(i => to(ca[i] * weightA + cb[i] * (1 - weightA))).join('');
+  }
+
+  // Concrete colors for the canvas / WaveSurfer (which need real color strings,
+  // not CSS variables).
+  _waveBgColor() {
+    if (this._theme === 'light') return '#c8c8c8';
+    if (this._theme === 'color') return this._mixHex(this._contrastColor(this._color), this._color, 0.30);
+    return '#444';
+  }
+
+  _waveProgressColor() {
+    if (this._theme === 'color') return this._contrastColor(this._color);
+    return this._color;
+  }
+
+  _waveHeight() {
+    return this._size === 'slim' ? 40 : 64;
+  }
+
   // Load peaks JSON if available and render a static preview waveform
   async _loadPeaksAndShow() {
     const peaksUrl = this.getAttribute('peaks');
@@ -147,7 +251,7 @@ class OffgridPlayer extends HTMLElement {
 
     // Replace shimmer with a canvas
     const canvas = document.createElement('canvas');
-    const height = 64;
+    const height = this._waveHeight();
     const width = shimmer.offsetWidth || 680;
     canvas.width = width * 2; // retina
     canvas.height = height * 2;
@@ -169,7 +273,8 @@ class OffgridPlayer extends HTMLElement {
     const startFrac = (this._seekOnReady > 0 && dur > 0)
       ? Math.min(1, this._seekOnReady / dur)
       : 0;
-    const accent = this._color;
+    const accent = this._waveProgressColor();
+    const unplayed = this._waveBgColor();
 
     for (let i = 0; i < numBars; i++) {
       const start = i * samplesPerBar;
@@ -180,7 +285,7 @@ class OffgridPlayer extends HTMLElement {
       const barH = Math.max(2, max * (height - 4));
       const x = i * step;
       const y = (height - barH) / 2;
-      ctx.fillStyle = (startFrac > 0 && (i + 0.5) / numBars <= startFrac) ? accent : '#444';
+      ctx.fillStyle = (startFrac > 0 && (i + 0.5) / numBars <= startFrac) ? accent : unplayed;
       ctx.beginPath();
       ctx.roundRect(x, y, barWidth, barH, 2);
       ctx.fill();
@@ -217,21 +322,16 @@ class OffgridPlayer extends HTMLElement {
           display: block;
           container-type: inline-size; /* responsive to the player's own width */
           font-family: 'IBM Plex Sans', sans-serif;
-          --accent: ${this._color};
-          --bg: #1a1a1a;
-          --bg2: #252525;
-          --bg3: #2e2e2e;
-          --text: #f0f0f0;
-          --text-muted: #888;
-          --wave-bg: #333;
+          ${this._themeVars()}
           --wave-progress: var(--accent);
           --wave-cursor: transparent;
+          --wave-h: ${this._size === 'slim' ? '40px' : '64px'};
           --radius: 4px;
         }
 
         .player {
           background: var(--bg);
-          border: 1px solid #333;
+          border: 1px solid var(--border);
           border-radius: 8px;
           overflow: hidden;
           display: flex;
@@ -241,7 +341,32 @@ class OffgridPlayer extends HTMLElement {
         }
 
         .player:hover {
-          border-color: #444;
+          border-color: var(--border-hover);
+        }
+
+        /* SLIM size — compact layout (waveform height handled via --wave-h) */
+        :host([size="slim"]) .thumb-wrap {
+          width: 56px;
+          height: 56px;
+        }
+        :host([size="slim"]) .play-btn {
+          width: 34px;
+          height: 34px;
+        }
+        :host([size="slim"]) .play-btn svg {
+          width: 16px;
+          height: 16px;
+        }
+        :host([size="slim"]) .meta-row {
+          padding-top: 6px;
+          padding-bottom: 6px;
+        }
+        :host([size="slim"]) .wave-row {
+          padding-bottom: 10px;
+        }
+        :host([size="slim"]) .bottom-row {
+          padding-top: 4px;
+          padding-bottom: 8px;
         }
 
         /* TOP ROW: thumb + meta + controls */
@@ -275,7 +400,7 @@ class OffgridPlayer extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+          background: linear-gradient(135deg, var(--bg2) 0%, var(--bg3) 100%);
         }
 
         .thumb-placeholder svg {
@@ -379,14 +504,14 @@ class OffgridPlayer extends HTMLElement {
 
         .tag-pill {
           display: inline-block;
-          background: rgba(255, 85, 0, 0.08);
-          border: 1px solid rgba(255, 85, 0, 0.15);
+          background: color-mix(in srgb, var(--accent) 12%, transparent);
+          border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
           border-radius: 20px;
           padding: 1px 8px;
           font-family: 'IBM Plex Mono', monospace;
           font-size: 9px;
           letter-spacing: 0.03em;
-          color: color-mix(in srgb, var(--accent) 80%, white);
+          color: color-mix(in srgb, var(--accent) 80%, var(--text));
           text-transform: lowercase;
           line-height: 1.6;
           cursor: pointer;
@@ -394,8 +519,8 @@ class OffgridPlayer extends HTMLElement {
         }
 
         .tag-pill:hover {
-          background: rgba(255, 85, 0, 0.18);
-          border-color: rgba(255, 85, 0, 0.3);
+          background: color-mix(in srgb, var(--accent) 22%, transparent);
+          border-color: color-mix(in srgb, var(--accent) 40%, transparent);
         }
 
         .play-btn-wrap {
@@ -531,7 +656,7 @@ class OffgridPlayer extends HTMLElement {
 
         .download-btn {
           background: none;
-          border: 1px solid #444;
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           color: var(--text-muted);
           font-size: 11px;
@@ -547,13 +672,13 @@ class OffgridPlayer extends HTMLElement {
 
         .download-btn:hover {
           color: var(--text);
-          border-color: #666;
+          border-color: var(--border-hover);
         }
 
         /* More / Description */
         .more-btn {
           background: none;
-          border: 1px solid #444;
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           color: var(--text-muted);
           font-size: 11px;
@@ -568,7 +693,7 @@ class OffgridPlayer extends HTMLElement {
 
         .more-btn:hover {
           color: var(--text);
-          border-color: #666;
+          border-color: var(--border-hover);
         }
 
         .more-btn .chevron {
@@ -711,7 +836,7 @@ class OffgridPlayer extends HTMLElement {
         /* Embed button & panel */
         .embed-btn {
           background: none;
-          border: 1px solid #444;
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           color: var(--text-muted);
           font-size: 11px;
@@ -726,7 +851,7 @@ class OffgridPlayer extends HTMLElement {
 
         .embed-btn:hover {
           color: var(--text);
-          border-color: #666;
+          border-color: var(--border-hover);
         }
 
         .embed-panel {
@@ -742,13 +867,13 @@ class OffgridPlayer extends HTMLElement {
         }
 
         .embed-code {
-          background: #111;
-          border: 1px solid #333;
+          background: var(--bg2);
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           padding: 10px 12px;
           font-family: 'IBM Plex Mono', monospace;
           font-size: 11px;
-          color: #ccc;
+          color: var(--text);
           line-height: 1.5;
           white-space: pre-wrap;
           word-break: break-all;
@@ -759,8 +884,8 @@ class OffgridPlayer extends HTMLElement {
           position: absolute;
           top: 6px;
           right: 6px;
-          background: #333;
-          border: 1px solid #555;
+          background: var(--bg3);
+          border: 1px solid var(--border);
           border-radius: 3px;
           color: var(--text-muted);
           font-family: 'IBM Plex Mono', monospace;
@@ -771,7 +896,7 @@ class OffgridPlayer extends HTMLElement {
         }
 
         .embed-copy-btn:hover {
-          background: #444;
+          background: var(--border-hover);
           color: var(--text);
         }
 
@@ -782,7 +907,7 @@ class OffgridPlayer extends HTMLElement {
 
         /* idle placeholder */
         .wave-placeholder {
-          height: 64px;
+          height: var(--wave-h);
           background: var(--bg3);
           border-radius: var(--radius);
           position: relative;
@@ -805,7 +930,7 @@ class OffgridPlayer extends HTMLElement {
 
         /* loading state shimmer */
         .wave-shimmer {
-          height: 64px;
+          height: var(--wave-h);
           background: var(--bg3);
           border-radius: var(--radius);
           position: relative;
@@ -817,7 +942,7 @@ class OffgridPlayer extends HTMLElement {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, transparent 25%, #3a3a3a 50%, transparent 75%);
+          background: linear-gradient(90deg, transparent 25%, color-mix(in srgb, var(--bg3) 80%, var(--text)) 50%, transparent 75%);
           background-size: 200% 100%;
           animation: shimmer 1.2s infinite;
         }
@@ -849,7 +974,7 @@ class OffgridPlayer extends HTMLElement {
 
         /* error state */
         .wave-error {
-          height: 64px;
+          height: var(--wave-h);
           background: var(--bg3);
           border-radius: var(--radius);
           display: none;
@@ -1221,7 +1346,6 @@ class OffgridPlayer extends HTMLElement {
 
   async _initWaveSurfer() {
     const container = this.shadowRoot.querySelector('#waveform');
-    const accent = this._color;
     const src = this.getAttribute('src');
 
     // Container must be visible for WaveSurfer to measure width
@@ -1229,11 +1353,11 @@ class OffgridPlayer extends HTMLElement {
 
     const opts = {
       container,
-      waveColor: '#444',
-      progressColor: accent,
+      waveColor: this._waveBgColor(),
+      progressColor: this._waveProgressColor(),
       cursorColor: 'transparent',
       cursorWidth: 0,
-      height: 64,
+      height: this._waveHeight(),
       barWidth: 2,
       barGap: 1,
       barRadius: 2,
@@ -1502,7 +1626,7 @@ class OffgridPlayer extends HTMLElement {
 
   _generateEmbedCode() {
     // Every attribute the player understands, so the embed is self-contained.
-    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'duration', 'description', 'release-date', 'tags'];
+    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'theme', 'size', 'duration', 'description', 'release-date', 'tags'];
     let attrs = '';
     for (const name of attrNames) {
       const value = this.getAttribute(name);
@@ -1654,7 +1778,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist'];
+    return ['color', 'artist', 'theme', 'size'];
   }
 
   constructor() {
@@ -1683,8 +1807,72 @@ class OffgridPlaylist extends HTMLElement {
 
   get _color() { return this.getAttribute('color') || '#ff5500'; }
 
+  // Color styling mode: dark (default) | light | color
+  get _theme() {
+    const t = (this.getAttribute('theme') || 'dark').toLowerCase();
+    return ['dark', 'light', 'color'].includes(t) ? t : 'dark';
+  }
+
+  // Layout mode: standard (default) | slim
+  get _size() {
+    return (this.getAttribute('size') || 'standard').toLowerCase() === 'slim' ? 'slim' : 'standard';
+  }
+
+  // Pick a legible foreground (#111 or #fff) for a background hex (see OffgridPlayer).
+  _contrastColor(hex) {
+    const m = String(hex).trim().replace('#', '');
+    let r, g, b;
+    if (m.length === 3) {
+      r = parseInt(m[0] + m[0], 16); g = parseInt(m[1] + m[1], 16); b = parseInt(m[2] + m[2], 16);
+    } else if (m.length === 6) {
+      r = parseInt(m.slice(0, 2), 16); g = parseInt(m.slice(2, 4), 16); b = parseInt(m.slice(4, 6), 16);
+    } else {
+      return '#fff';
+    }
+    if ([r, g, b].some(v => Number.isNaN(v))) return '#fff';
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#111' : '#fff';
+  }
+
+  // CSS custom-property block for :host, driven by the current theme + accent.
+  _themeVars() {
+    const c = this._color;
+    if (this._theme === 'light') {
+      return `--accent: ${c};
+          --bg: #ffffff;
+          --bg2: #f4f4f4;
+          --bg3: #e8e8e8;
+          --bg-hover: #eeeeee;
+          --text: #1a1a1a;
+          --text-muted: #666;
+          --border: #dddddd;
+          --border-hover: #c4c4c4;`;
+    }
+    if (this._theme === 'color') {
+      const fg = this._contrastColor(c);
+      return `--accent: ${fg};
+          --bg: ${c};
+          --bg2: color-mix(in srgb, ${c} 88%, black);
+          --bg3: color-mix(in srgb, ${c} 72%, black);
+          --bg-hover: color-mix(in srgb, ${c} 80%, black);
+          --text: ${fg};
+          --text-muted: color-mix(in srgb, ${fg} 60%, ${c});
+          --border: color-mix(in srgb, ${fg} 25%, ${c});
+          --border-hover: color-mix(in srgb, ${fg} 45%, ${c});`;
+    }
+    // dark (default) — original values
+    return `--accent: ${c};
+          --bg: #1a1a1a;
+          --bg2: #222;
+          --bg3: #2e2e2e;
+          --bg-hover: #2a2a2a;
+          --text: #f0f0f0;
+          --text-muted: #888;
+          --border: #333;
+          --border-hover: #444;`;
+  }
+
   _render() {
-    const color = this._color;
     const tracks = this._tracks;
 
     this.shadowRoot.innerHTML = `
@@ -1696,14 +1884,7 @@ class OffgridPlaylist extends HTMLElement {
         :host {
           display: block;
           font-family: 'IBM Plex Sans', sans-serif;
-          --accent: ${color};
-          --bg: #1a1a1a;
-          --bg2: #222;
-          --bg3: #2e2e2e;
-          --bg-hover: #2a2a2a;
-          --text: #f0f0f0;
-          --text-muted: #888;
-          --border: #333;
+          ${this._themeVars()}
           --radius: 4px;
         }
 
@@ -1712,6 +1893,11 @@ class OffgridPlaylist extends HTMLElement {
           border: 1px solid var(--border);
           border-radius: 8px;
           overflow: hidden;
+        }
+
+        /* SLIM size — tighten track rows */
+        :host([size="slim"]) .track-num {
+          padding: 8px 0;
         }
 
         /* Embedded player slot */
@@ -1741,7 +1927,7 @@ class OffgridPlaylist extends HTMLElement {
           gap: 0;
           cursor: pointer;
           transition: background 0.15s;
-          border-bottom: 1px solid #2a2a2a;
+          border-bottom: 1px solid var(--border);
           position: relative;
         }
 
@@ -1752,7 +1938,7 @@ class OffgridPlaylist extends HTMLElement {
         }
 
         .track-item.active {
-          background: #222;
+          background: var(--bg2);
         }
 
         .track-num {
@@ -1890,7 +2076,7 @@ class OffgridPlaylist extends HTMLElement {
 
         .nav-btn {
           background: none;
-          border: 1px solid #444;
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           color: var(--text-muted);
           width: 28px;
@@ -1904,7 +2090,7 @@ class OffgridPlaylist extends HTMLElement {
 
         .nav-btn:hover {
           color: var(--text);
-          border-color: #666;
+          border-color: var(--border-hover);
         }
 
         .nav-btn:disabled {
@@ -1963,7 +2149,7 @@ class OffgridPlaylist extends HTMLElement {
 
         .pl-embed-btn {
           background: none;
-          border: 1px solid #444;
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           color: var(--text-muted);
           font-size: 11px;
@@ -1978,7 +2164,7 @@ class OffgridPlaylist extends HTMLElement {
 
         .pl-embed-btn:hover {
           color: var(--text);
-          border-color: #666;
+          border-color: var(--border-hover);
         }
 
         .embed-panel {
@@ -1995,13 +2181,13 @@ class OffgridPlaylist extends HTMLElement {
         }
 
         .embed-code {
-          background: #111;
-          border: 1px solid #333;
+          background: var(--bg2);
+          border: 1px solid var(--border);
           border-radius: var(--radius);
           padding: 10px 12px;
           font-family: 'IBM Plex Mono', monospace;
           font-size: 11px;
-          color: #ccc;
+          color: var(--text);
           line-height: 1.5;
           white-space: pre-wrap;
           word-break: break-all;
@@ -2012,8 +2198,8 @@ class OffgridPlaylist extends HTMLElement {
           position: absolute;
           top: 6px;
           right: 6px;
-          background: #333;
-          border: 1px solid #555;
+          background: var(--bg3);
+          border: 1px solid var(--border);
           border-radius: 3px;
           color: var(--text-muted);
           font-family: 'IBM Plex Mono', monospace;
@@ -2024,7 +2210,7 @@ class OffgridPlaylist extends HTMLElement {
         }
 
         .embed-copy-btn:hover {
-          background: #444;
+          background: var(--border-hover);
           color: var(--text);
         }
 
@@ -2117,6 +2303,8 @@ class OffgridPlaylist extends HTMLElement {
     if (t.thumb) player.setAttribute('thumb', t.thumb);
     if (t.peaks) player.setAttribute('peaks', t.peaks);
     player.setAttribute('color', this._color);
+    if (this.getAttribute('theme')) player.setAttribute('theme', this._theme);
+    if (this.getAttribute('size')) player.setAttribute('size', this._size);
 
     // Style override for embedding
     player.style.cssText = 'display:block;';
@@ -2231,8 +2419,12 @@ class OffgridPlaylist extends HTMLElement {
     let attrs = '';
     const color = this.getAttribute('color');
     const artist = this.getAttribute('artist');
+    const theme = this.getAttribute('theme');
+    const size = this.getAttribute('size');
     if (color) attrs += `\n  color="${this._esc(color)}"`;
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
+    if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
+    if (size) attrs += `\n  size="${this._esc(size)}"`;
 
     let children = '\n';
     if (this._tracks && this._tracks.length) {

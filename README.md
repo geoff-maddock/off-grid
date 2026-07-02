@@ -403,6 +403,8 @@ Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. A
   title="My Mix"
   artist="Your Name"
   color="#ff5500"
+  theme="dark"
+  size="standard"
   thumb="https://pub-xxxxxxxx.r2.dev/covers/cover.jpg"
   peaks="https://pub-xxxxxxxx.r2.dev/peaks/mix.peaks.json">
 </offgrid-player>
@@ -420,6 +422,8 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `thumb`    | No       | URL to a thumbnail/cover image |
 | `peaks`    | No       | URL to a pre-computed peaks JSON file (see [Peaks](#peaks)) |
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
+| `theme`    | No       | Color styling: `dark` (default), `light`, or `color` (uses `color` as the background/primary with auto-contrast text & waveform) |
+| `size`     | No       | Layout: `standard` (default) or `slim` (compact — smaller cover, shorter waveform, tighter padding) |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
 | `description` | No | Free text shown in the collapsible "More" panel |
 | `release-date` | No | ISO date (`YYYY-MM-DD`) shown as a formatted "Released:" line in the "More" panel |
@@ -458,7 +462,7 @@ Wraps an `<offgrid-player>` with a clickable track list, prev/next navigation, a
 are defined as JSON in a child `<script type="application/json">`:
 
 ```html
-<offgrid-playlist color="#ff5500" artist="Your Name">
+<offgrid-playlist color="#ff5500" artist="Your Name" theme="dark" size="standard">
   <script type="application/json">
     [
       {"src": "track1.mp3", "title": "Track One", "thumb": "cover1.jpg", "peaks": "track1.peaks.json"},
@@ -472,6 +476,8 @@ are defined as JSON in a child `<script type="application/json">`:
 |-----------|----------|-------------|
 | `color`   | No       | Accent color for the embedded player and track list |
 | `artist`  | No       | Default artist for tracks that don't specify one |
+| `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
+| `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
 
 ### Play one at a time
 
