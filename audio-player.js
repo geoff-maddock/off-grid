@@ -550,6 +550,16 @@ class OffgridPlayer extends HTMLElement {
           background: color-mix(in srgb, var(--accent) 80%, white);
         }
 
+        /* In color mode --accent resolves to the contrast color (often white),
+           which would hide the white icon — force a near-black button there. */
+        :host([theme="color"]) .play-btn {
+          background: #111;
+        }
+
+        :host([theme="color"]) .play-btn:hover {
+          background: #262626;
+        }
+
         .play-btn:active {
           transform: scale(0.96);
         }

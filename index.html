@@ -6,6 +6,15 @@
        manifest fills in the real site title (avoids a flash of the fallback
        text). No-JS users never get this class and see the fallback normally. -->
   <script>document.documentElement.className += ' js';</script>
+  <!-- Apply the saved color mode before paint so there's no flash of the
+       wrong theme. Default 'dark' keeps the first-visit look unchanged. -->
+  <script>
+    (function () {
+      var t = localStorage.getItem('theme');
+      if (['dark', 'light', 'color'].indexOf(t) === -1) t = 'dark';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="assets/favicon.ico" sizes="any">
@@ -32,13 +41,43 @@
     }
 
     :root {
-      --accent: #ff5500;
+      /* --accent-hue is the stable brand hue; --accent is the role used by
+         accent elements. JS may override --accent-hue from the manifest's
+         site accent so color mode's tint tracks a custom accent. */
+      --accent-hue: #ff5500;
+      --accent: var(--accent-hue);
       --bg: #111;
       --bg2: #161616;
+      --surface: #1a1a1a;    /* raised surfaces: inputs, chips, active nav, hovers */
       --text: #f0f0f0;
       --text-muted: #666;
       --border: #2a2a2a;
+      --grid-line: rgba(255, 85, 0, 0.015);  /* background grid texture */
       --max-w: 720px;
+    }
+
+    /* Light mode — mirrors the embedded player's light palette. */
+    :root[data-theme="light"] {
+      --bg: #ffffff;
+      --bg2: #f4f4f4;
+      --surface: #e8e8e8;
+      --text: #1a1a1a;
+      --text-muted: #666;
+      --border: #dddddd;
+      --grid-line: rgba(0, 0, 0, 0.03);
+    }
+
+    /* Color mode — page chrome stays dark (the embedded players carry the full
+       color); surfaces get a subtle accent tint so it still reads as distinct
+       from plain dark, and the accent hue stays vivid on the dark background. */
+    :root[data-theme="color"] {
+      --bg: color-mix(in srgb, var(--accent-hue) 6%, #111);
+      --bg2: color-mix(in srgb, var(--accent-hue) 8%, #161616);
+      --surface: color-mix(in srgb, var(--accent-hue) 10%, #1a1a1a);
+      --text: #f0f0f0;
+      --text-muted: #888;
+      --border: color-mix(in srgb, var(--accent-hue) 14%, #2a2a2a);
+      --grid-line: color-mix(in srgb, var(--accent-hue) 12%, transparent);
     }
 
     html,
@@ -56,8 +95,8 @@
       position: fixed;
       inset: 0;
       background-image:
-        linear-gradient(rgba(255, 85, 0, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 85, 0, 0.015) 1px, transparent 1px);
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
       background-size: 40px 40px;
       pointer-events: none;
       z-index: 0;
@@ -230,7 +269,7 @@
 
     .search-bar input {
       width: 100%;
-      background: #1a1a1a;
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
@@ -380,13 +419,25 @@
     .nav-link.active {
       color: var(--accent);
       border-color: var(--border);
-      background: #1a1a1a;
+      background: var(--surface);
     }
 
     .toolbar-sort {
       display: flex;
       align-items: center;
       gap: 8px;
+    }
+
+    /* Theme toggle reuses the .nav-link look but reads as a bordered control
+       (like the sort select) and keeps a stable width across mode labels. */
+    .theme-toggle {
+      border-color: var(--border);
+      min-width: 82px;
+      text-align: center;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--accent);
     }
 
     .toolbar-sort label {
@@ -398,7 +449,7 @@
     }
 
     .toolbar-sort select {
-      background: #1a1a1a;
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
@@ -445,7 +496,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: #1a1a1a;
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 999px;
       padding: 5px 12px;
@@ -538,7 +589,7 @@
     }
 
     .track-row:hover {
-      background: #1a1a1a;
+      background: var(--surface);
     }
 
     .track-row-main {
@@ -663,6 +714,8 @@
           <option value="title">Title A&ndash;Z</option>
           <option value="artist">Artist A&ndash;Z</option>
         </select>
+        <button class="nav-link theme-toggle" id="theme-toggle" type="button"
+          aria-label="Toggle color mode"></button>
       </div>
     </nav>
 
@@ -762,6 +815,7 @@
       trackIndex: new Map(),   // slug -> { slug, artist, title, url, mixIds:Set }
       sort: 'default',
       singleMix: false,
+      theme: document.documentElement.dataset.theme || 'dark',  // dark | light | color
     };
     let activeFilter = null;   // current view's search handler: (query) => void
 
@@ -789,6 +843,7 @@
         .map(t => `${t.artist || ''} ${t.title || ''}`).join(' ').toLowerCase();
 
       const player = document.createElement('offgrid-player');
+      player.setAttribute('theme', state.theme);
       player.setAttribute('src', mix.src);
       player.setAttribute('title', mix.title);
       if (mix.artist) player.setAttribute('artist', mix.artist);
@@ -1016,10 +1071,20 @@
     }
 
     // ---- View renderers -------------------------------------------------
+    // Drive the page's --accent-hue from the manifest site accent so color
+    // mode's tint (and every accent element) tracks a custom accent. Falls back
+    // to the brand orange already set in CSS when no accent is provided.
+    function applyAccentVars() {
+      const accent = (state.site && state.site.accent) || '';
+      if (!accent) return;
+      document.documentElement.style.setProperty('--accent-hue', accent);
+    }
+
     // Populate the header (logo, title, tagline) from the manifest `site`
     // object. Absent fields keep the generic no-JS defaults already in the HTML.
     function applySiteHeader() {
       const s = state.site || {};
+      applyAccentVars();
       if (s.logoText) {
         const logo = document.getElementById('site-logo');
         if (logo) logo.textContent = s.logoText;
@@ -1104,6 +1169,7 @@
       const section = sectionEl(pl.title, href);
       section.dataset.search = playlistSearchText(pl);
       const playlist = document.createElement('offgrid-playlist');
+      playlist.setAttribute('theme', state.theme);
       playlist.setAttribute('color', pl.color || state.site.accent || '#ff5500');
       if (pl.creator) playlist.setAttribute('artist', pl.creator);
       const tracks = (pl.mixIds || [])
@@ -1635,6 +1701,31 @@
     document.getElementById('browse-toggle').addEventListener('click', () => {
       const panel = document.getElementById('browse-panel');
       panel.hidden = !panel.hidden;
+    });
+
+    // Color-mode toggle: cycles dark -> light -> color, themes the page chrome
+    // (via [data-theme] on <html>) and every embedded player/playlist (via the
+    // `theme` attribute, applied when render() re-creates them). Persists choice.
+    const THEME_ORDER = ['dark', 'light', 'color'];
+    const THEME_LABELS = { dark: '☾ Dark', light: '☀ Light', color: '◐ Color' };
+
+    function updateThemeToggleLabel(t) {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) btn.textContent = THEME_LABELS[t] || THEME_LABELS.dark;
+    }
+
+    function applyTheme(t) {
+      state.theme = t;
+      document.documentElement.dataset.theme = t;
+      try { localStorage.setItem('theme', t); } catch (e) { /* private mode */ }
+      updateThemeToggleLabel(t);
+      render();  // re-creates embedded elements with the new `theme` attribute
+    }
+
+    updateThemeToggleLabel(state.theme);
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      const next = THEME_ORDER[(THEME_ORDER.indexOf(state.theme) + 1) % THEME_ORDER.length];
+      applyTheme(next);
     });
 
     // Click a tag pill inside any player → navigate to that tag view

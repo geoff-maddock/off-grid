@@ -343,6 +343,13 @@ list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also ap
 Playlists and Tracks tabs — on Playlists, Artist sorts by the playlist creator; on Tracks it orders
 by artist/title (Tracks have no date, so Newest keeps the natural artist–title order).
 
+The toolbar's **color-mode toggle** cycles the whole page — chrome *and* every embedded
+player/playlist — through the same three themes as the embedded players: **Dark** (default) →
+**Light** → **Color**. In Color mode the page chrome stays dark (with a subtle accent tint) while
+each embedded player switches to its own color styling. The choice is saved to `localStorage` and
+applied before first paint on the next visit, so there's no flash. First-time visitors default to
+Dark.
+
 > `#/mix/<slug>` keeps the page chrome (nav + back link); the `?mix=<id>` query param is the
 > chrome-less single-mix mode meant for embeds. Add **`?tracklist=open`** to any URL to render every
 > player with its tracklist already expanded — including a single mix, e.g.
