@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
   <title>Off Grid — Mixes</title>
   <!-- Baseline meta + structured data. The app script rewrites these per view
        (see updateSEO) once the manifest loads; these are the no-JS fallback. -->
@@ -131,6 +132,16 @@
       flex: 1;
       height: 1px;
       background: var(--border);
+    }
+
+    .section-label-link {
+      color: inherit;
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .section-label-link:hover {
+      color: var(--accent);
     }
 
     /* Individual player stack */
@@ -605,9 +616,9 @@
   <div class="page">
 
     <header class="site-header">
-      <span class="logo">Off Grid</span>
-      <h1 class="site-title">The <strong>Mixes</strong></h1>
-      <p class="site-tagline">Self hosted embedded audio player for DJ mixes and playlists.</p>
+      <span class="logo" id="site-logo">Off Grid</span>
+      <h1 class="site-title" id="site-title">The <strong>Mixes</strong></h1>
+      <p class="site-tagline" id="site-tagline">Self hosted embedded audio player for DJ mixes and playlists.</p>
       <div class="accent-line"></div>
     </header>
 
@@ -664,7 +675,7 @@
     </div>
 
     <footer>
-      <span>Off Grid &mdash; Self-hosted audio</span>
+      <span><a href="https://github.com/geoff-maddock/off-grid">Off Grid &mdash; Self-hosted audio</a></span>
       <span>Powered by <a href="https://wavesurfer.xyz">WaveSurfer.js</a> + <a
           href="https://developers.cloudflare.com/r2/">Cloudflare R2</a></span>
     </footer>
@@ -690,6 +701,7 @@
     // In-page navigation uses hash routes (orthogonal to the params above):
     //   #/                home — all mixes (sortable)
     //   #/playlists       just the playlists
+    //   #/playlist/<slug> one playlist by its id/slug (in-app, with a back link)
     //   #/mix/<slug>      one mix by its id/slug (in-app, with a back link)
     //   #/tag/<tag>       mixes carrying a tag
     //   #/artist/<name>   mixes by an artist (the "user" page)
@@ -795,6 +807,30 @@
       return arr;
     }
 
+    // Playlists share the same Sort dropdown. 'artist' maps to the playlist's
+    // creator; 'default' keeps the manifest/sort_order ordering from the worker.
+    function sortPlaylists(playlists) {
+      const arr = playlists.slice();
+      if (state.sort === 'title') {
+        arr.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      } else if (state.sort === 'artist') {
+        arr.sort((a, b) => (a.creator || '').localeCompare(b.creator || ''));
+      }
+      return arr;
+    }
+
+    // Tracks share the same Sort dropdown. 'default' and 'artist' both order by
+    // artist then title (the natural track ordering); 'title' orders by title.
+    function sortTracks(tracks) {
+      const arr = tracks.slice();
+      if (state.sort === 'title') {
+        arr.sort((a, b) => (a.title || '').localeCompare(b.title || '') || (a.artist || '').localeCompare(b.artist || ''));
+      } else {
+        arr.sort((a, b) => (a.artist || '').localeCompare(b.artist || '') || (a.title || '').localeCompare(b.title || ''));
+      }
+      return arr;
+    }
+
     // ---- Index building -------------------------------------------------
     function buildIndexes() {
       state.mixMap = new Map(state.mixes.map(m => [m.id, m]));
@@ -881,6 +917,9 @@
         if (search === 'tracks') {
           input.placeholder = 'Search tracks by artist or title...';
           hint.textContent = 'Searches track artists and titles.';
+        } else if (search === 'playlists') {
+          input.placeholder = 'Search playlists — by mix or track inside them...';
+          hint.textContent = 'Searches playlist names and the mixes and tracks they contain.';
         } else {
           input.placeholder = 'Search mixes — title, artist, tag, or track name...';
           hint.textContent = 'Searches mix titles, artists, tags, and the track names inside each mix.';
@@ -938,13 +977,51 @@
       };
     }
 
+    function setPlaylistFilter(container, noResults) {
+      activeFilter = (q) => {
+        let visible = 0;
+        container.querySelectorAll('.section').forEach(section => {
+          const match = !q || (section.dataset.search || '').includes(q);
+          section.style.display = match ? '' : 'none';
+          if (match) visible++;
+        });
+        if (noResults) noResults.style.display = (visible === 0 && q) ? 'block' : 'none';
+      };
+    }
+
     // ---- View renderers -------------------------------------------------
-    function sectionEl(label) {
+    // Populate the header (logo, title, tagline) from the manifest `site`
+    // object. Absent fields keep the generic no-JS defaults already in the HTML.
+    function applySiteHeader() {
+      const s = state.site || {};
+      if (s.logoText) {
+        const logo = document.getElementById('site-logo');
+        if (logo) logo.textContent = s.logoText;
+      }
+      if (s.title) {
+        const titleEl = document.getElementById('site-title');
+        if (titleEl) titleEl.textContent = s.title;
+      }
+      if (s.tagline) {
+        const tagEl = document.getElementById('site-tagline');
+        if (tagEl) tagEl.textContent = s.tagline;
+      }
+    }
+
+    function sectionEl(label, href) {
       const section = document.createElement('section');
       section.className = 'section';
       const lbl = document.createElement('div');
       lbl.className = 'section-label';
-      lbl.textContent = label;
+      if (href) {
+        const a = document.createElement('a');
+        a.href = href;
+        a.className = 'section-label-link';
+        a.textContent = label;
+        lbl.appendChild(a);
+      } else {
+        lbl.textContent = label;
+      }
       section.appendChild(lbl);
       return section;
     }
@@ -978,19 +1055,40 @@
       setMixFilter(stack, nr);
     }
 
+    // Lowercased haystack for filtering a playlist: its own title/creator plus
+    // the titles/artists of the mixes it contains and the tracks inside them.
+    function playlistSearchText(pl) {
+      const parts = [pl.title || '', pl.creator || ''];
+      for (const id of (pl.mixIds || [])) {
+        const m = state.mixMap.get(id);
+        if (!m) continue;
+        parts.push(m.title || '', m.artist || '');
+        for (const t of (m.tracks || [])) parts.push(t.title || '', t.artist || '');
+      }
+      return parts.join(' ').toLowerCase();
+    }
+
+    // Build a <section> for one playlist. `linkTitle` makes the heading a link to
+    // the playlist's own route (used in list views, not on the single view).
+    function playlistSection(pl, { linkTitle = false } = {}) {
+      const href = linkTitle && pl.id ? `#/playlist/${encodeURIComponent(pl.id)}` : null;
+      const section = sectionEl(pl.title, href);
+      section.dataset.search = playlistSearchText(pl);
+      const playlist = document.createElement('offgrid-playlist');
+      playlist.setAttribute('color', pl.color || state.site.accent || '#ff5500');
+      if (pl.creator) playlist.setAttribute('artist', pl.creator);
+      const tracks = (pl.mixIds || [])
+        .map(id => state.mixMap.get(id))
+        .filter(Boolean)
+        .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks }));
+      playlist.tracks = tracks;
+      section.appendChild(playlist);
+      return section;
+    }
+
     function renderPlaylists(root) {
-      for (const pl of state.playlists) {
-        const section = sectionEl(pl.title);
-        const playlist = document.createElement('offgrid-playlist');
-        playlist.setAttribute('color', pl.color || state.site.accent || '#ff5500');
-        if (pl.creator) playlist.setAttribute('artist', pl.creator);
-        const tracks = (pl.mixIds || [])
-          .map(id => state.mixMap.get(id))
-          .filter(Boolean)
-          .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks }));
-        playlist.tracks = tracks;
-        section.appendChild(playlist);
-        root.appendChild(section);
+      for (const pl of sortPlaylists(state.playlists)) {
+        root.appendChild(playlistSection(pl, { linkTitle: true }));
       }
     }
 
@@ -1021,7 +1119,8 @@
 
     function renderPlaylistsView() {
       showChrome({
-        sort: false, browse: false, search: null,
+        sort: state.playlists.length > 0, browse: false,
+        search: state.playlists.length ? 'playlists' : null,
         heading: { back: '#/', backText: 'All mixes', nav: 'playlists' },
       });
       const root = view();
@@ -1031,8 +1130,30 @@
         note.className = 'empty-note';
         note.textContent = 'No playlists in this library yet.';
         root.appendChild(note);
+        activeFilter = null;
+        return;
+      }
+      renderPlaylists(root);
+      const nr = noResultsEl();
+      root.appendChild(nr);
+      setPlaylistFilter(root, nr);
+    }
+
+    function renderPlaylistView(id) {
+      const pl = state.playlists.find(p => p.id === id);
+      showChrome({
+        sort: false, browse: false, search: null,
+        heading: { back: '#/playlists', backText: 'All playlists', kind: 'Playlist', title: pl ? pl.title : id, nav: 'playlists' },
+      });
+      const root = view();
+      root.innerHTML = '';
+      if (!pl) {
+        const note = document.createElement('div');
+        note.className = 'manifest-status error';
+        note.textContent = 'Playlist not found.';
+        root.appendChild(note);
       } else {
-        renderPlaylists(root);
+        root.appendChild(playlistSection(pl));
       }
       activeFilter = null;
     }
@@ -1055,13 +1176,12 @@
 
     function renderTracks() {
       showChrome({
-        sort: false, browse: false, search: 'tracks',
+        sort: true, browse: false, search: 'tracks',
         heading: { back: '#/', backText: 'All mixes', nav: 'tracks' },
       });
       const root = view();
       root.innerHTML = '';
-      const tracks = [...state.trackIndex.values()].sort((a, b) =>
-        (a.artist || '').localeCompare(b.artist || '') || (a.title || '').localeCompare(b.title || ''));
+      const tracks = sortTracks([...state.trackIndex.values()]);
       const section = sectionEl(`Tracks · ${tracks.length}`);
       if (!tracks.length) {
         const note = document.createElement('div');
@@ -1281,6 +1401,15 @@
               ...(pl.creator ? { author: { '@type': 'MusicGroup', name: pl.creator } } : {}) } })) } };
     }
 
+    function playlistJsonLd(pl, url, description) {
+      const o = { '@context': 'https://schema.org', '@type': 'MusicPlaylist', '@id': url + '#playlist',
+        name: pl.title, url, description, numTracks: (pl.mixIds || []).length };
+      if (pl.creator) o.author = { '@type': 'MusicGroup', name: pl.creator };
+      const tracks = (pl.mixIds || []).map(id => state.mixMap.get(id)).filter(Boolean);
+      if (tracks.length) o.track = tracks.map(mixRef);
+      return o;
+    }
+
     function applySEO(d, siteName) {
       document.title = d.title;
       _setMeta('name', 'description', d.description);
@@ -1350,6 +1479,16 @@
         description = `Playlists in this library (${state.playlists.length}).`;
         canonical = siteUrl('#/playlists');
         jsonld = playlistsJsonLd(state.playlists, canonical, description);
+      } else if (r.view === 'playlist') {
+        const pl = state.playlists.find(p => p.id === r.arg);
+        canonical = siteUrl('#/playlist/' + encodeURIComponent(r.arg));
+        if (pl) {
+          const who = pl.creator ? ` by ${pl.creator}` : '';
+          title = `${pl.title}${who} — ${siteName}`;
+          description = `${pl.title} — a playlist of ${(pl.mixIds || []).length} mixes.`;
+          image = firstThumb((pl.mixIds || []).map(id => state.mixMap.get(id)).filter(Boolean));
+          jsonld = playlistJsonLd(pl, canonical, description);
+        } else { title = `Playlist not found — ${siteName}`; description = tagline; }
       } else { // home
         title = `${siteName} — Mixes`;
         description = tagline;
@@ -1368,6 +1507,7 @@
       const seg = slash === -1 ? raw : raw.slice(0, slash);
       const arg = slash === -1 ? '' : decodeURIComponent(raw.slice(slash + 1));
       if (seg === 'playlists') return { view: 'playlists' };
+      if (seg === 'playlist') return { view: 'playlist', arg };
       if (seg === 'mix') return { view: 'mix', arg };
       if (seg === 'tracks') return { view: 'tracks' };
       if (seg === 'track') return { view: 'track', arg };
@@ -1384,6 +1524,7 @@
       }
       const r = parseHash();
       if (r.view === 'playlists') renderPlaylistsView();
+      else if (r.view === 'playlist') renderPlaylistView(r.arg);
       else if (r.view === 'mix') renderMixDetail(r.arg);
       else if (r.view === 'tracks') renderTracks();
       else if (r.view === 'track') renderTrackDetail(r.arg);
@@ -1418,6 +1559,7 @@
         }
 
         window._mixes = state.mixes; // back-compat for any external probes
+        applySiteHeader();
         buildIndexes();
         if (!state.singleMix) populateChips();
         render();

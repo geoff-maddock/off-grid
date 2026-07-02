@@ -329,7 +329,8 @@ links are shareable and bookmarkable and work on a static host:
 | Route             | Shows                                                                       |
 |-------------------|-----------------------------------------------------------------------------|
 | `#/`              | All mixes (sortable) plus playlists                                          |
-| `#/playlists`     | Just the playlists                                                          |
+| `#/playlists`     | Just the playlists (each title links to its own page)                        |
+| `#/playlist/<slug>` | One playlist by its id/slug, in-app with a back link                      |
 | `#/mix/<slug>`    | One mix by its id/slug, in-app with a back link                            |
 | `#/tag/<tag>`     | Mixes carrying that tag (tag chips and in-player tag pills link here)        |
 | `#/artist/<name>` | Mixes by that artist — the per-"user" view                                  |
@@ -338,7 +339,9 @@ links are shareable and bookmarkable and work on a static host:
 
 These hash routes are independent of the `?manifest=`/`?user=`/`?mix=` query params above (which pick
 *which* manifest to load). The **Browse** button reveals artist and tag chips; **Sort** orders the
-mix list by Newest (`releaseDate`), Title, or Artist.
+list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also appears on the
+Playlists and Tracks tabs — on Playlists, Artist sorts by the playlist creator; on Tracks it orders
+by artist/title (Tracks have no date, so Newest keeps the natural artist–title order).
 
 > `#/mix/<slug>` keeps the page chrome (nav + back link); the `?mix=<id>` query param is the
 > chrome-less single-mix mode meant for embeds. Add **`?tracklist=open`** to any URL to render every
@@ -349,7 +352,8 @@ mix list by Newest (`releaseDate`), Title, or Artist.
 
 **Search** matches mix title, artist, tags, **and the track names inside each mix**, so typing a track's
 artist or title surfaces the mixes that contain it. On `#/tracks` the same box filters tracks by
-artist/title.
+artist/title. On `#/playlists` it filters playlists by their name plus the mixes and tracks they
+contain, so typing a mix or track name narrows to the playlists that include it.
 
 > Because tracks aren't a shared entity in the data model, "every mix containing a track" is computed
 > client-side by matching normalized `artist` + `title` across each mix's tracklist. In-page
@@ -367,6 +371,7 @@ and emits [schema.org](https://schema.org) JSON-LD in `<script type="application
 | Track detail (`#/track/<slug>`) | `MusicRecording` for the track, `isPartOf` the mixes that contain it |
 | Artist (`#/artist/<name>`) | `MusicGroup` with the artist's mixes as `track` |
 | Playlists (`#/playlists`) | `CollectionPage` → `ItemList` of `MusicPlaylist` |
+| Single playlist (`#/playlist/<slug>`) | `MusicPlaylist` with its mixes as `track` |
 | Home / tag / tracks | `CollectionPage` → `ItemList` of the listed mixes/tracks |
 
 Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. Absolute URLs (canonical,
@@ -553,6 +558,7 @@ off-grid/
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest URL
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
+  assets/                # Site icon (favicon.ico) + brand images
   admin/
     index.html           # Admin SPA shell
     admin.js             # Admin logic (CRUD, uploads, auth)

@@ -2,7 +2,8 @@
   "site": {
     "title": "My Mixes",
     "tagline": "Self-hosted, embeddable audio player for DJ mixes and playlists.",
-    "accent": "#ff5500"
+    "accent": "#ff5500",
+    "logoText": "Off Grid"
   },
   "mixes": [
     {
