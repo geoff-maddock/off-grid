@@ -73,7 +73,7 @@ Each entry defines an ordered collection of mixes.
 ```json
 {
   "site": {
-    "title": "The Mixes",
+    "title": "Off-Grid",
     "tagline": "No ads. No accounts. Just audio.",
     "accent": "#ff5500",
     "logoText": "Off Grid"

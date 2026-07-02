@@ -2,6 +2,10 @@
 <html lang="en">
 
 <head>
+  <!-- Flag JS as enabled before paint so CSS can hide the header until the
+       manifest fills in the real site title (avoids a flash of the fallback
+       text). No-JS users never get this class and see the fallback normally. -->
+  <script>document.documentElement.className += ' js';</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="assets/favicon.ico" sizes="any">
@@ -64,12 +68,34 @@
       z-index: 1;
       max-width: var(--max-w);
       margin: 0 auto;
-      padding: 60px 24px 100px;
+      padding: 36px 24px 100px;
     }
 
     /* Header */
     .site-header {
-      margin-bottom: 64px;
+      margin-bottom: 44px;
+    }
+
+    /* When JS is enabled, keep the header hidden until the manifest has been
+       applied (see applySiteHeader), then fade it in — so the fallback title
+       never flashes before the real one loads. */
+    html.js .site-header {
+      opacity: 0;
+    }
+
+    html.js .site-header.ready {
+      opacity: 1;
+      transition: opacity 0.25s ease;
+    }
+
+    @media (max-width: 640px) {
+      .page {
+        padding-top: 20px;
+      }
+
+      .site-header {
+        margin-bottom: 28px;
+      }
     }
 
     .logo {
@@ -1006,6 +1032,9 @@
         const tagEl = document.getElementById('site-tagline');
         if (tagEl) tagEl.textContent = s.tagline;
       }
+      // Reveal the header (fades in) now that the real values are in place.
+      const header = document.querySelector('.site-header');
+      if (header) header.classList.add('ready');
     }
 
     function sectionEl(label, href) {
@@ -1569,6 +1598,10 @@
           loadingEl.className = 'manifest-status error';
           loadingEl.textContent = 'Failed to load mix data.';
         }
+        // Manifest never applied — reveal the fallback header so it isn't
+        // left permanently hidden by the fade-in guard.
+        const header = document.querySelector('.site-header');
+        if (header) header.classList.add('ready');
       }
     })();
 
