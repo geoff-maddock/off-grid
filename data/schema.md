@@ -19,6 +19,7 @@ The manifest file (`manifest.json`) drives the public-facing audio player page. 
 | `title`   | string | Yes      | Page title displayed in the header |
 | `tagline` | string | No       | Subtitle text below the title |
 | `accent`  | string | No       | Default accent color as hex (default: `#ff5500`) |
+| `logoText`| string | No       | Small eyebrow label shown above the title (default: `Off Grid`) |
 
 ## `mixes` Array
 
@@ -74,7 +75,8 @@ Each entry defines an ordered collection of mixes.
   "site": {
     "title": "The Mixes",
     "tagline": "No ads. No accounts. Just audio.",
-    "accent": "#ff5500"
+    "accent": "#ff5500",
+    "logoText": "Off Grid"
   },
   "mixes": [
     {

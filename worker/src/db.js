@@ -224,9 +224,10 @@ export async function generateManifest(db, ownerId) {
 
   return {
     site: {
-      title: 'The Mixes',
-      tagline: 'No ads. No accounts. Just audio.',
+      title: 'OFF-GRID',
+      tagline: 'Self-hosted streaming audio.',
       accent: '#ff5500',
+      logoText: '',
     },
     mixes,
     playlists,
