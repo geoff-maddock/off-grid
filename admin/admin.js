@@ -171,19 +171,15 @@ function bindEvents() {
     });
   });
 
-  // Color preview
-  document.getElementById('mix-color').addEventListener('input', (e) => {
-    document.getElementById('mix-color-preview').style.background = e.target.value;
-  });
+  // Color fields: keep the text input and native color picker in sync.
+  wireColorField('mix-color', 'mix-color-picker');
+  wireColorField('playlist-color', 'playlist-color-picker');
 
   // Live tracklist parse preview
   document.getElementById('mix-tracklist').addEventListener('input', renderTracklistPreview);
   // After a paste, fill in any missing timestamps (evenly spaced over the mix).
   document.getElementById('mix-tracklist').addEventListener('paste', () => {
     setTimeout(fillMissingTimestamps, 0); // run once the pasted text has landed
-  });
-  document.getElementById('playlist-color').addEventListener('input', (e) => {
-    document.getElementById('playlist-color-preview').style.background = e.target.value;
   });
 
   // Upload buttons. The audio picker drives the full auto-pipeline
@@ -324,8 +320,7 @@ async function openMixModal(mix) {
     idField.readOnly = false;
   }
 
-  document.getElementById('mix-color-preview').style.background =
-    document.getElementById('mix-color').value;
+  syncColorPicker('mix-color', 'mix-color-picker');
   renderTracklistPreview();
   modal.classList.add('open');
 }
@@ -509,8 +504,7 @@ function openPlaylistModal(playlist) {
     idField.readOnly = false;
   }
 
-  document.getElementById('playlist-color-preview').style.background =
-    document.getElementById('playlist-color').value;
+  syncColorPicker('playlist-color', 'playlist-color-picker');
 
   // Build mix checklist
   const list = document.getElementById('playlist-mix-list');
@@ -1446,6 +1440,41 @@ function timeToSeconds(t) {
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return null;
+}
+
+// Normalize a user-entered color to the #rrggbb form that <input type="color">
+// requires. Accepts values with or without a leading '#' and expands #rgb
+// shorthand. Returns null when the value isn't a parseable hex color.
+function normalizeHex(value) {
+  let v = (value || '').trim();
+  if (!v) return null;
+  if (v[0] !== '#') v = '#' + v;
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+    v = '#' + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+  }
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null;
+}
+
+// Bidirectionally bind a hex text input and its native color-picker swatch:
+// typing updates the swatch, picking fills the text field.
+function wireColorField(textId, pickerId) {
+  const text = document.getElementById(textId);
+  const picker = document.getElementById(pickerId);
+  if (!text || !picker) return;
+  text.addEventListener('input', () => {
+    const hex = normalizeHex(text.value);
+    if (hex) picker.value = hex;
+  });
+  picker.addEventListener('input', () => {
+    text.value = picker.value;
+  });
+}
+
+// Push the current text-field color into the swatch (used when opening a modal).
+function syncColorPicker(textId, pickerId) {
+  const picker = document.getElementById(pickerId);
+  const hex = normalizeHex(document.getElementById(textId).value);
+  if (picker && hex) picker.value = hex;
 }
 
 function renderTracklistPreview() {

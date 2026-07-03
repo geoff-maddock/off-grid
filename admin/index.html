@@ -136,8 +136,11 @@
             <input type="text" id="mix-artist" placeholder="Artist Name">
           </div>
           <div class="form-group">
-            <label for="mix-color">Color <span class="color-preview" id="mix-color-preview"></span></label>
-            <input type="text" id="mix-color" placeholder="#ff5500" value="#ff5500">
+            <label for="mix-color">Color</label>
+            <div class="color-field">
+              <input type="color" class="color-swatch" id="mix-color-picker" value="#ff5500" aria-label="Pick color" title="Click to pick a color">
+              <input type="text" id="mix-color" placeholder="#ff5500" value="#ff5500">
+            </div>
           </div>
         </div>
         <div class="form-group">
@@ -234,8 +237,11 @@
             <input type="text" id="playlist-creator" placeholder="Creator Name">
           </div>
           <div class="form-group">
-            <label for="playlist-color">Color <span class="color-preview" id="playlist-color-preview"></span></label>
-            <input type="text" id="playlist-color" placeholder="#ff5500" value="#ff5500">
+            <label for="playlist-color">Color</label>
+            <div class="color-field">
+              <input type="color" class="color-swatch" id="playlist-color-picker" value="#ff5500" aria-label="Pick color" title="Click to pick a color">
+              <input type="text" id="playlist-color" placeholder="#ff5500" value="#ff5500">
+            </div>
           </div>
         </div>
         <div class="form-group">
