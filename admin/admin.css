@@ -373,14 +373,43 @@ html, body {
   gap: 12px;
 }
 
-.form-group .color-preview {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  vertical-align: middle;
-  margin-left: 8px;
+.form-group .color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group .color-field input[type="text"] {
+  flex: 1;
+}
+
+.form-group input[type="color"].color-swatch {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 2px;
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.form-group input[type="color"].color-swatch:hover {
+  border-color: #555;
+}
+
+.form-group input[type="color"].color-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-group input[type="color"].color-swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: 3px;
+}
+
+.form-group input[type="color"].color-swatch::-moz-color-swatch {
+  border: none;
+  border-radius: 3px;
 }
 
 /* Upload row */
