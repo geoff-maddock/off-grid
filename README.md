@@ -92,8 +92,10 @@ See [Quick start → Create an R2 API token](#2-create-an-r2-api-token-for-uploa
 
 **Stage 3 — Backend (Worker + D1)**
 Run through [Quick start → Deploy the Worker](#3-deploy-the-worker): create D1, paste the
-`database_id` into `worker/wrangler.toml`, apply the migration, set the four secrets, deploy.
-✓ Checkpoint: the deploy prints a Worker URL, and this returns an **empty** (or seeded) list rather
+`database_id` into `worker/wrangler.toml`, set `R2_PUBLIC_URL` under `[vars]` to the public
+bucket URL from Stage 1, apply the migration, set the secrets, deploy.
+✓ Checkpoint: the deploy prints a Worker URL, `curl https://<your-worker-url>/config` returns
+`{"r2PublicUrl":"https://pub-…r2.dev"}`, and this returns an **empty** (or seeded) list rather
 than an auth error:
 ```bash
 curl -H "Authorization: Bearer <YOUR_ADMIN_TOKEN>" https://<your-worker-url>/api/mixes
@@ -105,12 +107,16 @@ credentials, re-check the three R2/account secrets.
 **Stage 4 — Frontend wiring**
 - Point the player page at your manifest (see [step 4](#4-point-the-player-page-at-your-manifest)) —
   `cp config.local.example.js config.local.js` and set your R2 URL, or just use `?manifest=…`.
+- In the same `config.local.js`, set `window.OFFGRID_API_BASE` to your Worker URL so the admin
+  page picks it up and login needs only email + password.
 - Upload `audio-player.js` to R2 (or your own host) so embeds elsewhere can load it.
 ✓ Checkpoint: opening `index.html` (with the param or local config) lists your mixes.
 
 **Stage 5 — First content**
 Serve the admin locally (`python3 -m http.server 8080` → `http://localhost:8080/admin/`), log in
-with your Worker URL + R2 public URL + admin token, click **Add Mix**, and **Choose File** to
+via **First-time setup** with your admin token (the Worker/R2 URLs are picked up from
+`config.local.js` and the Worker's `/config` endpoint; the URL fields only appear if that
+config is missing), click **Add Mix**, and **Choose File** to
 select your audio. The admin uploads it and **automatically generates the waveform and duration**
 in your browser — just fill in the title/artist/cover, then **Save** and click **Publish**.
 ✓ Checkpoint: `https://pub-xxxxxxxx.r2.dev/data/manifest.json` now lists your mix.
@@ -125,6 +131,7 @@ Open `index.html` (locally or hosted) — your mix renders and plays. Then drop 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Admin login fails | Wrong Worker URL or token | URL has no trailing slash; token matches `ADMIN_TOKEN` secret |
+| Admin still asks for Worker/R2 URLs | `config.local.js` missing `OFFGRID_API_BASE`, or Worker lacks `R2_PUBLIC_URL` var | Set both, redeploy the Worker, reload the admin |
 | Uploads fail (>95 MB) | R2 API token/secrets missing | Set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CF_ACCOUNT_ID` |
 | Player shows nothing | `MANIFEST_URL` wrong, or manifest not published | Verify the manifest URL loads JSON; click **Publish** |
 | CORS errors in console | Bucket CORS not set | Re-run the `wrangler r2 bucket cors set` step |
@@ -186,6 +193,10 @@ npx wrangler login
 # Create the D1 database, then paste the returned database_id into wrangler.toml
 npx wrangler d1 create offgrid-db
 
+# In wrangler.toml [vars], set R2_PUBLIC_URL to your bucket's public URL (from
+# step 1). It's not a secret — the Worker serves it via GET /config so admins
+# log in with just email + password.
+
 # Apply the database schema (run every migration in order)
 npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/002_users_multitenant.sql
@@ -219,7 +230,10 @@ The public page (`index.html`) resolves its manifest URL in this order, so you d
    ```bash
    cp config.local.example.js config.local.js
    # then set:  window.OFFGRID_MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
+   #            window.OFFGRID_API_BASE = 'https://offgrid-api.YOUR-SUBDOMAIN.workers.dev';
    ```
+   `OFFGRID_API_BASE` is also what the admin page uses to find your Worker, so set it here once
+   and the admin login only asks for email + password.
 3. The placeholder in `index.html` — only change this if you want a committed default.
 
 ### 5. Host `audio-player.js`
@@ -248,16 +262,23 @@ python3 -m http.server 8080
 # open http://localhost:8080/admin/
 ```
 
-**Login** with your **Worker URL**, **R2 Public URL**, and **email + password**.
+**Login** with your **email + password**. The admin finds your Worker via `OFFGRID_API_BASE` in
+`config.local.js` and fetches the R2 public URL from the Worker's `GET /config` endpoint (the
+`R2_PUBLIC_URL` var in `wrangler.toml`). If either isn't configured — or the Worker is
+unreachable — the login form falls back to showing **Worker URL** / **R2 Public URL** fields you
+can fill in manually (they're remembered in localStorage).
 
-First time? There are no accounts yet, so click **First-time setup** and provide your `ADMIN_TOKEN`
-(the `wrangler secret`) plus the email/password for the initial admin — this calls `/auth/bootstrap`
-to create your account. After that you sign in with email + password (a JWT session).
+First time? While no admin account exists yet, the login screen offers **First-time setup**:
+provide your `ADMIN_TOKEN` (the `wrangler secret`) plus the email/password for the initial admin —
+this calls `/auth/bootstrap` to create your account. After that you sign in with email + password
+(a JWT session), and the setup button disappears on config-driven deployments (it stays available
+when you're using the manual URL fields).
 
 To add more people: as an admin, open the **Users** tab → **Invite User**, then send them the
 generated invite link (it opens the admin to an "accept invite" screen where they set a password).
 
-Or click **Use offline** to edit the local `data/manifest.json` without a backend.
+Without any deployment config, the login screen also offers **Use offline** to edit the local
+`data/manifest.json` without a backend (hidden on config-driven deployments).
 
 **Features**
 
@@ -569,7 +590,7 @@ node scripts/migrate-to-r2.js
 off-grid/
   index.html             # Public player page (loads manifest.json from R2)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
-  config.local.example.js # Copy to config.local.js (gitignored) to set your manifest URL
+  config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   assets/                # Site icon (favicon.ico) + brand images
   admin/
@@ -616,6 +637,12 @@ off-grid/
 
 Authenticated endpoints take an `Authorization: Bearer <token>` header, where the token is a
 **login JWT** (from `/auth/login`) or — for bootstrap/legacy use — the shared `ADMIN_TOKEN`.
+
+### Config
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET`  | `/config` | public | Deployment config for clients → `{ r2PublicUrl, needsSetup }` (`r2PublicUrl` from the `R2_PUBLIC_URL` var, `null` when unset; `needsSetup` is `true` until the first admin exists) |
 
 ### Auth
 
