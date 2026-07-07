@@ -251,6 +251,9 @@ So you can embed the player on other sites, upload `audio-player.js` to R2 (or a
 > Prefer the command line, or have a big back catalog? `generate-peaks.js` still works for
 > generating peaks in bulk (see [Peaks](#peaks)); the admin just makes it automatic for everyday use.
 
+Optional: for scraper-readable link previews (Facebook, Slack, etc.) of individual mixes, generate
+static share pages — see [Static share pages](#static-share-pages-generate-share-pagesmjs).
+
 ---
 
 ## Admin UI
@@ -390,8 +393,10 @@ contain, so typing a mix or track name narrows to the playlists that include it.
 ### Meta tags & structured data
 
 As you navigate, the page rewrites its `<head>` for the current view — `<title>`, `<meta name="description">`,
-a `<link rel="canonical">`, and Open Graph tags (`og:title`/`description`/`type`/`url`/`image`/`site_name`) —
-and emits [schema.org](https://schema.org) JSON-LD in `<script type="application/ld+json">`:
+a `<link rel="canonical">`, Open Graph tags (`og:title`/`description`/`type`/`url`/`image`/`site_name`, plus
+`og:audio`/`og:audio:type` on mix pages), and Twitter card tags (`twitter:card`/`title`/`description`/`image`;
+mix pages with a cover get a `player` card pointing at the `?mix=` embed page) — and emits
+[schema.org](https://schema.org) JSON-LD in `<script type="application/ld+json">`:
 
 | View | JSON-LD |
 |------|---------|
@@ -407,9 +412,50 @@ Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. A
 `config.local.example.js`), falling back to the current page location.
 
 > These tags are set by JavaScript. Googlebot executes JS and will see them, and they're ideal for your
-> own tooling/crawlers — but most social scrapers (Facebook/Slack/etc.) and hash-fragment routes are not
-> JS-rendered, so link-preview cards won't reflect per-view tags without server-side prerendering. A
-> sensible no-JS baseline ships in the static `<head>`.
+> own tooling/crawlers — but most social scrapers (Facebook/Slack/etc.) don't run JS, and hash fragments
+> (`#/mix/<slug>`) are never even sent to the server, so link-preview cards for hash routes always show
+> the generic static `<head>`. The fix is **static share pages** (below): real per-mix HTML that scrapers
+> can read, generated from the manifest.
+
+### Static share pages (`generate-share-pages.mjs`)
+
+`generate-share-pages.mjs` reads your published manifest and writes one static page per mix to
+`mix/<slug>/index.html`. Each page carries the full scraper-readable markup — Open Graph `music.song`
+tags (`og:image` cover, `og:audio` + `og:audio:type`, `music:duration`/`music:release_date`), a Twitter
+`player` card pointing at the chrome-less `?mix=<id>` embed page (falls back to a `summary` card when
+the mix has no cover), and the same `MusicRecording` JSON-LD the SPA emits — plus an instant redirect
+into the player (`#/mix/<slug>`) for human visitors, with a `<noscript>` fallback.
+
+```bash
+# Uses OFFGRID_MANIFEST_URL / OFFGRID_SITE_URL from config.local.js when present
+node generate-share-pages.mjs
+
+# Or fully explicit
+node generate-share-pages.mjs \
+  --manifest https://pub-xxxxxxxx.r2.dev/data/manifest.json \
+  --site-url https://your-domain.com \
+  --out mix --sitemap
+```
+
+Flags: `--manifest <url|path>` (default: `OFFGRID_MANIFEST_URL`, else the sample `data/manifest.json`),
+`--site-url <url>` (required; default: `OFFGRID_SITE_URL`), `--out <dir>` (default: `mix/`, wiped and
+regenerated each run), `--sitemap` (also writes `mix/sitemap.xml` — point Search Console or a
+`Sitemap:` line in your robots.txt at it), `--dry-run`. Requires Node 18+.
+
+Then set **`window.OFFGRID_SHARE_BASE`** in `config.local.js` (see `config.local.example.js`) so the
+SPA's canonicals, `og:url`, and JSON-LD `@id`/`url` point at the share pages — and share
+`https://your-domain.com/mix/<slug>/` URLs instead of hash URLs. Leave it unset if you don't generate
+share pages (canonicals then fall back to `?mix=<id>` as before).
+
+Run the script in your site's build/deploy step so pages regenerate on every deploy, e.g.:
+
+```json
+"build": "node public/audio/generate-share-pages.mjs --sitemap && astro build"
+```
+
+> Share pages are frozen at build time: a mix published in the admin UI gets its page (and updated
+> metadata) on your site's next build. The `mix/` output folder is gitignored — treat it as a build
+> artifact.
 
 ---
 
@@ -592,6 +638,8 @@ off-grid/
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
+  generate-share-pages.mjs # Static per-mix share pages (OG/Twitter/JSON-LD) for scrapers
+  mix/                   # Generated share pages (gitignored build artifact)
   assets/                # Site icon (favicon.ico) + brand images
   admin/
     index.html           # Admin SPA shell

@@ -34,3 +34,11 @@
 // your real public URL:
 //
 // window.OFFGRID_SITE_URL = 'https://your-domain.com/';
+//
+// Base URL of the static share pages written by generate-share-pages.mjs
+// (scraper-readable per-mix pages, see README "Static share pages"). When set,
+// mix canonicals/og:url/JSON-LD point at <base>/<slug>/ instead of ?mix=<id>.
+// Leave unset if you don't generate share pages — otherwise canonicals would
+// point at 404s.
+//
+// window.OFFGRID_SHARE_BASE = 'https://your-domain.com/mix';
