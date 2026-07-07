@@ -58,3 +58,7 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+.dev.vars*
+!.dev.vars.example
+!.env.example

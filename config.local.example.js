@@ -1,4 +1,5 @@
-// Local override for the public player page (index.html).
+// Local override for the public player page (index.html) and the admin UI
+// (admin/index.html).
 //
 // Copy this file to `config.local.js` (which is gitignored) and set your real
 // R2 manifest URL. This keeps your personal bucket URL out of the tracked
@@ -19,6 +20,12 @@
 // stripped). If your manifest URL doesn't follow that layout, set it explicitly:
 //
 // window.OFFGRID_R2_BASE = 'https://pub-xxxxxxxx.r2.dev';
+//
+// Worker API base URL (no trailing slash). When set, the admin page
+// (admin/index.html) logs in with just email + password: the Worker URL comes
+// from here and the R2 public URL from the Worker's GET /config endpoint.
+//
+// window.OFFGRID_API_BASE = 'https://offgrid-api.your-subdomain.workers.dev';
 //
 // Canonical site URL for SEO. The page sets per-view meta tags (title,
 // description, Open Graph) and JSON-LD structured data, using this as the base

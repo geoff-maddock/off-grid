@@ -8,12 +8,16 @@
  */
 
 // ── Config ─────────────────────────────────────────────────────────
-// Set API_URL to the Worker URL to enable API mode (e.g., 'https://offgrid-api.your-subdomain.workers.dev')
-// Leave empty/null for file-only mode
-const API_URL = localStorage.getItem('offgrid_api_url') || '';
+// Worker URL from per-deployment config (../config.local.js sets
+// window.OFFGRID_API_BASE). When present, config wins over localStorage and the
+// login form needs only email + password. Leave both empty for file-only mode.
+const CONFIG_API_URL = String(window.OFFGRID_API_BASE || '').trim().replace(/\/+$/, '');
+const API_URL = CONFIG_API_URL || localStorage.getItem('offgrid_api_url') || '';
 
-// R2 public bucket URL — uploaded files will be referenced with this prefix
-const R2_PUBLIC_URL = localStorage.getItem('offgrid_r2_url') || '';
+// R2 public bucket URL — uploaded files will be referenced with this prefix.
+// On config-driven deployments this is fetched from the Worker's GET /config
+// endpoint; localStorage is just a cache of the last known value.
+let R2_PUBLIC_URL = localStorage.getItem('offgrid_r2_url') || '';
 
 // ── State ──────────────────────────────────────────────────────────
 let manifest = { site: { title: '', tagline: '', accent: '#ff5500' }, mixes: [], playlists: [] };
@@ -49,6 +53,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (meResp.ok) currentUser = (await meResp.json()).user;
   } catch (_) { /* offline-ish; fall through and let loadManifest report */ }
+
+  // Config-driven deployments: refresh the R2 public URL from the Worker so a
+  // rotated bucket URL heals itself. Awaited so uploads never see a stale value.
+  if (CONFIG_API_URL) {
+    const cfg = await fetchWorkerConfig(API_URL);
+    if (cfg.ok && cfg.r2PublicUrl) {
+      R2_PUBLIC_URL = cfg.r2PublicUrl;
+      localStorage.setItem('offgrid_r2_url', cfg.r2PublicUrl);
+    }
+  }
 
   await loadManifest();
   bindEvents();
@@ -813,7 +827,7 @@ async function uploadBlobToR2(blob, key, { onProgress } = {}) {
   // Without a public bucket URL we'd store a relative key, which the player
   // page then resolves against its own origin (e.g. localhost). Refuse instead.
   if (!R2_PUBLIC_URL) {
-    throw new Error('R2 Public URL is not set — log out and log in again, filling the "R2 Public URL" field.');
+    throw new Error('R2 Public URL is not configured — set R2_PUBLIC_URL in the Worker\'s wrangler.toml [vars] (or log in again and fill the "R2 Public URL" field).');
   }
   const contentType = blob.type || 'application/octet-stream';
 
@@ -1019,6 +1033,22 @@ function downloadBlob(blob, filename) {
 // ── Auth / Login ───────────────────────────────────────────────────
 const LOGIN_FIELD_STYLE = "background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#f0f0f0;padding:10px 14px;font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;";
 
+// GET /config on the Worker — deployment values a client needs before login.
+// Returns { ok: true, r2PublicUrl: string|null, needsSetup: boolean } or
+// { ok: false } when the Worker is unreachable. A non-OK status (e.g. 404 from
+// an older Worker) counts as reachable-but-unconfigured.
+async function fetchWorkerConfig(apiUrl) {
+  try {
+    const resp = await fetch(`${apiUrl}/config`);
+    if (!resp.ok) return { ok: true, r2PublicUrl: null, needsSetup: false };
+    const body = await resp.json().catch(() => ({}));
+    const u = typeof body.r2PublicUrl === 'string' ? body.r2PublicUrl.trim().replace(/\/+$/, '') : '';
+    return { ok: true, r2PublicUrl: u || null, needsSetup: body.needsSetup === true };
+  } catch (_) {
+    return { ok: false };
+  }
+}
+
 function showLogin() {
   document.querySelector('.page').style.display = 'none';
   let loginEl = document.getElementById('login-screen');
@@ -1038,14 +1068,22 @@ function renderLoginForm(loginEl, mode, inviteToken) {
   const titles = { signin: 'Off Grid Admin', bootstrap: 'First-time Setup', invite: 'Accept Invite' };
   const submitLabels = { signin: 'Sign in', bootstrap: 'Create admin', invite: 'Set password & continue' };
 
-  // On an invite, prefill the Worker/R2 URLs the inviter embedded in the link
-  // so the invitee only needs to choose a password.
+  // Prefill the Worker/R2 URLs: deployment config wins, then the values an
+  // inviter embedded in the invite link, then the last-used (cached) values.
   const inv = mode === 'invite' ? getInviteParams() : null;
-  const apiVal = (inv && inv.api) || API_URL;
+  const apiVal = CONFIG_API_URL || (inv && inv.api) || API_URL;
   const r2Val = (inv && inv.r2) || R2_PUBLIC_URL;
 
-  let fields = field('login-api-url', 'Worker URL (e.g., https://offgrid-api.workers.dev)', 'text', apiVal) +
-    field('login-r2-url', 'R2 Public URL (e.g., https://pub-xxxxx.r2.dev)', 'text', r2Val);
+  // On config-driven deployments the URL fields stay hidden (they're resolved
+  // from config.local.js + the Worker's GET /config) and are only revealed as
+  // a fallback when something is missing or unreachable.
+  const cfgDriven = !!CONFIG_API_URL;
+  const urlRow = (rowId, inner) =>
+    `<div id="${rowId}" style="display:${cfgDriven ? 'none' : 'flex'};flex-direction:column;">${inner}</div>`;
+
+  let fields =
+    urlRow('row-api-url', field('login-api-url', 'Worker URL (e.g., https://offgrid-api.workers.dev)', 'text', apiVal)) +
+    urlRow('row-r2-url', field('login-r2-url', 'R2 Public URL (e.g., https://pub-xxxxx.r2.dev)', 'text', r2Val));
   if (mode === 'signin') {
     fields += field('login-email', 'Email', 'email') + field('login-password', 'Password', 'password');
   } else if (mode === 'bootstrap') {
@@ -1058,12 +1096,15 @@ function renderLoginForm(loginEl, mode, inviteToken) {
       field('login-name', 'Display name (optional)', 'text');
   }
 
+  // On config-driven deployments the extra buttons stay out of the way:
+  // "First-time setup" renders hidden and is revealed only when the Worker
+  // reports no admin account exists yet; offline mode isn't offered at all.
   const switcher = mode === 'signin'
-    ? `<button type="button" class="btn btn-sm" id="link-bootstrap" style="font-size:11px;">First-time setup</button>`
+    ? `<button type="button" class="btn btn-sm" id="link-bootstrap" style="font-size:11px;${cfgDriven ? 'display:none;' : ''}">First-time setup</button>`
     : (mode === 'bootstrap'
       ? `<button type="button" class="btn btn-sm" id="link-signin" style="font-size:11px;">Back to sign in</button>`
       : '');
-  const offline = mode === 'signin'
+  const offline = mode === 'signin' && !cfgDriven
     ? `<button type="button" class="btn btn-sm" id="btn-offline-mode" style="font-size:11px;">Use offline (file mode)</button>`
     : '';
 
@@ -1099,13 +1140,53 @@ function renderLoginForm(loginEl, mode, inviteToken) {
     document.querySelector('.page').style.display = 'block';
     loadManifest().then(() => { bindEvents(); renderMixes(); renderPlaylists(); });
   });
+
+  // Config-driven: resolve the R2 public URL from the Worker. Reveal the URL
+  // fields only when something can't be resolved (fallback to manual entry).
+  if (cfgDriven) {
+    fetchWorkerConfig(CONFIG_API_URL).then((cfg) => {
+      const reveal = (rowId) => {
+        const row = document.getElementById(rowId);
+        if (row) row.style.display = 'flex';
+      };
+      const r2Input = document.getElementById('login-r2-url');
+      if (!cfg.ok) {
+        reveal('row-api-url');
+        reveal('row-r2-url');
+        showErr('Could not reach the configured Worker — check the URLs below.');
+      } else if (cfg.r2PublicUrl) {
+        // Worker config is the source of truth — beats invite/cached prefills.
+        if (r2Input) r2Input.value = cfg.r2PublicUrl;
+      } else {
+        // Worker reachable but its R2_PUBLIC_URL var isn't set.
+        reveal('row-r2-url');
+      }
+      // Fresh instance with no admin yet — offer first-time setup.
+      if (cfg.ok && cfg.needsSetup) {
+        const lb = document.getElementById('link-bootstrap');
+        if (lb) lb.style.display = '';
+      }
+    });
+  }
 }
 
 async function submitLogin(mode, inviteToken, showErr) {
+  // If a required URL is missing while its row is hidden (config-driven form),
+  // reveal it so the user can act on the error.
+  const revealRow = (rowId) => {
+    const row = document.getElementById(rowId);
+    if (row) row.style.display = 'flex';
+  };
   const apiUrl = (document.getElementById('login-api-url').value || '').trim().replace(/\/+$/, '');
   const r2Url = (document.getElementById('login-r2-url').value || '').trim().replace(/\/+$/, '');
-  if (!apiUrl) return showErr('Worker URL is required.');
-  if (!r2Url) return showErr('R2 Public URL is required (uploaded files are referenced from it).');
+  if (!apiUrl) {
+    revealRow('row-api-url');
+    return showErr('Worker URL is required.');
+  }
+  if (!r2Url) {
+    revealRow('row-r2-url');
+    return showErr('R2 Public URL is required (uploaded files are referenced from it).');
+  }
 
   try {
     let resp;
@@ -1161,10 +1242,15 @@ function showApp() {
       logoutBtn.id = 'btn-logout';
       logoutBtn.className = 'btn btn-sm';
       logoutBtn.textContent = 'Logout';
+      logoutBtn.title = `Signed in to ${API_URL.replace(/^https?:\/\//, '')}`;
       logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('offgrid_token');
-        localStorage.removeItem('offgrid_api_url');
-        localStorage.removeItem('offgrid_r2_url');
+        // Config-driven deployments re-derive the URLs; only clear the cached
+        // values when they were typed in at login.
+        if (!CONFIG_API_URL) {
+          localStorage.removeItem('offgrid_api_url');
+          localStorage.removeItem('offgrid_r2_url');
+        }
         location.reload();
       });
       headerActions.appendChild(logoutBtn);
@@ -1186,9 +1272,10 @@ function showApp() {
       const usersTab = document.getElementById('tab-users');
       if (usersTab) usersTab.style.display = '';
       const me = document.getElementById('users-me');
-      if (me) me.textContent = currentUser.email
+      if (me) me.textContent = (currentUser.email
         ? `Signed in as ${currentUser.email}`
-        : 'Signed in with bootstrap token';
+        : 'Signed in with bootstrap token')
+        + ` · Worker: ${API_URL.replace(/^https?:\/\//, '')}`;
       renderUsers();
     }
   }

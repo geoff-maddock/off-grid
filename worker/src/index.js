@@ -2,6 +2,7 @@
  * Off Grid API — Cloudflare Worker
  *
  * Public (no session):
+ *   GET    /config                — deployment config for clients ({ r2PublicUrl, needsSetup })
  *   POST   /auth/login            — email + password → JWT
  *   POST   /auth/accept-invite    — set password from an invite → JWT
  *   POST   /auth/bootstrap        — create the first admin (ADMIN_TOKEN)
@@ -44,6 +45,29 @@ export default {
     let response;
 
     try {
+      // ── Public deployment config (no session) ────────────────
+      // Only non-sensitive values: the R2 public URL already appears
+      // in every published manifest/audio URL. null when unset, so
+      // clients can tell "unconfigured" apart from "unreachable".
+      if (method === 'GET' && path === '/config') {
+        const r2PublicUrl = (env.R2_PUBLIC_URL || '').trim().replace(/\/+$/, '') || null;
+        // needsSetup mirrors the /auth/bootstrap guard: true until the first
+        // admin account exists, so the login UI can offer first-time setup
+        // only when it's actually possible. A missing users table (migrations
+        // not applied yet) also counts as "not set up".
+        let needsSetup = true;
+        try {
+          const row = await env.DB
+            .prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND password_hash IS NOT NULL")
+            .first();
+          needsSetup = (row?.n ?? 0) === 0;
+        } catch (_) { /* keep needsSetup = true */ }
+        response = new Response(JSON.stringify({ r2PublicUrl, needsSetup }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        return addCors(response, env, request);
+      }
+
       // ── Public auth routes (no session) ──────────────────────
       if (PUBLIC_AUTH_PATHS.has(path)) {
         response = await handlePublicAuth(request, env, path, method);

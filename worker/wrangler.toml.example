@@ -25,6 +25,10 @@ database_id = "YOUR_DATABASE_ID"
 CORS_ORIGIN = "*"
 # Must match bucket_name above. Used when generating presigned upload URLs.
 R2_BUCKET_NAME = "offgrid-media"
+# Public base URL of your R2 bucket (r2.dev URL or custom domain), no trailing
+# slash. Served to the admin UI via the unauthenticated GET /config endpoint so
+# users log in with just email + password instead of typing it in.
+R2_PUBLIC_URL = "https://pub-xxxxxxxx.r2.dev"
 
 # Secrets (NOT stored in this file) — set each with `wrangler secret put <NAME>`:
 #   ADMIN_TOKEN            — bootstrap/legacy admin token (creates the first user)
