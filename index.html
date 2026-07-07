@@ -26,6 +26,9 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Off Grid — Mixes">
   <meta property="og:description" content="Self hosted embedded audio player for DJ mixes and playlists.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Off Grid — Mixes">
+  <meta name="twitter:description" content="Self hosted embedded audio player for DJ mixes and playlists.">
   <script type="application/ld+json" id="ld-json"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -1385,8 +1388,17 @@
     // config.local.js) pins the real public domain; otherwise we derive it from
     // wherever the page is being served.
     const SITE_BASE = (window.OFFGRID_SITE_URL || (location.origin + location.pathname)).replace(/\/+$/, '');
+    // Static share pages (generate-share-pages.mjs) are opt-in: when
+    // OFFGRID_SHARE_BASE is set, mix canonicals point at <base>/<slug>/;
+    // otherwise they fall back to the ?mix= single-mix page.
+    const SHARE_BASE = (window.OFFGRID_SHARE_BASE || '').replace(/\/+$/, '');
     function siteUrl(suffix) { return SITE_BASE + (suffix || ''); }
-    function mixPageUrl(id) { return siteUrl('?mix=' + encodeURIComponent(id)); }
+    function mixPageUrl(id) {
+      return SHARE_BASE ? SHARE_BASE + '/' + encodeURIComponent(id) + '/'
+        : siteUrl('?mix=' + encodeURIComponent(id));
+    }
+    // The chrome-less single-mix page — what an iframe embed should load.
+    function mixEmbedUrl(id) { return siteUrl('?mix=' + encodeURIComponent(id)); }
 
     function _abs(u) {
       if (!u) return '';
@@ -1442,7 +1454,7 @@
       if (mix.thumb) o.image = _abs(mix.thumb);
       if (mix.description) o.description = mix.description;
       if (mix.src) {
-        const audio = { '@type': 'AudioObject', contentUrl: _abs(mix.src), embedUrl: page };
+        const audio = { '@type': 'AudioObject', contentUrl: _abs(mix.src), embedUrl: mixEmbedUrl(mix.id) };
         const fmt = _encFmt(mix.src); if (fmt) audio.encodingFormat = fmt;
         if (dur) audio.duration = dur;
         o.audio = audio;
@@ -1515,6 +1527,18 @@
       _setMeta('property', 'og:type', d.ogType || 'website');
       _setMeta('property', 'og:url', d.canonical);
       _setMeta('property', 'og:image', d.image);
+      _setMeta('property', 'og:audio', d.audioUrl);
+      _setMeta('property', 'og:audio:type', d.audioUrl ? d.audioType : '');
+      // Twitter player card needs both an embed URL and an image; otherwise
+      // fall back to a plain summary card.
+      const player = d.embed && d.image ? d.embed : '';
+      _setMeta('name', 'twitter:card', player ? 'player' : 'summary');
+      _setMeta('name', 'twitter:title', d.title);
+      _setMeta('name', 'twitter:description', d.description);
+      _setMeta('name', 'twitter:image', d.image);
+      _setMeta('name', 'twitter:player', player);
+      _setMeta('name', 'twitter:player:width', player ? '500' : '');
+      _setMeta('name', 'twitter:player:height', player ? '260' : '');
       _setJsonLd(d.jsonld);
     }
 
@@ -1524,6 +1548,7 @@
       const tagline = state.site.tagline || 'Self hosted embedded audio player for DJ mixes and playlists.';
       const firstThumb = (list) => { const m = list.find(x => x && x.thumb); return m ? _abs(m.thumb) : ''; };
       let title, description, ogType = 'website', image = '', canonical = siteUrl(), jsonld = null;
+      let audioUrl = '', audioType = '', embed = '';
 
       if (r.view === 'mix') {
         const mix = state.mixMap.get(r.arg);
@@ -1535,6 +1560,9 @@
           image = mix.thumb ? _abs(mix.thumb) : '';
           canonical = mixPageUrl(mix.id);
           jsonld = mixJsonLd(mix);
+          audioUrl = mix.src ? _abs(mix.src) : '';
+          audioType = _encFmt(mix.src);
+          embed = audioUrl ? mixEmbedUrl(mix.id) : '';
         } else { title = `Mix not found — ${siteName}`; description = tagline; }
       } else if (r.view === 'track') {
         const t = state.trackIndex.get(r.arg);
@@ -1591,7 +1619,7 @@
         image = firstThumb(state.mixes);
         jsonld = collectionJsonLd(siteName, canonical, description, state.mixes);
       }
-      applySEO({ title, description, ogType, image, canonical, jsonld }, siteName);
+      applySEO({ title, description, ogType, image, canonical, jsonld, audioUrl, audioType, embed }, siteName);
     }
 
     // ---- Router ---------------------------------------------------------
