@@ -200,7 +200,7 @@ html, body {
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text-muted);
-  padding: 10px 12px;
+  padding: 10px 9px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   user-select: none;
@@ -223,7 +223,7 @@ html, body {
 }
 
 .data-table td {
-  padding: 10px 12px;
+  padding: 10px 9px;
   border-bottom: 1px solid #222;
   vertical-align: middle;
 }
@@ -260,16 +260,41 @@ html, body {
   text-align: right;
 }
 
+.data-table .tags-cell {
+  max-width: 240px;
+}
+
+/* Title is the row's identity — don't let the stat columns starve it */
+.data-table td.col-title {
+  min-width: 140px;
+}
+
+/* min-width keeps the auto table layout from squeezing tags into a
+   one-chip-per-line stack; wrap caps the cell at ~2 short rows */
+.data-table .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 120px;
+}
+
 .data-table .tag {
   display: inline-block;
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 3px;
-  padding: 1px 6px;
-  font-size: 11px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 1.6;
   font-family: 'IBM Plex Mono', monospace;
   color: var(--text-muted);
-  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.data-table .tag-more {
+  color: var(--accent);
+  border-color: #443322;
+  cursor: help;
 }
 
 .empty-state {
@@ -686,4 +711,95 @@ html, body {
 .toast.error {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+
+/* Progressively drop the stat columns as the viewport narrows,
+   tightening cell padding and the title/tags floors alongside */
+@media (max-width: 900px) {
+  .data-table .col-plays { display: none; }
+
+  .data-table th,
+  .data-table td {
+    padding: 9px 7px;
+  }
+
+  .data-table td.col-title {
+    min-width: 130px;
+  }
+
+  .data-table .tag-list {
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 800px) {
+  .data-table .col-time { display: none; }
+}
+
+@media (max-width: 700px) {
+  .data-table .col-likes { display: none; }
+
+  .data-table td.col-title {
+    min-width: 115px;
+  }
+
+  .data-table .tag-list {
+    min-width: 90px;
+  }
+}
+
+/* General small-screen layout */
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 14px 80px;
+  }
+
+  .admin-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .tabs {
+    margin-bottom: 20px;
+  }
+
+  .toolbar-left {
+    flex: 1;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 6px;
+  }
+
+  .data-table td.col-title {
+    min-width: 110px;
+  }
+
+  .actions-cell .btn-sm {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
+/* Phones: drop duration, artist, and tags too, let action buttons wrap */
+@media (max-width: 480px) {
+  .data-table .col-duration { display: none; }
+  .data-table .col-artist { display: none; }
+  .data-table .tags-cell { display: none; }
+
+  .data-table .actions-cell {
+    white-space: normal;
+  }
+
+  .data-table .actions-cell .btn-sm {
+    margin: 1px 0;
+  }
 }
