@@ -205,6 +205,7 @@ npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/004_content_ownership.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/005_login_attempts.sql
 npx wrangler d1 execute offgrid-db --remote --file=migrations/006_track_url.sql
+npx wrangler d1 execute offgrid-db --remote --file=migrations/007_play_tracking.sql
 
 # Set secrets
 npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
@@ -296,6 +297,12 @@ Without any deployment config, the login screen also offers **Use offline** to e
   evenly across the mix; a URL on a line (e.g. a Bandcamp link) becomes a clickable link in the
   player tracklist. The structured `tracks` array is included in the manifest.
 - **Search & sort** — filter by title, artist, or tags
+- **Play stats** — the mixes table shows sortable **Plays**, **Time played**, and **Likes** columns,
+  fed by anonymous listener tracking (see [Play tracking & likes](#play-tracking--likes)). Requires
+  migration `007_play_tracking.sql`; the columns show zeros until it's applied. On narrow viewports
+  these stat columns (and, on phone-size screens, Duration, Artist, and Tags) are hidden
+  progressively to keep the table readable; a mix's first three tags show as chips with a "+N"
+  overflow badge.
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
 - **Publish** — write your library's `manifest.json` to R2. Afterward the admin shows **your manifest
   URL** plus a **▶ Preview** button (see [Viewing & sharing a library](#viewing--sharing-a-library)).
@@ -505,6 +512,8 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `artist-href` | No | If set, the artist renders as a link to this URL (used by the player page for `#/artist/<name>`); omit for plain text |
 | `open-tracklist` | No | Boolean attribute — render with the tracklist panel expanded (when the player has tracks) |
 | `start-at` | No | Cue position in seconds — the player shows this time and begins playback there on first play (no autoplay) |
+| `mix-id` | No | Mix id from the manifest — together with an API base, enables [play tracking & likes](#play-tracking--likes); omit for a tracking-free player |
+| `api-base` | No | Worker URL to send tracking beacons to (no trailing slash); falls back to `window.OFFGRID_API_BASE` from `config.local.js` |
 
 Clicking the cover art opens the full-size image in a built-in lightbox (click the backdrop or press
 `Escape` to close). The "More" panel appears whenever a `description` or `release-date` is present.
@@ -552,6 +561,10 @@ are defined as JSON in a child `<script type="application/json">`:
 | `artist`  | No       | Default artist for tracks that don't specify one |
 | `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
 | `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
+| `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |
+
+Track objects also accept a `mixId` field — when present (the player page includes it from the
+manifest), the embedded player tracks plays and shows the like button for that mix.
 
 ### Play one at a time
 
@@ -581,6 +594,30 @@ Pause every other player when one starts:
 | `trackplay`   | `{src}`  | Fired when playback starts |
 | `trackpause`  | —        | Fired when playback pauses |
 | `trackfinish` | —        | Fired when the track ends |
+
+### Play tracking & likes
+
+When a player has both a `mix-id` and an API base (the `api-base` attribute, or
+`window.OFFGRID_API_BASE` from `config.local.js`), it reports anonymous listening stats to the
+Worker; without them it's a complete no-op. Requires migration `007_play_tracking.sql`.
+
+- **Heartbeats** — the player accumulates *actually listened* seconds (seeking and pausing don't
+  count) and POSTs a tiny beacon to `/api/track/play` every ~30 seconds of listening, plus a final
+  flush on pause, finish, tab-hide/close, and playlist track switch.
+- **What counts as a play** — a session (one page-load of one mix, identified by a random client
+  UUID) counts as **one** play once its cumulative listening crosses 5 seconds. Replays after
+  seeking or pause/resume never inflate the count.
+- **Likes** — a heart button appears on trackable players. Likes are anonymous; the browser's
+  `localStorage` remembers them per mix so the button toggles and repeat likes from the same
+  browser are suppressed (client-side only — this is a vibe metric, not an audited one).
+- **Privacy** — no IPs, cookies, or user identifiers are stored; just mix id, a random session id,
+  seconds listened, and a timestamp.
+- **Embeds** — the copy-paste embed snippet bakes in `mix-id` and the resolved `api-base`, so
+  players embedded on other sites keep reporting. Beacons are sent as `text/plain` so they work
+  cross-origin without preflight.
+
+Stats appear in the admin mixes table (Plays / Time played / Likes) via the authenticated
+`GET /api/stats` endpoint.
 
 ---
 
@@ -660,11 +697,16 @@ off-grid/
       001_init.sql       # D1 database schema
       002_users_multitenant.sql  # Auth columns + invites (multi-user)
       003_tracklist.sql  # Per-mix tracklist + mix_tracks table
+      004_content_ownership.sql  # owner_id on mixes/playlists + backfill
+      005_login_attempts.sql     # Login rate-limit table
+      006_track_url.sql  # Optional per-track link (mix_tracks.url)
+      007_play_tracking.sql      # Play events log + per-mix stats (plays/time/likes)
     src/
       index.js           # Worker entry point (routing, CORS)
       auth.js            # Session auth — verifies JWT, loads user
       jwt.js             # HS256 JWT sign/verify (WebCrypto)
       crypto.js          # Password hashing (PBKDF2) + token helpers
+      ratelimit.js       # D1-backed login rate limiting
       r2.js              # R2 operations (presigned URLs, upload, list, delete)
       aws-sign.js        # AWS Signature V4 for R2 presigned URLs
       db.js              # D1 query helpers + manifest generation
@@ -674,6 +716,7 @@ off-grid/
         mixes.js         # Mix CRUD endpoints
         playlists.js     # Playlist CRUD endpoints
         manifest.js      # Manifest generation + publish to R2
+        track.js         # Public play/like tracking + authed stats
   scripts/
     migrate-to-r2.js     # One-time: upload local files to R2
     seed-d1.js           # One-time: seed D1 from manifest.json
@@ -748,6 +791,18 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 |--------|--------------------------|-------------|
 | `GET`  | `/api/manifest`          | Generate manifest JSON from D1 |
 | `POST` | `/api/manifest/publish`  | Write `manifest.json` to R2 |
+
+### Tracking & stats
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/api/track/play` | public | Listening heartbeat from the player: `{ mixId, sessionId, seconds }` → `204`. Seconds are clamped to 60/event; ≥ 6 events per session per minute are silently dropped |
+| `POST` | `/api/track/like` | public | Anonymous like: `{ mixId, action }` (`action`: `like` \| `unlike`, default `like`) → `204` |
+| `GET`  | `/api/stats` | user | Per-mix aggregates for your mixes → `{ stats: [{ mixId, title, artist, playCount, totalSeconds, likeCount, lastPlayedAt }] }` |
+
+The public tracking endpoints accept their JSON body as **`text/plain`** — the player sends
+`navigator.sendBeacon` simple requests so they survive page unload and work from cross-origin
+embeds without CORS preflight. See [Play tracking & likes](#play-tracking--likes).
 
 ---
 

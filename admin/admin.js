@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await loadManifest();
+  await loadStats();
   bindEvents();
   renderMixes();
   renderPlaylists();
@@ -104,6 +105,32 @@ async function loadManifest() {
     if (!manifest.playlists) manifest.playlists = [];
   } catch (err) {
     console.warn('Could not load manifest, starting empty:', err);
+  }
+}
+
+// Merge play/like aggregates from GET /api/stats onto manifest.mixes so the
+// table cells and the existing sort machinery can use them directly. Fail-soft:
+// a Worker without migration 007 (404/500) just leaves the columns at 0.
+async function loadStats() {
+  for (const m of manifest.mixes) {
+    m.playCount = 0;
+    m.totalSeconds = 0;
+    m.likeCount = 0;
+  }
+  if (!API_URL || !authToken) return;
+  try {
+    const resp = await apiFetch('/api/stats');
+    if (!resp.ok) return;
+    const byId = new Map((await resp.json()).stats.map(s => [s.mixId, s]));
+    for (const m of manifest.mixes) {
+      const s = byId.get(m.id);
+      if (!s) continue;
+      m.playCount = s.playCount || 0;
+      m.totalSeconds = s.totalSeconds || 0;
+      m.likeCount = s.likeCount || 0;
+    }
+  } catch (err) {
+    console.warn('Could not load play stats:', err);
   }
 }
 
@@ -270,10 +297,13 @@ function renderMixes() {
       ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
       : '<div class="thumb-placeholder"></div>'}
       </td>
-      <td>${esc(m.title)}</td>
-      <td>${esc(m.artist || '')}</td>
-      <td>${m.duration ? formatDuration(m.duration) : '—'}</td>
-      <td>${(m.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}</td>
+      <td class="col-title">${esc(m.title)}</td>
+      <td class="col-artist">${esc(m.artist || '')}</td>
+      <td class="col-duration">${m.duration ? formatDuration(m.duration) : '—'}</td>
+      <td class="col-plays">${m.playCount || 0}</td>
+      <td class="col-time">${m.totalSeconds >= 1 ? formatDuration(Math.round(m.totalSeconds)) : '—'}</td>
+      <td class="col-likes">${m.likeCount || 0}</td>
+      <td class="tags-cell">${renderRowTags(m.tags)}</td>
       <td class="actions-cell">
         <button class="btn btn-sm" onclick="editMix('${esc(m.id)}')">Edit</button>
         <button class="btn btn-sm" onclick="copyMixLink('${esc(m.id)}')" title="Copy a share link to just this mix">Link</button>
@@ -1138,7 +1168,7 @@ function renderLoginForm(loginEl, mode, inviteToken) {
   if (off) off.addEventListener('click', () => {
     loginEl.remove();
     document.querySelector('.page').style.display = 'block';
-    loadManifest().then(() => { bindEvents(); renderMixes(); renderPlaylists(); });
+    loadManifest().then(() => loadStats()).then(() => { bindEvents(); renderMixes(); renderPlaylists(); });
   });
 
   // Config-driven: resolve the R2 public URL from the Worker. Reveal the URL
@@ -1457,6 +1487,18 @@ function esc(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+// Render up to 3 tag chips; overflow collapses into a "+N" chip whose
+// tooltip lists the hidden tags, so rows stay one line tall.
+function renderRowTags(tags) {
+  if (!tags || !tags.length) return '';
+  const MAX = 3;
+  const chips = tags.slice(0, MAX).map(t => `<span class="tag">${esc(t)}</span>`);
+  if (tags.length > MAX) {
+    chips.push(`<span class="tag tag-more" title="${esc(tags.slice(MAX).join(', ')).replace(/"/g, '&quot;')}">+${tags.length - MAX}</span>`);
+  }
+  return `<div class="tag-list">${chips.join('')}</div>`;
 }
 
 function formatDuration(secs) {
