@@ -856,6 +856,9 @@
       if (mix.description) player.setAttribute('description', mix.description);
       if (mix.releaseDate) player.setAttribute('release-date', mix.releaseDate);
       if (mix.tags && mix.tags.length > 0) player.setAttribute('tags', JSON.stringify(mix.tags));
+      // Enables play tracking + likes when window.OFFGRID_API_BASE is set
+      // (from config.local.js); without it the player stays tracking-free.
+      if (mix.id) player.setAttribute('mix-id', mix.id);
       // Meta links: title -> mix page, artist -> artist filter. Suppress the
       // title self-link on a mix's own detail page, and all links in single-mix
       // embed mode where the app's hash routes don't navigate.
@@ -1178,7 +1181,7 @@
       const tracks = (pl.mixIds || [])
         .map(id => state.mixMap.get(id))
         .filter(Boolean)
-        .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks }));
+        .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks, mixId: m.id }));
       playlist.tracks = tracks;
       section.appendChild(playlist);
       return section;

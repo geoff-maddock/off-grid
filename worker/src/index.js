@@ -6,6 +6,8 @@
  *   POST   /auth/login            — email + password → JWT
  *   POST   /auth/accept-invite    — set password from an invite → JWT
  *   POST   /auth/bootstrap        — create the first admin (ADMIN_TOKEN)
+ *   POST   /api/track/play        — anonymous listening heartbeat ({ mixId, sessionId, seconds })
+ *   POST   /api/track/like        — anonymous like/unlike ({ mixId, action })
  *
  * Authenticated:
  *   GET    /auth/me               — current user
@@ -18,6 +20,7 @@
  *   *      /api/mixes             — mix CRUD
  *   *      /api/playlists         — playlist CRUD
  *   *      /api/manifest          — generate / publish manifest
+ *   GET    /api/stats             — per-mix play/like aggregates
  */
 
 import { authenticate } from './auth.js';
@@ -27,6 +30,7 @@ import { handlePresign, handleListFiles, handleDeleteFile, handleDirectUpload } 
 import { handleMixes } from './api/mixes.js';
 import { handlePlaylists } from './api/playlists.js';
 import { handleManifest } from './api/manifest.js';
+import { handleTrack, handleStats } from './api/track.js';
 
 // Routes reachable without a session.
 const PUBLIC_AUTH_PATHS = new Set(['/auth/login', '/auth/accept-invite', '/auth/bootstrap']);
@@ -68,6 +72,13 @@ export default {
         return addCors(response, env, request);
       }
 
+      // ── Public play tracking + likes (no session) ────────────
+      // Anonymous beacons from the player page and third-party embeds.
+      if (method === 'POST' && path.startsWith('/api/track/')) {
+        response = await handleTrack(request, env, path);
+        return addCors(response || notFound(), env, request);
+      }
+
       // ── Public auth routes (no session) ──────────────────────
       if (PUBLIC_AUTH_PATHS.has(path)) {
         response = await handlePublicAuth(request, env, path, method);
@@ -106,6 +117,8 @@ export default {
         response = await handlePlaylists(request, env, path, method, user);
       } else if (path.startsWith('/api/manifest')) {
         response = await handleManifest(request, env, path, method, user);
+      } else if (path.startsWith('/api/stats')) {
+        response = await handleStats(request, env, path, method, user);
       }
 
       if (!response) {

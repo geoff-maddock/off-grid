@@ -13,6 +13,8 @@
  *   peaks       — URL to pre-computed peaks JSON ({peaks: number[], duration: number})
  *   duration    — Optional pre-known duration string (e.g. "3:42")
  *   description — Optional track description (shown via expandable "more" button)
+ *   mix-id      — Optional mix id; with an API base, enables play tracking + likes
+ *   api-base    — Optional Worker URL for tracking (falls back to window.OFFGRID_API_BASE)
  */
 
 // URL this script was loaded from — used to generate self-contained embed code.
@@ -20,7 +22,7 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href', 'mix-id', 'api-base'];
   }
 
   constructor() {
@@ -34,6 +36,12 @@ class OffgridPlayer extends HTMLElement {
     this._peaksDuration = null;
     this._tracks = [];
     this._seekOnReady = null;
+    // Play tracking (anonymous, heartbeat-based). Session = one page-load of
+    // one audio source; reset when `src` changes.
+    this._tkSession = null;
+    this._tkUnsent = 0;
+    this._tkLastT = null;
+    this._tkOnHidden = null;
   }
 
   connectedCallback() {
@@ -89,6 +97,14 @@ class OffgridPlayer extends HTMLElement {
   }
 
   disconnectedCallback() {
+    // The playlist swaps tracks by discarding the whole player element, so
+    // flush any unreported listening time before teardown.
+    this._tkFlush();
+    if (this._tkOnHidden) {
+      document.removeEventListener('visibilitychange', this._tkOnHidden);
+      window.removeEventListener('pagehide', this._tkOnHidden);
+      this._tkOnHidden = null;
+    }
     if (this._ws) {
       this._ws.destroy();
       this._ws = null;
@@ -102,7 +118,14 @@ class OffgridPlayer extends HTMLElement {
   attributeChangedCallback(name, oldVal, newVal) {
     if (!this.shadowRoot) return;
     if (name === 'src' && oldVal !== newVal && this._ws) {
+      // New audio = new tracking session: report what was heard first.
+      this._tkFlush();
+      this._tkSession = null;
+      this._tkLastT = null;
       this._loadAudio();
+    }
+    if (name === 'mix-id' || name === 'api-base') {
+      this._renderLikeButton();
     }
     if (['title', 'artist', 'thumb', 'description', 'release-date', 'title-href', 'artist-href'].includes(name)) {
       this._updateMeta();
@@ -720,6 +743,12 @@ class OffgridPlayer extends HTMLElement {
           display: inline-flex;
         }
 
+        /* Like (visibility is inline-style controlled, like the tracklist btn) */
+        .like-btn.liked {
+          color: var(--accent);
+          border-color: var(--accent);
+        }
+
         /* Tracklist */
         .tracklist-panel {
           max-height: 0;
@@ -1101,6 +1130,12 @@ class OffgridPlayer extends HTMLElement {
             <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
           </div>
           <div style="display:flex;gap:6px;align-items:center;">
+            <button class="more-btn like-btn" id="like-btn" style="display:none" title="Like" aria-label="Like" aria-pressed="false">
+              <svg class="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+              </svg>
+              <span class="btn-label">Like</span>
+            </button>
             <button class="more-btn tracklist-btn" id="tracklist-btn" style="display:none" title="Tracklist" aria-label="Tracklist">
               <svg class="btn-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                 <path d="M4 6h11v2H4V6zm0 5h11v2H4v-2zm0 5h11v2H4v-2zm15-9.5l4 2.5-4 2.5V6.5zm0 7l4 2.5-4 2.5v-5z"/>
@@ -1295,6 +1330,13 @@ class OffgridPlayer extends HTMLElement {
       });
     });
 
+    // Like button (hidden unless mix-id + api-base are set)
+    const likeBtn = this.shadowRoot.querySelector('#like-btn');
+    if (likeBtn) {
+      likeBtn.addEventListener('click', () => this._toggleLike());
+    }
+    this._renderLikeButton();
+
     // Tracklist toggle + click-to-seek
     const tlBtn = this.shadowRoot.querySelector('#tracklist-btn');
     const tlPanel = this.shadowRoot.querySelector('#tracklist-panel');
@@ -1438,24 +1480,40 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('audioprocess', (t) => {
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(t);
+      // Accumulate actually-listened seconds. Only small forward deltas count,
+      // so seeks (either direction) and timer stalls never inflate the total.
+      if (this._tkSession && this._tkLastT != null) {
+        const d = t - this._tkLastT;
+        if (d > 0 && d < 2) {
+          this._tkUnsent += d;
+          if (this._tkUnsent >= 30) this._tkSend();
+        }
+      }
+      this._tkLastT = t;
     });
 
     this._ws.on('seeking', (t) => {
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(t);
+      this._tkLastT = t; // re-anchor; the jump itself isn't listening time
     });
 
     this._ws.on('play', () => {
       this.setAttribute('playing', '');
+      this._tkStart();
       this.dispatchEvent(new CustomEvent('trackplay', { bubbles: true, composed: true, detail: { src: this.getAttribute('src') } }));
     });
 
     this._ws.on('pause', () => {
       this.removeAttribute('playing');
+      this._tkFlush();
+      this._tkLastT = null;
       this.dispatchEvent(new CustomEvent('trackpause', { bubbles: true, composed: true }));
     });
 
     this._ws.on('finish', () => {
       this.removeAttribute('playing');
+      this._tkFlush();
+      this._tkLastT = null;
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(0);
       this.dispatchEvent(new CustomEvent('trackfinish', { bubbles: true, composed: true }));
     });
@@ -1636,11 +1694,16 @@ class OffgridPlayer extends HTMLElement {
 
   _generateEmbedCode() {
     // Every attribute the player understands, so the embed is self-contained.
-    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'theme', 'size', 'duration', 'description', 'release-date', 'tags'];
+    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'theme', 'size', 'duration', 'description', 'release-date', 'tags', 'mix-id'];
     let attrs = '';
     for (const name of attrNames) {
       const value = this.getAttribute(name);
       if (value) attrs += `\n  ${name}="${this._esc(value)}"`;
+    }
+    // Bake the resolved API base into the snippet so embeds on other sites
+    // (which have no window.OFFGRID_API_BASE) still report plays and likes.
+    if (this.getAttribute('mix-id') && this._tkApiBase()) {
+      attrs += `\n  api-base="${this._esc(this._tkApiBase())}"`;
     }
     // Boolean attributes carry no value — emit the bare name when present so the
     // embed reproduces the source player (e.g. a tracklist opened via ?tracklist=open).
@@ -1750,6 +1813,129 @@ class OffgridPlayer extends HTMLElement {
     }
   }
 
+  // ── Play tracking + likes ─────────────────────────────────────────
+  // Anonymous, heartbeat-based: ~30s of actual listening per POST, flushed on
+  // pause/finish/unload/track-swap. Complete no-op unless both `mix-id` and an
+  // API base are set — plain embeds are unaffected. Must never break playback.
+
+  _tkApiBase() {
+    const base = this.getAttribute('api-base')
+      || (typeof window !== 'undefined' && window.OFFGRID_API_BASE)
+      || '';
+    return String(base).trim().replace(/\/+$/, '') || null;
+  }
+
+  _tkEnabled() {
+    return !!(this.getAttribute('mix-id') && this._tkApiBase());
+  }
+
+  // Called on every WaveSurfer `play`; lazily creates the session and the
+  // once-per-element unload listeners.
+  _tkStart() {
+    if (!this._tkEnabled()) return;
+    if (!this._tkSession) {
+      let id;
+      try { id = crypto.randomUUID(); } catch (e) { /* insecure context */ }
+      this._tkSession = id || (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+      this._tkUnsent = 0;
+    }
+    if (!this._tkOnHidden) {
+      this._tkOnHidden = () => {
+        if (document.visibilityState === 'hidden') this._tkFlush();
+      };
+      document.addEventListener('visibilitychange', this._tkOnHidden);
+      window.addEventListener('pagehide', this._tkOnHidden);
+    }
+  }
+
+  // Report accumulated listening time if there's at least a second of it.
+  _tkFlush() {
+    if (this._tkUnsent >= 1) this._tkSend();
+  }
+
+  _tkSend() {
+    const base = this._tkApiBase();
+    const mixId = this.getAttribute('mix-id');
+    if (!base || !mixId || !this._tkSession || this._tkUnsent <= 0) return;
+    const payload = JSON.stringify({
+      mixId,
+      sessionId: this._tkSession,
+      seconds: Math.round(this._tkUnsent * 10) / 10,
+    });
+    this._tkUnsent = 0;
+    this._tkPost(base + '/api/track/play', payload);
+  }
+
+  // text/plain keeps the request CORS-"simple" (no preflight), which sendBeacon
+  // needs at unload and cross-origin embeds need at all. Fire-and-forget.
+  _tkPost(url, payload) {
+    try {
+      if (navigator.sendBeacon
+          && navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }))) {
+        return;
+      }
+    } catch (e) { /* fall through to fetch */ }
+    try {
+      fetch(url, {
+        method: 'POST',
+        body: payload,
+        headers: { 'Content-Type': 'text/plain' },
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) { /* tracking must never break playback */ }
+  }
+
+  // localStorage remembers likes per mix so the button toggles and repeat
+  // likes from the same browser are suppressed. All access is try/caught —
+  // sandboxed embed iframes throw on localStorage.
+  _likedMap() {
+    try {
+      const raw = localStorage.getItem('offgrid-likes');
+      const map = raw ? JSON.parse(raw) : {};
+      return map && typeof map === 'object' ? map : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  _setLiked(mixId, liked) {
+    try {
+      const map = this._likedMap();
+      if (liked) map[mixId] = true;
+      else delete map[mixId];
+      localStorage.setItem('offgrid-likes', JSON.stringify(map));
+    } catch (e) { /* storage unavailable — like still posts, just won't persist */ }
+  }
+
+  // Show the heart only when tracking is possible, reflecting the stored state.
+  _renderLikeButton() {
+    const btn = this.shadowRoot && this.shadowRoot.querySelector('#like-btn');
+    if (!btn) return;
+    const mixId = this.getAttribute('mix-id');
+    if (!this._tkEnabled()) {
+      btn.style.display = 'none';
+      return;
+    }
+    btn.style.display = 'inline-flex';
+    const liked = !!this._likedMap()[mixId];
+    btn.classList.toggle('liked', liked);
+    btn.setAttribute('aria-pressed', String(liked));
+    btn.setAttribute('title', liked ? 'Unlike' : 'Like');
+  }
+
+  _toggleLike() {
+    const base = this._tkApiBase();
+    const mixId = this.getAttribute('mix-id');
+    if (!base || !mixId) return;
+    const liked = !this._likedMap()[mixId];
+    this._setLiked(mixId, liked); // optimistic — the POST is fire-and-forget
+    this._renderLikeButton();
+    this._tkPost(base + '/api/track/like', JSON.stringify({
+      mixId,
+      action: liked ? 'like' : 'unlike',
+    }));
+  }
+
   _esc(str) {
     return String(str == null ? '' : str)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1772,9 +1958,10 @@ customElements.define('offgrid-player', OffgridPlayer);
  * Attributes:
  *   color      — accent color
  *   artist     — default artist name for all tracks
+ *   api-base   — optional Worker URL for play tracking (see <offgrid-player>)
  *
  * Children: JSON in a <script type="application/json"> tag OR
- * pass tracks via the `tracks` property (array of {src, title, artist, thumb, peaks})
+ * pass tracks via the `tracks` property (array of {src, title, artist, thumb, peaks, mixId})
  *
  * Example:
  * <offgrid-playlist color="#ff5500">
@@ -1788,7 +1975,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size'];
+    return ['color', 'artist', 'theme', 'size', 'api-base'];
   }
 
   constructor() {
@@ -2315,6 +2502,10 @@ class OffgridPlaylist extends HTMLElement {
     player.setAttribute('color', this._color);
     if (this.getAttribute('theme')) player.setAttribute('theme', this._theme);
     if (this.getAttribute('size')) player.setAttribute('size', this._size);
+    // Play tracking: a track's mixId enables it on the inner player; the swap
+    // discards the old element, whose disconnectedCallback flushes its session.
+    if (t.mixId) player.setAttribute('mix-id', t.mixId);
+    if (this.getAttribute('api-base')) player.setAttribute('api-base', this.getAttribute('api-base'));
 
     // Style override for embedding
     player.style.cssText = 'display:block;';
@@ -2435,6 +2626,14 @@ class OffgridPlaylist extends HTMLElement {
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
     if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
     if (size) attrs += `\n  size="${this._esc(size)}"`;
+    // Bake the API base in so embeds keep reporting plays (mixIds ride along
+    // in the serialized tracks JSON below).
+    const apiBase = this.getAttribute('api-base')
+      || (typeof window !== 'undefined' && window.OFFGRID_API_BASE) || '';
+    const cleanBase = String(apiBase).trim().replace(/\/+$/, '');
+    if (cleanBase && (this._tracks || []).some(t => t.mixId)) {
+      attrs += `\n  api-base="${this._esc(cleanBase)}"`;
+    }
 
     let children = '\n';
     if (this._tracks && this._tracks.length) {

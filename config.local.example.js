@@ -24,6 +24,8 @@
 // Worker API base URL (no trailing slash). When set, the admin page
 // (admin/index.html) logs in with just email + password: the Worker URL comes
 // from here and the R2 public URL from the Worker's GET /config endpoint.
+// On the public player page it also enables anonymous play tracking and the
+// like button (players POST listening heartbeats and likes to the Worker).
 //
 // window.OFFGRID_API_BASE = 'https://offgrid-api.your-subdomain.workers.dev';
 //
