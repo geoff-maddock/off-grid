@@ -296,11 +296,13 @@ Without any deployment config, the login screen also offers **Use offline** to e
   title, and an optional link) into individual tracks on save. Missing timestamps are auto-filled
   evenly across the mix; a URL on a line (e.g. a Bandcamp link) becomes a clickable link in the
   player tracklist. The structured `tracks` array is included in the manifest.
-- **Search & sort** — filter by title, artist, or tags
+- **Search & sort** — filter by title, artist, or tags; sort by any column, including **Released**
+  (the mix's release date) and **Added** (when the mix was created in the database — API mode only;
+  shows `—` for a local manifest without `createdAt`)
 - **Play stats** — the mixes table shows sortable **Plays**, **Time played**, and **Likes** columns,
   fed by anonymous listener tracking (see [Play tracking & likes](#play-tracking--likes)). Requires
   migration `007_play_tracking.sql`; the columns show zeros until it's applied. On narrow viewports
-  these stat columns (and, on phone-size screens, Duration, Artist, and Tags) are hidden
+  the date and stat columns (and, on phone-size screens, Duration, Artist, and Tags) are hidden
   progressively to keep the table readable; a mix's first three tags show as chips with a "+N"
   overflow badge.
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts

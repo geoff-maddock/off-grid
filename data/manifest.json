@@ -18,6 +18,7 @@
       "tags": ["sample", "demo"],
       "duration": 0,
       "releaseDate": null,
+      "createdAt": null,
       "tracklist": "00:00 Artist A - Opening Track\n04:32 Artist B - Second Track",
       "tracks": [
         { "time": "00:00", "seconds": 0, "artist": "Artist A", "title": "Opening Track" },
@@ -35,7 +36,8 @@
       "color": "#3388ff",
       "tags": ["sample"],
       "duration": 0,
-      "releaseDate": null
+      "releaseDate": null,
+      "createdAt": null
     }
   ],
   "playlists": [

@@ -12,7 +12,7 @@
   --danger: #ff4444;
   --success: #44bb44;
   --radius: 6px;
-  --max-w: 960px;
+  --max-w: 1280px;
 }
 
 html, body {
@@ -262,6 +262,11 @@ html, body {
 
 .data-table .tags-cell {
   max-width: 240px;
+}
+
+.data-table .col-released,
+.data-table .col-added {
+  white-space: nowrap;
 }
 
 /* Title is the row's identity — don't let the stat columns starve it */
@@ -715,8 +720,16 @@ html, body {
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 
-/* Progressively drop the stat columns as the viewport narrows,
+/* Progressively drop the stat and date columns as the viewport narrows,
    tightening cell padding and the title/tags floors alongside */
+@media (max-width: 1100px) {
+  .data-table .col-added { display: none; }
+}
+
+@media (max-width: 1000px) {
+  .data-table .col-released { display: none; }
+}
+
 @media (max-width: 900px) {
   .data-table .col-plays { display: none; }
 
