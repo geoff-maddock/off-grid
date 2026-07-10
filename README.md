@@ -363,16 +363,21 @@ links are shareable and bookmarkable and work on a static host:
 |-------------------|-----------------------------------------------------------------------------|
 | `#/`              | All mixes (sortable) plus playlists                                          |
 | `#/playlists`     | Just the playlists (each title links to its own page)                        |
+| `#/playlists/tag/<tag>` | Playlists whose mixes carry that tag (playlist filter chips link here) |
+| `#/playlists/creator/<name>` | Playlists by that creator (creator chips link here)               |
 | `#/playlist/<slug>` | One playlist by its id/slug, in-app with a back link                      |
 | `#/mix/<slug>`    | One mix by its id/slug, in-app with a back link                            |
 | `#/tag/<tag>`     | Mixes carrying that tag (tag chips and in-player tag pills link here)        |
 | `#/artist/<name>` | Mixes by that artist — the per-"user" view                                  |
 | `#/tracks`        | Every unique track across all mixes, searchable                             |
+| `#/tracks/letter/<letter>` | Tracks whose artist starts with that letter (`a`–`z`, or `other` for the `#` bucket) |
 | `#/track/<slug>`  | One track with its buy link, then every mix that contains it                |
 
 These hash routes are independent of the `?manifest=`/`?user=`/`?mix=` query params above (which pick
-*which* manifest to load). The **Browse** button reveals artist and tag chips; **Sort** orders the
-list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also appears on the
+*which* manifest to load). The **Filter** button reveals chips suited to each view: artist and tag
+chips on Mixes, tag chips (aggregated from each playlist's mixes) plus creator chips on Playlists
+(creators only appear when the library has more than one), and an artist A–Z index on Tracks;
+**Sort** orders the list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also appears on the
 Playlists and Tracks tabs — on Playlists, Artist sorts by the playlist creator; on Tracks it orders
 by artist/title (Tracks have no date, so Newest keeps the natural artist–title order).
 

@@ -708,7 +708,7 @@
         <a href="#/" class="nav-link" data-nav="home">Mixes</a>
         <a href="#/playlists" class="nav-link" data-nav="playlists">Playlists</a>
         <a href="#/tracks" class="nav-link" data-nav="tracks">Tracks</a>
-        <button class="browse-toggle" id="browse-toggle" type="button">Browse &#9662;</button>
+        <button class="browse-toggle" id="browse-toggle" type="button">Filter &#9662;</button>
       </div>
       <div class="toolbar-sort" id="toolbar-sort">
         <label for="sort-select">Sort</label>
@@ -722,7 +722,10 @@
       </div>
     </nav>
 
-    <!-- Browse panel: artists + tags -->
+    <!-- Filter panel (UI label "Filter"; ids/classes keep the historical
+         "browse" naming so self-hosters' custom CSS keeps working).
+         Groups are shown per view: artists+tags on Mixes, tags+creators on
+         Playlists, the A–Z artist index on Tracks. -->
     <div class="browse-panel" id="browse-panel" hidden>
       <div class="browse-group" id="artist-group">
         <div class="browse-group-label">Artists</div>
@@ -731,6 +734,18 @@
       <div class="browse-group" id="tag-group">
         <div class="browse-group-label">Tags</div>
         <div class="chip-row" id="tag-chips"></div>
+      </div>
+      <div class="browse-group" id="playlist-tag-group" hidden>
+        <div class="browse-group-label">Tags</div>
+        <div class="chip-row" id="playlist-tag-chips"></div>
+      </div>
+      <div class="browse-group" id="creator-group" hidden>
+        <div class="browse-group-label">Creators</div>
+        <div class="chip-row" id="creator-chips"></div>
+      </div>
+      <div class="browse-group" id="track-letter-group" hidden>
+        <div class="browse-group-label">Artists A&ndash;Z</div>
+        <div class="chip-row" id="track-letter-chips"></div>
       </div>
     </div>
 
@@ -781,14 +796,17 @@
     //   4. the placeholder below       (edit only for a committed default)
     //
     // In-page navigation uses hash routes (orthogonal to the params above):
-    //   #/                home — all mixes (sortable)
-    //   #/playlists       just the playlists
-    //   #/playlist/<slug> one playlist by its id/slug (in-app, with a back link)
-    //   #/mix/<slug>      one mix by its id/slug (in-app, with a back link)
-    //   #/tag/<tag>       mixes carrying a tag
-    //   #/artist/<name>   mixes by an artist (the "user" page)
-    //   #/tracks          unique tracks across all mixes (searchable)
-    //   #/track/<slug>    one track + its buy link + every mix containing it
+    //   #/                          home — all mixes (sortable)
+    //   #/playlists                 just the playlists
+    //   #/playlists/tag/<tag>       playlists whose mixes carry a tag
+    //   #/playlists/creator/<name>  playlists by a creator
+    //   #/playlist/<slug>           one playlist by its id/slug (in-app, with a back link)
+    //   #/mix/<slug>                one mix by its id/slug (in-app, with a back link)
+    //   #/tag/<tag>                 mixes carrying a tag
+    //   #/artist/<name>             mixes by an artist (the "user" page)
+    //   #/tracks                    unique tracks across all mixes (searchable)
+    //   #/tracks/letter/<letter>    tracks whose artist starts with a letter (a–z, 'other')
+    //   #/track/<slug>              one track + its buy link + every mix containing it
     //
     // Query param: ?tracklist=open renders every player with its tracklist open.
     // ---------------------------------------------------------------------
@@ -951,47 +969,106 @@
           entry.mixIds.add(mix.id);
         }
       }
+
+      // Playlist filter facets: tags aggregated from each playlist's mixes,
+      // plus creators (only offered as chips when more than one exists).
+      state.playlistTagIndex = new Map();
+      state.creatorIndex = new Map();
+      for (const pl of state.playlists) {
+        const creator = (pl.creator || '').trim();
+        if (creator) {
+          if (!state.creatorIndex.has(creator)) state.creatorIndex.set(creator, []);
+          state.creatorIndex.get(creator).push(pl);
+        }
+        const plTags = new Set();
+        for (const id of (pl.mixIds || [])) {
+          const m = state.mixMap.get(id);
+          for (const tag of ((m && m.tags) || [])) plTags.add(tag);
+        }
+        for (const tag of plTags) {
+          if (!state.playlistTagIndex.has(tag)) state.playlistTagIndex.set(tag, []);
+          state.playlistTagIndex.get(tag).push(pl);
+        }
+      }
+
+      // Track filter facet: an A–Z index over track artists (dedup'd tracks,
+      // so counting after the mix loop above avoids per-mix double counts).
+      state.trackLetterIndex = new Map();
+      for (const t of state.trackIndex.values()) {
+        const l = trackLetterOf(t);
+        state.trackLetterIndex.set(l, (state.trackLetterIndex.get(l) || 0) + 1);
+      }
+    }
+
+    // Bucket a track under its artist's first letter ('other' for anything
+    // non a–z); falls back to the title when the artist is empty.
+    function trackLetterOf(t) {
+      const ch = ((t.artist || t.title || '').trim().charAt(0) || '').toLowerCase();
+      return /[a-z]/.test(ch) ? ch : 'other';
     }
 
     function populateChips() {
-      const artistChips = document.getElementById('artist-chips');
-      const tagChips = document.getElementById('tag-chips');
-      artistChips.innerHTML = '';
-      tagChips.innerHTML = '';
-
-      const artists = [...state.artistIndex.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      for (const [name, mixes] of artists) {
+      const chip = (href, label, count) => {
         const a = document.createElement('a');
         a.className = 'chip';
-        a.href = '#/artist/' + encodeURIComponent(name);
-        a.innerHTML = `${esc(name)} <span class="chip-count">${mixes.length}</span>`;
-        artistChips.appendChild(a);
-      }
-      document.getElementById('artist-group').hidden = artists.length === 0;
+        a.href = href;
+        a.innerHTML = `${esc(label)} <span class="chip-count">${count}</span>`;
+        return a;
+      };
+      const fill = (rowId, entries, hrefFor) => {
+        const row = document.getElementById(rowId);
+        row.innerHTML = '';
+        for (const [name, items] of entries) {
+          row.appendChild(chip(hrefFor(name), name, Array.isArray(items) ? items.length : items));
+        }
+      };
+      const alpha = (index) => [...index.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
-      const tags = [...state.tagIndex.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-      for (const [tag, mixes] of tags) {
-        const a = document.createElement('a');
-        a.className = 'chip';
-        a.href = '#/tag/' + encodeURIComponent(tag);
-        a.innerHTML = `${esc(tag)} <span class="chip-count">${mixes.length}</span>`;
-        tagChips.appendChild(a);
-      }
-      document.getElementById('tag-group').hidden = tags.length === 0;
+      fill('artist-chips', alpha(state.artistIndex), n => '#/artist/' + encodeURIComponent(n));
+      fill('tag-chips', alpha(state.tagIndex), n => '#/tag/' + encodeURIComponent(n));
+      fill('playlist-tag-chips', alpha(state.playlistTagIndex), n => '#/playlists/tag/' + encodeURIComponent(n));
+      // A single creator can't differentiate anything — offer the group only at 2+.
+      fill('creator-chips', state.creatorIndex.size >= 2 ? alpha(state.creatorIndex) : [],
+        n => '#/playlists/creator/' + encodeURIComponent(n));
 
-      // Nothing to browse → hide the toggle entirely
-      document.getElementById('browse-toggle').hidden = artists.length === 0 && tags.length === 0;
+      const letterRow = document.getElementById('track-letter-chips');
+      letterRow.innerHTML = '';
+      for (const l of [...'abcdefghijklmnopqrstuvwxyz', 'other']) {
+        const count = state.trackLetterIndex.get(l);
+        if (!count) continue;
+        letterRow.appendChild(chip('#/tracks/letter/' + l, l === 'other' ? '#' : l.toUpperCase(), count));
+      }
+      // Per-view group visibility (and hiding the toggle when the active
+      // view has no chips) is handled by showChrome().
     }
 
     // ---- Chrome visibility ----------------------------------------------
+    // `browse` picks which Filter-panel chip groups the view offers:
+    // false (no Filter button) | 'mixes' | 'playlists' | 'tracks'.
+    const BROWSE_GROUPS = {
+      mixes: ['artist-group', 'tag-group'],
+      playlists: ['playlist-tag-group', 'creator-group'],
+      tracks: ['track-letter-group'],
+    };
+
     function showChrome({ sort = false, browse = false, search = null, heading = null }) {
       document.getElementById('toolbar').style.display = state.singleMix ? 'none' : '';
       document.getElementById('toolbar-sort').style.display = sort ? '' : 'none';
       if (sort) document.getElementById('sort-select').value = state.sort;
 
+      const activeGroups = BROWSE_GROUPS[browse] || [];
+      let anyChips = false;
+      for (const ids of Object.values(BROWSE_GROUPS)) {
+        for (const id of ids) {
+          const group = document.getElementById(id);
+          const show = activeGroups.includes(id) && !!group.querySelector('.chip');
+          group.hidden = !show;
+          if (show) anyChips = true;
+        }
+      }
       const browseBtn = document.getElementById('browse-toggle');
-      browseBtn.style.display = browse ? '' : 'none';
-      if (!browse) document.getElementById('browse-panel').hidden = true;
+      browseBtn.style.display = anyChips ? '' : 'none';
+      if (!anyChips) document.getElementById('browse-panel').hidden = true;
 
       const sb = document.getElementById('search-bar');
       const hint = document.getElementById('search-hint');
@@ -1187,14 +1264,14 @@
       return section;
     }
 
-    function renderPlaylists(root) {
-      for (const pl of sortPlaylists(state.playlists)) {
+    function renderPlaylists(root, playlists = state.playlists) {
+      for (const pl of sortPlaylists(playlists)) {
         root.appendChild(playlistSection(pl, { linkTitle: true }));
       }
     }
 
     function renderHome() {
-      showChrome({ sort: true, browse: true, search: 'mixes', heading: null });
+      showChrome({ sort: true, browse: 'mixes', search: 'mixes', heading: null });
       renderMixList(state.mixes, { label: 'Mixes' });
     }
 
@@ -1218,23 +1295,35 @@
       activeFilter = null;
     }
 
-    function renderPlaylistsView() {
+    // filter: {} for all playlists, { tag } or { creator } for a chip-filtered view.
+    function renderPlaylistsView(filter = {}) {
+      let playlists = state.playlists;
+      let heading = { back: '#/', backText: 'All mixes', nav: 'playlists' };
+      if (filter.tag) {
+        playlists = state.playlistTagIndex.get(filter.tag) || [];
+        heading = { back: '#/playlists', backText: 'All playlists', kind: 'Tag', title: filter.tag, nav: 'playlists' };
+      } else if (filter.creator) {
+        playlists = state.creatorIndex.get(filter.creator) || [];
+        heading = { back: '#/playlists', backText: 'All playlists', kind: 'Creator', title: filter.creator, nav: 'playlists' };
+      }
       showChrome({
-        sort: state.playlists.length > 0, browse: false,
-        search: state.playlists.length ? 'playlists' : null,
-        heading: { back: '#/', backText: 'All mixes', nav: 'playlists' },
+        sort: playlists.length > 0, browse: 'playlists',
+        search: playlists.length ? 'playlists' : null,
+        heading,
       });
       const root = view();
       root.innerHTML = '';
-      if (!state.playlists.length) {
+      if (!playlists.length) {
         const note = document.createElement('div');
         note.className = 'empty-note';
-        note.textContent = 'No playlists in this library yet.';
+        note.textContent = (filter.tag || filter.creator)
+          ? 'No playlists match this filter.'
+          : 'No playlists in this library yet.';
         root.appendChild(note);
         activeFilter = null;
         return;
       }
-      renderPlaylists(root);
+      renderPlaylists(root, playlists);
       const nr = noResultsEl();
       root.appendChild(nr);
       setPlaylistFilter(root, nr);
@@ -1261,7 +1350,7 @@
 
     function renderTag(tag) {
       showChrome({
-        sort: true, browse: true, search: 'mixes',
+        sort: true, browse: 'mixes', search: 'mixes',
         heading: { back: '#/', backText: 'All mixes', kind: 'Tag', title: tag, nav: 'home' },
       });
       renderMixList(state.tagIndex.get(tag) || [], { label: 'Mixes' });
@@ -1269,25 +1358,30 @@
 
     function renderArtist(name) {
       showChrome({
-        sort: true, browse: true, search: 'mixes',
+        sort: true, browse: 'mixes', search: 'mixes',
         heading: { back: '#/', backText: 'All mixes', kind: 'Artist', title: name, nav: 'home' },
       });
       renderMixList(state.artistIndex.get(name) || [], { label: 'Mixes' });
     }
 
-    function renderTracks() {
+    // letter: '' for all tracks, 'a'–'z' or 'other' for the A–Z artist index.
+    function renderTracks(letter = '') {
       showChrome({
-        sort: true, browse: false, search: 'tracks',
-        heading: { back: '#/', backText: 'All mixes', nav: 'tracks' },
+        sort: true, browse: 'tracks', search: 'tracks',
+        heading: letter
+          ? { back: '#/tracks', backText: 'All tracks', kind: 'Artists', title: letter === 'other' ? '#' : letter.toUpperCase(), nav: 'tracks' }
+          : { back: '#/', backText: 'All mixes', nav: 'tracks' },
       });
       const root = view();
       root.innerHTML = '';
-      const tracks = sortTracks([...state.trackIndex.values()]);
+      let all = [...state.trackIndex.values()];
+      if (letter) all = all.filter(t => trackLetterOf(t) === letter);
+      const tracks = sortTracks(all);
       const section = sectionEl(`Tracks · ${tracks.length}`);
       if (!tracks.length) {
         const note = document.createElement('div');
         note.className = 'empty-note';
-        note.textContent = 'No track data in this library yet.';
+        note.textContent = letter ? 'No tracks under this letter.' : 'No track data in this library yet.';
         section.appendChild(note);
         root.appendChild(section);
         activeFilter = null;
@@ -1595,16 +1689,37 @@
         image = firstThumb(mixes);
         jsonld = artistJsonLd(r.arg, canonical, mixes);
       } else if (r.view === 'tracks') {
-        const tracks = [...state.trackIndex.values()];
-        title = `Tracks — ${siteName}`;
-        description = `Every track across the mixes (${tracks.length}).`;
-        canonical = siteUrl('#/tracks');
+        let tracks = [...state.trackIndex.values()];
+        if (r.letter) {
+          tracks = tracks.filter(t => trackLetterOf(t) === r.letter);
+          const label = r.letter === 'other' ? '#' : r.letter.toUpperCase();
+          title = `Tracks: artists ${label} — ${siteName}`;
+          description = `Tracks by artists under ${label} (${tracks.length}).`;
+          canonical = siteUrl('#/tracks/letter/' + r.letter);
+        } else {
+          title = `Tracks — ${siteName}`;
+          description = `Every track across the mixes (${tracks.length}).`;
+          canonical = siteUrl('#/tracks');
+        }
         jsonld = tracksJsonLd(tracks, canonical, description);
       } else if (r.view === 'playlists') {
-        title = `Playlists — ${siteName}`;
-        description = `Playlists in this library (${state.playlists.length}).`;
-        canonical = siteUrl('#/playlists');
-        jsonld = playlistsJsonLd(state.playlists, canonical, description);
+        let playlists = state.playlists;
+        if (r.tag) {
+          playlists = state.playlistTagIndex.get(r.tag) || [];
+          title = `Playlists tagged ${r.tag} — ${siteName}`;
+          description = `Playlists with ${r.tag} mixes (${playlists.length}).`;
+          canonical = siteUrl('#/playlists/tag/' + encodeURIComponent(r.tag));
+        } else if (r.creator) {
+          playlists = state.creatorIndex.get(r.creator) || [];
+          title = `Playlists by ${r.creator} — ${siteName}`;
+          description = `Playlists by ${r.creator} (${playlists.length}).`;
+          canonical = siteUrl('#/playlists/creator/' + encodeURIComponent(r.creator));
+        } else {
+          title = `Playlists — ${siteName}`;
+          description = `Playlists in this library (${state.playlists.length}).`;
+          canonical = siteUrl('#/playlists');
+        }
+        jsonld = playlistsJsonLd(playlists, canonical, description);
       } else if (r.view === 'playlist') {
         const pl = state.playlists.find(p => p.id === r.arg);
         canonical = siteUrl('#/playlist/' + encodeURIComponent(r.arg));
@@ -1631,11 +1746,27 @@
       if (!raw) return { view: 'home' };
       const slash = raw.indexOf('/');
       const seg = slash === -1 ? raw : raw.slice(0, slash);
-      const arg = slash === -1 ? '' : decodeURIComponent(raw.slice(slash + 1));
-      if (seg === 'playlists') return { view: 'playlists' };
+      const rest = slash === -1 ? '' : raw.slice(slash + 1);
+      const arg = decodeURIComponent(rest);
+      // Filter sub-routes nest under their list view, e.g. #/playlists/tag/<x>;
+      // split the raw remainder first so a '/' inside the encoded value survives.
+      const sub = () => {
+        const i = rest.indexOf('/');
+        return i === -1 ? null : { kind: rest.slice(0, i), value: decodeURIComponent(rest.slice(i + 1)) };
+      };
+      if (seg === 'playlists') {
+        const s = sub();
+        if (s && s.kind === 'tag') return { view: 'playlists', tag: s.value };
+        if (s && s.kind === 'creator') return { view: 'playlists', creator: s.value };
+        return { view: 'playlists' };
+      }
       if (seg === 'playlist') return { view: 'playlist', arg };
       if (seg === 'mix') return { view: 'mix', arg };
-      if (seg === 'tracks') return { view: 'tracks' };
+      if (seg === 'tracks') {
+        const s = sub();
+        if (s && s.kind === 'letter') return { view: 'tracks', letter: s.value.toLowerCase() };
+        return { view: 'tracks' };
+      }
       if (seg === 'track') return { view: 'track', arg };
       if (seg === 'tag') return { view: 'tag', arg };
       if (seg === 'artist') return { view: 'artist', arg };
@@ -1649,10 +1780,10 @@
         return;
       }
       const r = parseHash();
-      if (r.view === 'playlists') renderPlaylistsView();
+      if (r.view === 'playlists') renderPlaylistsView({ tag: r.tag, creator: r.creator });
       else if (r.view === 'playlist') renderPlaylistView(r.arg);
       else if (r.view === 'mix') renderMixDetail(r.arg);
-      else if (r.view === 'tracks') renderTracks();
+      else if (r.view === 'tracks') renderTracks(r.letter);
       else if (r.view === 'track') renderTrackDetail(r.arg);
       else if (r.view === 'tag') renderTag(r.arg);
       else if (r.view === 'artist') renderArtist(r.arg);
@@ -1728,7 +1859,7 @@
       render();
     });
 
-    // Browse toggle shows/hides the tag + artist panel
+    // Filter toggle shows/hides the chip panel (per-view groups)
     document.getElementById('browse-toggle').addEventListener('click', () => {
       const panel = document.getElementById('browse-panel');
       panel.hidden = !panel.hidden;
