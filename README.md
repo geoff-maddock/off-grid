@@ -602,8 +602,11 @@ When a player has both a `mix-id` and an API base (the `api-base` attribute, or
 Worker; without them it's a complete no-op. Requires migration `007_play_tracking.sql`.
 
 - **Heartbeats** — the player accumulates *actually listened* seconds (seeking and pausing don't
-  count) and POSTs a tiny beacon to `/api/track/play` every ~30 seconds of listening, plus a final
-  flush on pause, finish, tab-hide/close, and playlist track switch.
+  count; each delta is clamped to wall-clock elapsed time) and POSTs a tiny beacon to
+  `/api/track/play` every ~30 seconds of listening, plus a final flush on pause, finish,
+  tab-hide/close, and playlist track switch. Listening in a backgrounded tab still counts: the
+  player accumulates from the media element's `timeupdate` events plus a coarse backstop interval
+  (runs only while playing), neither of which depends on `requestAnimationFrame`.
 - **What counts as a play** — a session (one page-load of one mix, identified by a random client
   UUID) counts as **one** play once its cumulative listening crosses 5 seconds. Replays after
   seeking or pause/resume never inflate the count.
@@ -796,7 +799,7 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `POST` | `/api/track/play` | public | Listening heartbeat from the player: `{ mixId, sessionId, seconds }` → `204`. Seconds are clamped to 60/event; ≥ 6 events per session per minute are silently dropped |
+| `POST` | `/api/track/play` | public | Listening heartbeat from the player: `{ mixId, sessionId, seconds }` → `204`. Seconds are clamped to 300/event (throttled background tabs can flush minutes at once); ≥ 6 events per session per minute are silently dropped |
 | `POST` | `/api/track/like` | public | Anonymous like: `{ mixId, action }` (`action`: `like` \| `unlike`, default `like`) → `204` |
 | `GET`  | `/api/stats` | user | Per-mix aggregates for your mixes → `{ stats: [{ mixId, title, artist, playCount, totalSeconds, likeCount, lastPlayedAt }] }` |
 

@@ -41,6 +41,8 @@ class OffgridPlayer extends HTMLElement {
     this._tkSession = null;
     this._tkUnsent = 0;
     this._tkLastT = null;
+    this._tkLastWall = null;
+    this._tkTimer = null;
     this._tkOnHidden = null;
   }
 
@@ -99,7 +101,7 @@ class OffgridPlayer extends HTMLElement {
   disconnectedCallback() {
     // The playlist swaps tracks by discarding the whole player element, so
     // flush any unreported listening time before teardown.
-    this._tkFlush();
+    this._tkStop();
     if (this._tkOnHidden) {
       document.removeEventListener('visibilitychange', this._tkOnHidden);
       window.removeEventListener('pagehide', this._tkOnHidden);
@@ -119,9 +121,8 @@ class OffgridPlayer extends HTMLElement {
     if (!this.shadowRoot) return;
     if (name === 'src' && oldVal !== newVal && this._ws) {
       // New audio = new tracking session: report what was heard first.
-      this._tkFlush();
+      this._tkStop();
       this._tkSession = null;
-      this._tkLastT = null;
       this._loadAudio();
     }
     if (name === 'mix-id' || name === 'api-base') {
@@ -1478,23 +1479,22 @@ class OffgridPlayer extends HTMLElement {
       }
     });
 
+    // rAF-driven: freezes in hidden tabs, so it only paints the clock.
     this._ws.on('audioprocess', (t) => {
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(t);
-      // Accumulate actually-listened seconds. Only small forward deltas count,
-      // so seeks (either direction) and timer stalls never inflate the total.
-      if (this._tkSession && this._tkLastT != null) {
-        const d = t - this._tkLastT;
-        if (d > 0 && d < 2) {
-          this._tkUnsent += d;
-          if (this._tkUnsent >= 30) this._tkSend();
-        }
-      }
-      this._tkLastT = t;
+    });
+
+    // Media-driven (unlike audioprocess, keeps firing in hidden tabs while
+    // audio plays): accumulate actually-listened seconds here.
+    this._ws.on('timeupdate', (t) => {
+      if (this._ws && this._ws.isPlaying()) this._tkTick(t);
     });
 
     this._ws.on('seeking', (t) => {
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(t);
-      this._tkLastT = t; // re-anchor; the jump itself isn't listening time
+      // Re-anchor; the jump itself isn't listening time.
+      this._tkLastT = t;
+      this._tkLastWall = performance.now();
     });
 
     this._ws.on('play', () => {
@@ -1505,15 +1505,13 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('pause', () => {
       this.removeAttribute('playing');
-      this._tkFlush();
-      this._tkLastT = null;
+      this._tkStop();
       this.dispatchEvent(new CustomEvent('trackpause', { bubbles: true, composed: true }));
     });
 
     this._ws.on('finish', () => {
       this.removeAttribute('playing');
-      this._tkFlush();
-      this._tkLastT = null;
+      this._tkStop();
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(0);
       this.dispatchEvent(new CustomEvent('trackfinish', { bubbles: true, composed: true }));
     });
@@ -1830,7 +1828,7 @@ class OffgridPlayer extends HTMLElement {
   }
 
   // Called on every WaveSurfer `play`; lazily creates the session and the
-  // once-per-element unload listeners.
+  // once-per-element unload listeners, and starts the backstop timer.
   _tkStart() {
     if (!this._tkEnabled()) return;
     if (!this._tkSession) {
@@ -1840,16 +1838,58 @@ class OffgridPlayer extends HTMLElement {
       this._tkUnsent = 0;
     }
     if (!this._tkOnHidden) {
-      this._tkOnHidden = () => {
-        if (document.visibilityState === 'hidden') this._tkFlush();
+      // pagehide flushes unconditionally: it can fire while visibilityState
+      // is still "visible" (and without a visibilitychange on older Safari).
+      this._tkOnHidden = (e) => {
+        if (e.type === 'pagehide' || document.visibilityState === 'hidden') this._tkFlush();
       };
       document.addEventListener('visibilitychange', this._tkOnHidden);
       window.addEventListener('pagehide', this._tkOnHidden);
     }
+    // Backstop while playing: hidden tabs throttle media timeupdate events,
+    // so tick from a coarse interval too. Seconds come from media time (not
+    // tick counts), so throttling of the interval itself costs nothing.
+    if (!this._tkTimer) {
+      this._tkTimer = setInterval(() => {
+        if (this._ws && this._ws.isPlaying()) this._tkTick(this._ws.getCurrentTime());
+      }, 15000);
+    }
+  }
+
+  // Accumulate listening time up to media position `t`. The media-time delta
+  // is clamped to wall-clock elapsed, so a stale anchor or a seek can never
+  // count more than real time; the seeking handler re-anchors on top of that.
+  _tkTick(t) {
+    if (!this._tkSession) return;
+    const now = performance.now();
+    if (this._tkLastT != null && this._tkLastWall != null) {
+      const d = t - this._tkLastT;
+      if (d > 0) {
+        this._tkUnsent += Math.min(d, (now - this._tkLastWall) / 1000 + 0.5);
+        if (this._tkUnsent >= 30) this._tkSend();
+      }
+    }
+    this._tkLastT = t;
+    this._tkLastWall = now;
+  }
+
+  // Pause/finish/teardown: capture the tail, stop the timer, drop anchors.
+  _tkStop() {
+    this._tkFlush();
+    if (this._tkTimer) {
+      clearInterval(this._tkTimer);
+      this._tkTimer = null;
+    }
+    this._tkLastT = null;
+    this._tkLastWall = null;
   }
 
   // Report accumulated listening time if there's at least a second of it.
+  // Ticks first so time since the last timeupdate/interval isn't dropped.
   _tkFlush() {
+    try {
+      if (this._ready && this._ws) this._tkTick(this._ws.getCurrentTime());
+    } catch (e) { /* tracking must never break playback */ }
     if (this._tkUnsent >= 1) this._tkSend();
   }
 
