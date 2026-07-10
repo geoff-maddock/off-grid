@@ -300,6 +300,8 @@ function renderMixes() {
       <td class="col-title">${esc(m.title)}</td>
       <td class="col-artist">${esc(m.artist || '')}</td>
       <td class="col-duration">${m.duration ? formatDuration(m.duration) : '—'}</td>
+      <td class="col-released">${m.releaseDate ? esc(String(m.releaseDate).slice(0, 10)) : '—'}</td>
+      <td class="col-added">${m.createdAt ? esc(String(m.createdAt).slice(0, 10)) : '—'}</td>
       <td class="col-plays">${m.playCount || 0}</td>
       <td class="col-time">${m.totalSeconds >= 1 ? formatDuration(Math.round(m.totalSeconds)) : '—'}</td>
       <td class="col-likes">${m.likeCount || 0}</td>

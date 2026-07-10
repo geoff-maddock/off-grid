@@ -38,6 +38,7 @@ Each entry represents a single audio track/mix.
 | `tags`        | string[] | No       | Array of tag strings for categorization |
 | `duration`    | number   | No       | Duration in seconds (from peaks data) |
 | `releaseDate` | string   | No       | ISO date string (e.g. `"2024-01-15"`) |
+| `createdAt`   | string   | No       | Server-set UTC timestamp of when the mix was added to the database (e.g. `"2024-01-15 20:31:07"`). Included automatically in Worker-published manifests; leave out (or `null`) when authoring by hand |
 | `tracklist`   | string   | No       | Raw tracklist text as authored (one track per line) |
 | `tracks`      | object[] | No       | Parsed tracklist — see [`tracks`](#tracks-array) |
 

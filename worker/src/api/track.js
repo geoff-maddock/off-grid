@@ -15,7 +15,9 @@ import { resolveOwnerId } from '../db.js';
 
 const MAX_BODY_BYTES = 1024;
 const SESSION_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
-const MAX_SECONDS_PER_EVENT = 60; // clamp, tolerates throttled-tab timer drift
+// Clamp per event. Normal heartbeats carry ~30-45s, but a hidden tab whose
+// timers are throttled can legitimately flush a few minutes in one beacon.
+const MAX_SECONDS_PER_EVENT = 300;
 const PLAY_THRESHOLD_SECONDS = 5; // a session counts as one play past this
 const MAX_EVENTS_PER_MINUTE = 6; // legit clients send ~2-3/min
 

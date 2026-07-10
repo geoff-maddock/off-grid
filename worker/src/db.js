@@ -266,6 +266,7 @@ function parseMixRow(row) {
     tags: safeParse(row.tags, []),
     duration: row.duration,
     releaseDate: row.release_date,
+    createdAt: row.created_at || null,
     sortOrder: row.sort_order,
     tracklist: row.tracklist || '',
   };
