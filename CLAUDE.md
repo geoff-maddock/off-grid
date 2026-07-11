@@ -17,15 +17,22 @@ What tracks what:
 | Web component attributes, methods, or events (`audio-player.js`) | **Embedding** section tables in `README.md`      |
 | Custom element names (`customElements.define`)  | All embed examples in `README.md` + `index.html`          |
 | Manifest shape / fields (`worker/src/db.js`, manifest generation) | `data/schema.md` **and** the sample `data/manifest.json` |
-| Setup/deploy steps, secrets, or Worker config   | **Onboarding** + **Quick start** in `README.md` + `worker/wrangler.toml.example` |
-| Bucket/DB/Worker default names                  | `README.md`, `wrangler.toml.example` comments, `worker/src/r2.js` |
+| Setup/deploy steps, secrets, or Worker config   | `QUICKSTART.md` + `docs/ONBOARDING.md` + `worker/wrangler.toml.example` + `worker/.dev.vars.example` (+ the steps/prompts in `scripts/setup.mjs`) |
+| Migrations added/removed (`worker/migrations/`) | `db:migrate:all*` scripts in `worker/package.json`, migration steps in `docs/ONBOARDING.md` + `QUICKSTART.md` (`scripts/setup.mjs` discovers `*.sql` automatically) |
+| Deployment health surface (`GET /config` shape, manifest layout, auth) | The checks in `scripts/check.mjs`                         |
+| Bucket/DB/Worker default names                  | `README.md`, `QUICKSTART.md`, `docs/ONBOARDING.md`, `wrangler.toml.example` comments, `worker/src/r2.js`, `worker/package.json` db scripts |
 | Files added/removed/moved                       | **Project structure** tree in `README.md`                 |
 | Build/run/peak commands or scripts              | The relevant `README.md` command blocks                   |
 
 If a change makes part of the docs obsolete, delete or rewrite it — don't leave stale instructions.
 When you add a new feature, add its documentation in the same pass (new section, table row, or
-example). When unsure whether something is documented, grep `README.md` and `data/schema.md` for the
-identifier you changed.
+example). When unsure whether something is documented, grep `README.md`, `QUICKSTART.md`,
+`docs/ONBOARDING.md`, and `data/schema.md` for the identifier you changed.
+
+Doc roles, to avoid duplication drift: `docs/ONBOARDING.md` is the **canonical** setup guide;
+`QUICKSTART.md` is its command-only summary; `README.md` covers everything *after* setup
+(embedding, admin, API) and only links to the other two for setup. Don't re-add setup
+walkthroughs to the README.
 
 ## This repo is the public, generic version
 
@@ -61,5 +68,7 @@ See the **Project structure** section in `README.md` (keep it current when files
 audio-player.js   web components       admin/    admin SPA
 index.html        public player page   worker/   Cloudflare Worker (R2+D1 API)
 generate-peaks.js peaks (ffmpeg)       data/     sample manifest + schema docs
-scripts/          one-time migration   mixes/    local media (gitignored)
+QUICKSTART.md     abbreviated setup    docs/     ONBOARDING.md (canonical setup guide)
+scripts/          setup wizard, doctor, deploy, one-time migration
+mixes/            local media (gitignored)
 ```

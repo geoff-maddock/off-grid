@@ -1,0 +1,9 @@
+# Local secrets for `wrangler dev` — copy this file to `.dev.vars` (gitignored)
+# and fill in values. These mirror the five production secrets set with
+# `wrangler secret put` (see docs/ONBOARDING.md, Stage 3). Never commit `.dev.vars`.
+
+ADMIN_TOKEN="dev-admin-token"
+JWT_SECRET="dev-jwt-secret-change-me"
+R2_ACCESS_KEY_ID="YOUR_R2_ACCESS_KEY_ID"
+R2_SECRET_ACCESS_KEY="YOUR_R2_SECRET_ACCESS_KEY"
+CF_ACCOUNT_ID="YOUR_CF_ACCOUNT_ID"
