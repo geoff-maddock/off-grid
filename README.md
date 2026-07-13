@@ -30,230 +30,21 @@ Player Page (index.html)           Admin UI (admin/)
 
 ---
 
-## Onboarding
+## Get started
 
-A guided, end-to-end walkthrough from an empty Cloudflare account to a working player embedded on
-your own site. Budget **30–45 minutes** the first time. If you just want the commands, skip to
-[Quick start](#quick-start) — this section is the narrated version with checkpoints and
-troubleshooting.
+Two docs take you from an empty Cloudflare account to a working, embeddable player:
 
-### The mental model
+- **[QUICKSTART.md](QUICKSTART.md)** — the abbreviated version: just the commands.
+- **[docs/ONBOARDING.md](docs/ONBOARDING.md)** — the full guide: the environment and accounts you
+  need, what it costs (spoiler: free tier for personal use), every setup stage with a checkpoint,
+  hosting, inviting collaborators, production hardening, and troubleshooting.
 
-There are four moving parts. Understanding how they relate makes the rest obvious:
+Two helper scripts smooth the path:
 
-1. **R2** is a storage bucket — your audio files, cover images, peaks, and the published
-   `manifest.json` live here. It has a **public URL** (`https://pub-xxxxxxxx.r2.dev`) that anyone
-   can read from, with no egress fees.
-2. **D1** is a SQLite database holding the *metadata* (mix titles, artists, tags, playlist order).
-   The public never touches it directly.
-3. **The Worker** is the only thing with write access. The admin UI calls it (authenticated with
-   your `ADMIN_TOKEN`) to edit D1 and upload to R2. It also **publishes**: read D1 → write a static
-   `manifest.json` to R2.
-4. **The player page + web component** are pure static frontend. They read the public
-   `manifest.json` from R2 and render players. No backend calls, nothing secret.
-
-So the data flow is: **admin → Worker → (D1 + R2) → Publish → manifest.json on R2 → player reads it.**
-
-### Before you begin — prerequisites & how to verify
-
-Run these and confirm each works before continuing:
-
-| Need | Check | Expected |
-|------|-------|----------|
-| Node.js 18+ | `node -v` | `v18.x` or higher |
-| ffmpeg | `ffmpeg -version` | prints a version (only needed for peaks) |
-| ffprobe | `ffprobe -version` | prints a version |
-| A Cloudflare account | log in at [dash.cloudflare.com](https://dash.cloudflare.com) | dashboard loads |
-
-You do **not** need a custom domain to start — Cloudflare gives you a free `*.workers.dev` Worker
-URL and a `pub-*.r2.dev` public bucket URL.
-
-### Onboarding path
-
-Follow these stages in order. Each ends with a **✓ Checkpoint** — don't move on until it passes.
-
-**Stage 0 — Get the code**
-```bash
-git clone <this-repo> off-grid && cd off-grid
-cd worker && npm install && cd ..
-```
-✓ Checkpoint: `worker/node_modules/` exists.
-
-**Stage 1 — Storage (R2)**
-Create the bucket, enable public access, copy the public URL, and set CORS. See
-[Quick start → Create an R2 bucket](#1-create-an-r2-bucket).
-✓ Checkpoint: opening `https://pub-xxxxxxxx.r2.dev/` in a browser returns an R2 response (a 404 is
-fine — it means the URL resolves), and you've saved your **R2 public URL** somewhere.
-
-**Stage 2 — Upload credentials (R2 API token)**
-Create an **Object Read & Write** token scoped to your bucket; save the Access Key ID + Secret.
-See [Quick start → Create an R2 API token](#2-create-an-r2-api-token-for-uploads).
-✓ Checkpoint: you have both keys saved.
-
-**Stage 3 — Backend (Worker + D1)**
-Run through [Quick start → Deploy the Worker](#3-deploy-the-worker): create D1, paste the
-`database_id` into `worker/wrangler.toml`, set `R2_PUBLIC_URL` under `[vars]` to the public
-bucket URL from Stage 1, apply the migration, set the secrets, deploy.
-✓ Checkpoint: the deploy prints a Worker URL, `curl https://<your-worker-url>/config` returns
-`{"r2PublicUrl":"https://pub-…r2.dev"}`, and this returns an **empty** (or seeded) list rather
-than an auth error:
-```bash
-curl -H "Authorization: Bearer <YOUR_ADMIN_TOKEN>" https://<your-worker-url>/api/mixes
-# → []   (or your mixes)
-```
-If you get `401`, your `ADMIN_TOKEN` header doesn't match the secret. If `500` about R2
-credentials, re-check the three R2/account secrets.
-
-**Stage 4 — Frontend wiring**
-- Point the player page at your manifest (see [step 4](#4-point-the-player-page-at-your-manifest)) —
-  `cp config.local.example.js config.local.js` and set your R2 URL, or just use `?manifest=…`.
-- In the same `config.local.js`, set `window.OFFGRID_API_BASE` to your Worker URL so the admin
-  page picks it up and login needs only email + password.
-- Upload `audio-player.js` to R2 (or your own host) so embeds elsewhere can load it.
-✓ Checkpoint: opening `index.html` (with the param or local config) lists your mixes.
-
-**Stage 5 — First content**
-Serve the admin locally (`python3 -m http.server 8080` → `http://localhost:8080/admin/`), log in
-via **First-time setup** with your admin token (the Worker/R2 URLs are picked up from
-`config.local.js` and the Worker's `/config` endpoint; the URL fields only appear if that
-config is missing), click **Add Mix**, and **Choose File** to
-select your audio. The admin uploads it and **automatically generates the waveform and duration**
-in your browser — just fill in the title/artist/cover, then **Save** and click **Publish**.
-✓ Checkpoint: `https://pub-xxxxxxxx.r2.dev/data/manifest.json` now lists your mix.
-
-**Stage 6 — Go live**
-Open `index.html` (locally or hosted) — your mix renders and plays. Then drop an
-`<offgrid-player>` onto any other page (see [Embedding](#embedding)).
-✓ Checkpoint: the waveform draws and audio plays from your R2 URL. 🎉
-
-### Onboarding troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| Admin login fails | Wrong Worker URL or token | URL has no trailing slash; token matches `ADMIN_TOKEN` secret |
-| Admin still asks for Worker/R2 URLs | `config.local.js` missing `OFFGRID_API_BASE`, or Worker lacks `R2_PUBLIC_URL` var | Set both, redeploy the Worker, reload the admin |
-| Uploads fail (>95 MB) | R2 API token/secrets missing | Set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CF_ACCOUNT_ID` |
-| Player shows nothing | `MANIFEST_URL` wrong, or manifest not published | Verify the manifest URL loads JSON; click **Publish** |
-| CORS errors in console | Bucket CORS not set | Re-run the `wrangler r2 bucket cors set` step |
-| Waveform but no audio | `src` URL wrong / not public | Open the `src` URL directly; enable R2 public access |
-| `wrangler` hangs on login | OAuth can't reach your machine (WSL) | Use `CLOUDFLARE_API_TOKEN` — see [WSL notes](#wsl-notes) |
-
----
-
-## Quick start
-
-> Running your own independent instance? See the end-to-end
-> **[Self-hosting guide](docs/self-hosting.md)** — it ties these steps together and adds the
-> multi-user bootstrap, hosting, and invite specifics.
-
-**Prerequisites**
-
-- Node.js 18+
-- `ffmpeg` and `ffprobe` on your PATH (for waveform peak generation)
-- A Cloudflare account (free tier is enough to start)
-
-### 1. Create an R2 bucket
-
-1. [dash.cloudflare.com](https://dash.cloudflare.com) → **R2** → **Create Bucket** (e.g. `offgrid-media`).
-2. Bucket **Settings** → enable **Public access**, and copy the **Public bucket URL** (e.g. `https://pub-xxxxxxxx.r2.dev`).
-3. Set CORS so browsers can upload and stream:
-   ```bash
-   cd worker
-   npx wrangler r2 bucket cors set offgrid-media --file ./r2-cors.json
-   ```
-   `r2-cors.json` allows `GET`, `HEAD`, and `PUT` from any origin.
-
-> If you name your bucket something other than `offgrid-media`, update `bucket_name` and `R2_BUCKET_NAME` in `worker/wrangler.toml` to match.
-
-### 2. Create an R2 API token (for uploads)
-
-Needed for uploading large files (>95 MB) via presigned URLs:
-
-1. **R2** → **Manage R2 API Tokens** → **Create API Token** (Account token).
-2. Permissions: **Object Read & Write**, scoped to your bucket.
-3. Copy the **Access Key ID** and **Secret Access Key**.
-
-### 3. Deploy the Worker
-
-```bash
-cd worker
-npm install
-
-# Create your local Wrangler config from the template (it's gitignored, so your
-# account-specific IDs stay out of version control).
-cp wrangler.toml.example wrangler.toml
-
-# Authenticate with Cloudflare
-npx wrangler login
-# If login hangs (e.g. on WSL), use an API token instead:
-#   export CLOUDFLARE_API_TOKEN="your-token"
-#   (Create one with the "Edit Cloudflare Workers" template at
-#    https://dash.cloudflare.com/profile/api-tokens)
-
-# Create the D1 database, then paste the returned database_id into wrangler.toml
-npx wrangler d1 create offgrid-db
-
-# In wrangler.toml [vars], set R2_PUBLIC_URL to your bucket's public URL (from
-# step 1). It's not a secret — the Worker serves it via GET /config so admins
-# log in with just email + password.
-
-# Apply the database schema (run every migration in order)
-npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql
-npx wrangler d1 execute offgrid-db --remote --file=migrations/002_users_multitenant.sql
-npx wrangler d1 execute offgrid-db --remote --file=migrations/003_tracklist.sql
-# 004 backfills existing content to the first admin — run it AFTER bootstrapping your admin account
-npx wrangler d1 execute offgrid-db --remote --file=migrations/004_content_ownership.sql
-npx wrangler d1 execute offgrid-db --remote --file=migrations/005_login_attempts.sql
-npx wrangler d1 execute offgrid-db --remote --file=migrations/006_track_url.sql
-npx wrangler d1 execute offgrid-db --remote --file=migrations/007_play_tracking.sql
-
-# Set secrets
-npx wrangler secret put ADMIN_TOKEN          # Bootstrap/legacy admin token
-npx wrangler secret put JWT_SECRET           # Random string, e.g. `openssl rand -hex 32`
-npx wrangler secret put R2_ACCESS_KEY_ID     # From step 2
-npx wrangler secret put R2_SECRET_ACCESS_KEY # From step 2
-npx wrangler secret put CF_ACCOUNT_ID        # Your Cloudflare account ID
-
-# Deploy
-npx wrangler deploy
-```
-
-The deploy prints your Worker URL, e.g. `https://offgrid-api.YOUR-SUBDOMAIN.workers.dev`.
-
-### 4. Point the player page at your manifest
-
-The public page (`index.html`) resolves its manifest URL in this order, so you don't have to edit
-(and risk committing) your real bucket URL in the tracked file:
-
-1. **`?manifest=<url>` query param** — best for quick local testing:
-   `index.html?manifest=https://pub-xxxxxxxx.r2.dev/data/manifest.json`
-2. **`config.local.js`** (gitignored) — a persistent local default:
-   ```bash
-   cp config.local.example.js config.local.js
-   # then set:  window.OFFGRID_MANIFEST_URL = 'https://pub-xxxxxxxx.r2.dev/data/manifest.json';
-   #            window.OFFGRID_API_BASE = 'https://offgrid-api.YOUR-SUBDOMAIN.workers.dev';
-   ```
-   `OFFGRID_API_BASE` is also what the admin page uses to find your Worker, so set it here once
-   and the admin login only asks for email + password.
-3. The placeholder in `index.html` — only change this if you want a committed default.
-
-### 5. Host `audio-player.js`
-
-So you can embed the player on other sites, upload `audio-player.js` to R2 (or any CDN / your own domain) and reference it with an absolute URL in your embeds (see [Embedding](#embedding)).
-
-### 6. Add your first mix
-
-1. Run the admin UI (below) and log in.
-2. Click **Add Mix** → **Choose File** and select your audio. The admin uploads it and
-   **auto-generates the waveform peaks and duration in your browser** — no manual peak step.
-3. Fill in the title, artist, and cover image, then **Save**.
-4. Click **Publish** to regenerate `manifest.json` on R2 — the public player page updates instantly.
-
-> Prefer the command line, or have a big back catalog? `generate-peaks.js` still works for
-> generating peaks in bulk (see [Peaks](#peaks)); the admin just makes it automatic for everyday use.
-
-Optional: for scraper-readable link previews (Facebook, Slack, etc.) of individual mixes, generate
-static share pages — see [Static share pages](#static-share-pages-generate-share-pagesmjs).
+- `node scripts/setup.mjs` — interactive wizard that sets up the whole backend (D1 database,
+  migrations, secrets, deploy) and prints your `config.local.js`.
+- `node scripts/check.mjs` — deployment doctor: verifies a live install end to end and tells you
+  how to fix whatever fails.
 
 ---
 
@@ -345,7 +136,7 @@ to play/share a library:
    can listen. (The page derives the R2 base from your configured manifest URL; override with
    `window.OFFGRID_R2_BASE` if your layout differs.)
 2. **Any manifest** renders via the explicit `?manifest=<url>` param (see
-   [step 4](#4-point-the-player-page-at-your-manifest)) — handy for one-offs.
+   [Onboarding Stage 4](docs/ONBOARDING.md#stage-4--frontend-config)) — handy for one-offs.
 3. **A single mix** — add `?mix=<id>` to show just one mix on the player page (composes with the
    above, e.g. `?user=<id>&mix=<id>` or `?manifest=<url>&mix=<id>`); the **Link** button on each row
    in the admin copies this URL. Or embed it anywhere with the web component (see
@@ -481,7 +272,8 @@ Run the script in your site's build/deploy step so pages regenerate on every dep
 <script src="https://your-domain.com/audio-player.js"></script>
 ```
 
-(Use the URL where you hosted `audio-player.js` in step 5.)
+(Use the URL where you hosted `audio-player.js` — see
+[Onboarding Stage 5](docs/ONBOARDING.md#stage-5--host-the-frontend).)
 
 ### 2. Add a player
 
@@ -518,6 +310,7 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `title-href` | No | If set, the title renders as a link to this URL (used by the player page for `#/mix/<id>`); omit for plain text |
 | `artist-href` | No | If set, the artist renders as a link to this URL (used by the player page for `#/artist/<name>`); omit for plain text |
 | `open-tracklist` | No | Boolean attribute — render with the tracklist panel expanded (when the player has tracks) |
+| `tags` | No | Tags shown as clickable pills in the player — a JSON array string (`'["jungle","hardcore"]'`) or a comma-separated list; clicking a pill fires the `tagclick` event |
 | `start-at` | No | Cue position in seconds — the player shows this time and begins playback there on first play (no autoplay) |
 | `mix-id` | No | Mix id from the manifest — together with an API base, enables [play tracking & likes](#play-tracking--likes); omit for a tracking-free player |
 | `api-base` | No | Worker URL to send tracking beacons to (no trailing slash); falls back to `window.OFFGRID_API_BASE` from `config.local.js` |
@@ -601,6 +394,7 @@ Pause every other player when one starts:
 | `trackplay`   | `{src}`  | Fired when playback starts |
 | `trackpause`  | —        | Fired when playback pauses |
 | `trackfinish` | —        | Fired when the track ends |
+| `tagclick`    | `{tag}`  | Fired when a tag pill is clicked (bubbles through Shadow DOM); the player page uses it for `#/tag/<tag>` navigation |
 
 ### Play tracking & likes
 
@@ -681,6 +475,10 @@ node scripts/migrate-to-r2.js
 
 ```
 off-grid/
+  README.md              # This file — reference for embedding, admin, and the API
+  QUICKSTART.md          # Abbreviated setup (commands only)
+  CLAUDE.md              # Instructions for AI coding agents working in this repo
+  IDEA.md                # Product vision and open questions
   index.html             # Public player page (loads manifest.json from R2)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
@@ -688,6 +486,12 @@ off-grid/
   generate-share-pages.mjs # Static per-mix share pages (OG/Twitter/JSON-LD) for scrapers
   mix/                   # Generated share pages (gitignored build artifact)
   assets/                # Site icon (favicon.ico) + brand images
+  docs/
+    ONBOARDING.md        # Full from-scratch self-hosting guide (start here)
+    self-hosting.md      # Pointer to ONBOARDING.md (kept for old links)
+    multi-user-plan.md   # Design notes for the multi-user feature
+  context/               # Historical planning notes
+  offline/               # Private notes & prod-specific material (gitignored)
   admin/
     index.html           # Admin SPA shell
     admin.js             # Admin logic (CRUD, uploads, auth)
@@ -701,6 +505,7 @@ off-grid/
     peaks/               # Pre-computed waveform peaks
   worker/
     wrangler.toml.example # Template — copy to wrangler.toml (gitignored) and fill in IDs
+    .dev.vars.example    # Template — copy to .dev.vars (gitignored) for `wrangler dev` secrets
     package.json         # Worker scripts & deps
     r2-cors.json         # R2 CORS configuration
     migrations/
@@ -728,6 +533,9 @@ off-grid/
         manifest.js      # Manifest generation + publish to R2
         track.js         # Public play/like tracking + authed stats
   scripts/
+    setup.mjs             # Interactive setup wizard (D1, migrations, secrets, deploy)
+    check.mjs             # Deployment doctor — verifies a live install
+    deploy-static.sh     # Copy the static frontend into a target site directory
     migrate-to-r2.js     # One-time: upload local files to R2
     seed-d1.js           # One-time: seed D1 from manifest.json
 ```
@@ -787,7 +595,7 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 
 | Method   | Path                              | Description |
 |----------|-----------------------------------|-------------|
-| `GET`    | `/api/playlists`                  | List with resolved mixes |
+| `GET`    | `/api/playlists`                  | List playlists (each with ordered `mixIds`) |
 | `GET`    | `/api/playlists/:id`              | Get one |
 | `POST`   | `/api/playlists`                  | Create |
 | `PUT`    | `/api/playlists/:id`              | Update |
@@ -816,21 +624,6 @@ embeds without CORS preflight. See [Play tracking & likes](#play-tracking--likes
 
 ---
 
-## WSL notes
-
-If you develop on WSL:
-
-- **D1 and R2 local mode can fail** due to a `workerd` memory allocation issue — always use `--remote`:
-  ```bash
-  npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql
-  ```
-- **`wrangler login` may hang** if the OAuth redirect can't reach WSL — use an API token instead:
-  ```bash
-  export CLOUDFLARE_API_TOKEN="your-token"
-  ```
-
----
-
 ## Cost
 
 Cloudflare R2 storage runs ~$0.015/GB/month with **zero egress fees**. A library of 100 mixes at 200 MB each (20 GB) costs about **$0.30/month** regardless of how many times it streams.
@@ -846,8 +639,9 @@ Cloudflare R2 storage runs ~$0.015/GB/month with **zero egress fees**. A library
 See [IDEA.md](./IDEA.md) for the product vision and open questions. Planned directions:
 
 - Integration with mix-extractor for tracklistings and Bandcamp link enrichment
-- Automatic peak generation on upload
-- Multi-user accounts that map each user to their own R2 / config
+
+Already shipped from earlier roadmaps: automatic peak generation on upload (see [Admin UI](#admin-ui))
+and multi-user accounts with per-user manifests (see [Multi-user & ownership](#multi-user--ownership)).
 
 ## License
 

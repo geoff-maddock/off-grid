@@ -21,6 +21,13 @@ The manifest file (`manifest.json`) drives the public-facing audio player page. 
 | `accent`  | string | No       | Default accent color as hex (default: `#ff5500`) |
 | `logoText`| string | No       | Small eyebrow label shown above the title (default: `Off Grid`) |
 
+> **Worker-published manifests ignore these fields.** `generateManifest()` in `worker/src/db.js`
+> writes a fixed `site` block on every **Publish** (`title: "OFF-GRID"`, `tagline: "Self-hosted
+> streaming audio."`, `accent: "#ff5500"`, empty `logoText`) — there is no admin setting or database
+> column for site metadata yet. The fields above are only honored in hand-authored manifests (e.g.
+> the offline/sample workflow); to customize a published instance's site block, edit the values in
+> `worker/src/db.js`.
+
 ## `mixes` Array
 
 Each entry represents a single audio track/mix.
@@ -39,6 +46,7 @@ Each entry represents a single audio track/mix.
 | `duration`    | number   | No       | Duration in seconds (from peaks data) |
 | `releaseDate` | string   | No       | ISO date string (e.g. `"2024-01-15"`) |
 | `createdAt`   | string   | No       | Server-set UTC timestamp of when the mix was added to the database (e.g. `"2024-01-15 20:31:07"`). Included automatically in Worker-published manifests; leave out (or `null`) when authoring by hand |
+| `sortOrder`   | number   | No       | Manual ordering position from the admin (default `0`). Included automatically in Worker-published manifests; optional when authoring by hand |
 | `tracklist`   | string   | No       | Raw tracklist text as authored (one track per line) |
 | `tracks`      | object[] | No       | Parsed tracklist — see [`tracks`](#tracks-array) |
 
@@ -51,6 +59,7 @@ text on save; each entry is one track.
 |-----------|--------|----------|-------------|
 | `time`    | string | No       | Timestamp as written, e.g. `"04:32"` |
 | `seconds` | number | No       | `time` parsed to seconds (for seeking); `null` if none |
+| `position`| number | No       | 0-based index of the track within the tracklist. Set by the Worker (from `mix_tracks.position`) in published manifests; optional when authoring by hand |
 | `artist`  | string | No       | Track artist |
 | `title`   | string | No       | Track title |
 | `url`     | string | No       | Link for the track (e.g. Bandcamp/Discogs); rendered as a clickable link |
@@ -68,6 +77,7 @@ Each entry defines an ordered collection of mixes.
 | `thumb`   | string   | No       | URL or relative path to playlist cover art |
 | `color`   | string   | No       | Accent color for the playlist player |
 | `mixIds`  | string[] | Yes      | Ordered array of mix `id` values |
+| `sortOrder` | number | No       | Manual ordering position from the admin (default `0`). Included automatically in Worker-published manifests; optional when authoring by hand |
 
 ## Example
 
