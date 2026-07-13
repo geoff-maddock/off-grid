@@ -9,9 +9,9 @@ troubleshooting is **[docs/ONBOARDING.md](docs/ONBOARDING.md)**.
 - **Node.js 18+** (`node -v`)
 - A **Cloudflare account** with **R2 activated** (R2 activation requires adding a payment method,
   even on the always-free tier)
-- In the Cloudflare dashboard: an **R2 bucket** with **Public access** enabled (note its
-  `https://pub-….r2.dev` URL), and an **R2 API token** (Object Read & Write — note the Access Key
-  ID + Secret) — [details](docs/ONBOARDING.md#stage-1--storage-r2-bucket)
+- In the Cloudflare dashboard: an **R2 bucket** with its **Public Development URL** enabled (note
+  the `https://pub-….r2.dev` URL), and an **R2 API token** (Object Read & Write — note the Access
+  Key ID + Secret) — [details](docs/ONBOARDING.md#stage-1--storage-r2-bucket)
 
 ## Option A — the setup wizard
 
@@ -41,7 +41,7 @@ npx wrangler secret put ADMIN_TOKEN           # openssl rand -hex 32 — save it
 npx wrangler secret put JWT_SECRET            # openssl rand -hex 32
 npx wrangler secret put R2_ACCESS_KEY_ID      # from your R2 API token
 npx wrangler secret put R2_SECRET_ACCESS_KEY  # from your R2 API token
-npx wrangler secret put CF_ACCOUNT_ID         # dashboard sidebar
+npx wrangler secret put CF_ACCOUNT_ID         # R2 page → Account Details
 
 npx wrangler deploy                   # prints your Worker URL
 

@@ -50,10 +50,11 @@ You need exactly one account: **Cloudflare** (free plan is fine).
 
 1. Sign up at [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up). You do **not**
    need to own a domain or move DNS to Cloudflare — Workers and R2 work standalone.
-2. **Activate R2**: in the dashboard, open **R2** and click through the activation prompt.
-   Cloudflare requires **adding a payment method** (credit card or PayPal) to enable R2, even if
-   you stay entirely within the free tier and are never charged. This is the one step people get
-   stuck on — do it up front.
+2. **Activate R2**: in the dashboard, open **R2** (under **Storage & databases**) and complete
+   the short checkout flow that adds the R2 subscription to your account. Cloudflare requires
+   **adding a payment method** (credit card or PayPal) to enable R2, even if you stay entirely
+   within the free tier and are never charged. This is the one step people get stuck on — do it
+   up front.
 
 You do **not** need a custom domain to start — Cloudflare gives you a free `*.workers.dev` Worker
 URL and a `pub-*.r2.dev` public bucket URL.
@@ -64,12 +65,13 @@ Everything in this stack fits Cloudflare's free tiers for personal-scale use:
 
 | Service | Free tier | Beyond it |
 |---------|-----------|-----------|
-| **R2** (files) | 10 GB storage, 1M writes + 10M reads/month | ~$0.015/GB/month — and **zero egress fees**, so streaming is free no matter how many people listen |
+| **R2** (files) | 10 GB storage, 1M writes + 10M reads/month | $0.015/GB/month — and **zero egress fees**, so streaming is free no matter how many people listen |
 | **Workers** (API) | 100,000 requests/day | $5/month for 10M requests |
 | **D1** (database) | 5 GB, 5M reads/day | Metadata for a mix library won't approach this |
 
-Worked example: a library of 100 mixes at 200 MB each (20 GB) costs about **$0.30/month**
-regardless of how many times it streams. A smaller library stays at $0.
+Worked example: a library of 100 mixes at 200 MB each (20 GB) is 10 GB over the free tier, so it
+costs about **$0.15/month** regardless of how many times it streams. A library under 10 GB stays
+at $0.
 
 ## Setup, stage by stage
 
@@ -86,10 +88,12 @@ cd worker && npm install && cd ..
 
 ### Stage 1 — Storage (R2 bucket)
 
-1. [dash.cloudflare.com](https://dash.cloudflare.com) → **R2** → **Create Bucket** (e.g. `offgrid-media`).
-2. Bucket **Settings** → enable **Public access** (the r2.dev subdomain), and copy the
-   **Public bucket URL** (e.g. `https://pub-xxxxxxxx.r2.dev`). Save it — you'll use it in
-   Stages 3 and 4.
+1. [dash.cloudflare.com](https://dash.cloudflare.com) → **R2** → **Create bucket** (e.g. `offgrid-media`).
+2. Bucket **Settings** → under **Public Development URL**, click **Enable** (type `allow` to
+   confirm — this is the r2.dev subdomain), and copy the public URL
+   (e.g. `https://pub-xxxxxxxx.r2.dev`). Save it — you'll use it in Stages 3 and 4.
+   (Cloudflare rate-limits r2.dev URLs and recommends a [custom bucket
+   domain](#production-hardening) for production traffic — fine to start with, switch later.)
 3. Set CORS so browsers can upload and stream:
    ```bash
    cd worker
@@ -111,12 +115,14 @@ cd worker && npm install && cd ..
 The Worker uploads small files through its R2 binding, but large uploads (>95 MB — most DJ mixes)
 go directly from your browser to R2 via presigned URLs, which need API credentials:
 
-1. **R2** → **Manage R2 API Tokens** → **Create API Token** (Account token).
+1. On the **R2** overview page, under **Account Details**, click **Manage** next to
+   **API Tokens** → **Create Account API token**.
 2. Permissions: **Object Read & Write**, scoped to your bucket.
-3. Copy the **Access Key ID** and **Secret Access Key**.
+3. Copy the **Access Key ID** and **Secret Access Key** (the secret is shown only once).
 
-While you're in the dashboard, also note your **Account ID** (shown in the sidebar of the R2
-overview page, and in every dashboard URL) — it's needed as a secret in Stage 3.
+While you're in the dashboard, also note your **Account ID** (in the **Account Details** section
+of the R2 or Workers & Pages overview page, and in every dashboard URL — it's the path segment
+after `dash.cloudflare.com/`) — it's needed as a secret in Stage 3.
 
 **✓ Checkpoint:** you have three values saved: Access Key ID, Secret Access Key, Account ID.
 
@@ -154,6 +160,12 @@ Now edit `wrangler.toml`:
   secret — the Worker serves it via `GET /config` so admins log in with just email + password.
 - If you renamed the bucket, set `bucket_name` and `R2_BUCKET_NAME` to match.
 
+> If you name your database something other than `offgrid-db`, also set `database_name` in
+> `wrangler.toml` **and** edit the `db:*` scripts in `worker/package.json` — they hardcode
+> `offgrid-db`, so `npm run db:migrate:all` below will fail against a renamed database until you
+> update them. (The setup wizard doesn't have this problem: `node scripts/setup.mjs --db-name my-db`
+> runs the migrations against whatever name you give it.)
+
 Apply the database schema — **all migrations, in order**:
 
 ```bash
@@ -180,7 +192,7 @@ Set the five secrets (each command prompts for the value):
 | `JWT_SECRET` | Signs login session tokens | Generate: `openssl rand -hex 32` (you never need to see it again) |
 | `R2_ACCESS_KEY_ID` | R2 API token key | From Stage 2 |
 | `R2_SECRET_ACCESS_KEY` | R2 API token secret | From Stage 2 |
-| `CF_ACCOUNT_ID` | Your Cloudflare account ID | From Stage 2 (dashboard sidebar) |
+| `CF_ACCOUNT_ID` | Your Cloudflare account ID | From Stage 2 (Account Details / dashboard URL) |
 
 ```bash
 npx wrangler secret put ADMIN_TOKEN
@@ -357,7 +369,7 @@ Before opening an instance to the world:
 | Uploads fail (>95 MB) | R2 API token/secrets missing | Set `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CF_ACCOUNT_ID` |
 | Player shows nothing | `MANIFEST_URL` wrong, or manifest not published | Verify the manifest URL loads JSON; click **Publish** |
 | CORS errors in console | Bucket CORS not set | Re-run the `wrangler r2 bucket cors set` step |
-| Waveform but no audio | `src` URL wrong / not public | Open the `src` URL directly; enable R2 public access |
+| Waveform but no audio | `src` URL wrong / not public | Open the `src` URL directly; enable the bucket's Public Development URL |
 | A migration errors with `duplicate column name` | It was already applied | Skip it — migrations aren't tracked, apply each exactly once |
 | Stats columns show zeros | Migration 007 not applied | `npx wrangler d1 execute offgrid-db --remote --file=migrations/007_play_tracking.sql` |
 | R2 won't activate | No payment method on the account | Add one (free tier still costs $0) — see [Accounts](#accounts) |

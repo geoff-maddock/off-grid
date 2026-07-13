@@ -11,6 +11,8 @@ binding = "BUCKET"
 bucket_name = "offgrid-media"   # name of the R2 bucket you created
 
 # Run `wrangler d1 create offgrid-db` and paste the returned database_id below.
+# If you pick a different database name, also update the db:* scripts in
+# package.json — they hardcode `offgrid-db`.
 [[d1_databases]]
 binding = "DB"
 database_name = "offgrid-db"
