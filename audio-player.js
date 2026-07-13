@@ -20,6 +20,11 @@
 // URL this script was loaded from — used to generate self-contained embed code.
 const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src) || '';
 
+// The browser's Media Session (OS media widget / lock screen) is a single
+// global slot; the last player to start playing owns it. All media-session
+// writes are guarded by `msOwner === this`.
+let msOwner = null;
+
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
     return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href', 'mix-id', 'api-base'];
@@ -35,6 +40,7 @@ class OffgridPlayer extends HTMLElement {
     this._peaksData = null;
     this._peaksDuration = null;
     this._tracks = [];
+    this._activeTrackIndex = undefined;
     this._seekOnReady = null;
     // Play tracking (anonymous, heartbeat-based). Session = one page-load of
     // one audio source; reset when `src` changes.
@@ -99,6 +105,7 @@ class OffgridPlayer extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this._msRelease();
     // The playlist swaps tracks by discarding the whole player element, so
     // flush any unreported listening time before teardown.
     this._tkStop();
@@ -785,6 +792,8 @@ class OffgridPlayer extends HTMLElement {
         .tracklist-list .tl-item.seekable { cursor: pointer; }
         .tracklist-list .tl-item.seekable:hover,
         .tracklist-list .tl-item.seekable:hover .tl-time { color: var(--accent); }
+        .tracklist-list .tl-item.active,
+        .tracklist-list .tl-item.active .tl-time { color: var(--accent); }
         .tracklist-list .tl-label { line-height: 1.4; flex: 1; min-width: 0; }
         .tracklist-list .tl-link {
           flex-shrink: 0;
@@ -1468,6 +1477,7 @@ class OffgridPlayer extends HTMLElement {
 
       const dur = this._ws.getDuration();
       this.shadowRoot.querySelector('.time-total').textContent = this._fmt(dur);
+      if (msOwner === this) this._msPosition();
 
       if (this._seekOnReady != null) {
         this._wsSeek(this._seekOnReady);
@@ -1488,6 +1498,7 @@ class OffgridPlayer extends HTMLElement {
     // audio plays): accumulate actually-listened seconds here.
     this._ws.on('timeupdate', (t) => {
       if (this._ws && this._ws.isPlaying()) this._tkTick(t);
+      this._updateActiveTrack(t);
     });
 
     this._ws.on('seeking', (t) => {
@@ -1495,23 +1506,30 @@ class OffgridPlayer extends HTMLElement {
       // Re-anchor; the jump itself isn't listening time.
       this._tkLastT = t;
       this._tkLastWall = performance.now();
+      this._updateActiveTrack(t);
+      if (msOwner === this) this._msPosition();
     });
 
     this._ws.on('play', () => {
       this.setAttribute('playing', '');
       this._tkStart();
+      this._msActivate();
       this.dispatchEvent(new CustomEvent('trackplay', { bubbles: true, composed: true, detail: { src: this.getAttribute('src') } }));
     });
 
     this._ws.on('pause', () => {
       this.removeAttribute('playing');
       this._tkStop();
+      this._msSetPaused();
       this.dispatchEvent(new CustomEvent('trackpause', { bubbles: true, composed: true }));
     });
 
     this._ws.on('finish', () => {
       this.removeAttribute('playing');
       this._tkStop();
+      // Keep metadata so the OS widget survives a playlist auto-advance; the
+      // next player's `play` re-claims the session with fresh metadata.
+      this._msSetPaused();
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(0);
       this.dispatchEvent(new CustomEvent('trackfinish', { bubbles: true, composed: true }));
     });
@@ -1731,13 +1749,20 @@ class OffgridPlayer extends HTMLElement {
     // If initialized but not ready, it will auto-play via _playOnReady
   }
   pause() { if (this._ws) this._ws.pause(); }
-  stop() { if (this._ws) { this._ws.stop(); this.removeAttribute('playing'); } }
+  stop() { if (this._ws) { this._ws.stop(); this.removeAttribute('playing'); this._msSetPaused(); } }
   isPlaying() { return this._ws ? this._ws.isPlaying() : false; }
 
   // Tracklist: array of { time?, seconds?, artist?, title? }
   set tracks(arr) {
     this._tracks = Array.isArray(arr) ? arr : [];
     this._renderTracklist();
+    // A late-arriving tracklist upgrades the media-session metadata and
+    // enables cue-based prev/next.
+    this._activeTrackIndex = undefined;
+    if (msOwner === this && this._ws) {
+      this._updateActiveTrack(this._ws.getCurrentTime());
+      this._msRegisterHandlers();
+    }
   }
   get tracks() { return this._tracks; }
 
@@ -1775,6 +1800,8 @@ class OffgridPlayer extends HTMLElement {
         `<span class="tl-label">${label}</span>${linkHtml}</li>`;
     }).join('');
 
+    // Rebuilding the rows drops the active-class; re-apply it.
+    this._updateTracklistActive(typeof this._activeTrackIndex === 'number' ? this._activeTrackIndex : -1);
     this._applyTracklistOpen();
   }
 
@@ -1809,6 +1836,167 @@ class OffgridPlayer extends HTMLElement {
       const dur = this._ws.getDuration() || this._peaksDuration || 0;
       if (dur > 0) this._ws.seekTo(Math.min(1, Math.max(0, seconds / dur)));
     }
+  }
+
+  // ── Media Session (OS media widget / lock screen) ─────────────────
+  // Everything here is best-effort: guarded by feature detection and
+  // try/catch so it can never break playback.
+
+  // Index of the tracklist entry playing at time `t` (last cue <= t), or -1.
+  _msTrackIndexAt(t) {
+    const tracks = this._tracks || [];
+    let idx = -1;
+    for (let i = 0; i < tracks.length; i++) {
+      if (Number.isFinite(tracks[i].seconds) && tracks[i].seconds <= t) idx = i;
+    }
+    return idx;
+  }
+
+  // Sorted cue timestamps for prev/next-track navigation within the mix.
+  _msCueTimes() {
+    return (this._tracks || []).map((t) => t.seconds).filter(Number.isFinite).sort((a, b) => a - b);
+  }
+
+  // Recompute the active tracklist entry; on change, update the in-page
+  // highlight and (if this player owns the session) the OS metadata. Cheap
+  // enough to call on every timeupdate — it no-ops when the index is stable.
+  _updateActiveTrack(t) {
+    const index = this._msTrackIndexAt(t);
+    if (index === this._activeTrackIndex) return;
+    this._activeTrackIndex = index;
+    this._updateTracklistActive(index);
+    this._msSetMetadata(index);
+  }
+
+  _updateTracklistActive(index) {
+    if (!this.shadowRoot) return;
+    this.shadowRoot.querySelectorAll('.tracklist-list .tl-item').forEach((item, i) => {
+      item.classList.toggle('active', i === index);
+    });
+  }
+
+  // title = current track (falling back to the mix title), album = mix title,
+  // so OS widgets show both the track and the mix it belongs to.
+  _msSetMetadata(index) {
+    if (!('mediaSession' in navigator) || msOwner !== this) return;
+    const mixTitle = this.getAttribute('title') || '';
+    const track = index >= 0 ? (this._tracks || [])[index] : null;
+    const trackLabel = track ? [track.artist, track.title].filter(Boolean).join(' – ') : '';
+    const meta = {
+      title: trackLabel || mixTitle,
+      artist: this.getAttribute('artist') || '',
+      album: mixTitle,
+    };
+    const thumb = this.getAttribute('thumb');
+    if (thumb) meta.artwork = [{ src: thumb }];
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata(meta);
+    } catch (e) { /* ignore */ }
+  }
+
+  // Claim the global media session for this player and populate it. Called on
+  // every `play` so the last-played player owns the OS media widget.
+  _msActivate() {
+    if (!('mediaSession' in navigator)) return;
+    msOwner = this;
+    this._activeTrackIndex = undefined; // force a metadata refresh
+    this._updateActiveTrack(this._ws ? this._ws.getCurrentTime() : 0);
+    try { navigator.mediaSession.playbackState = 'playing'; } catch (e) { /* ignore */ }
+    this._msPosition();
+    this._msRegisterHandlers();
+  }
+
+  _msRegisterHandlers() {
+    const set = (action, handler) => {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) { /* ignore */ }
+    };
+    set('play', () => this.play());
+    set('pause', () => this.pause());
+    set('seekto', (d) => {
+      if (d && Number.isFinite(d.seekTime)) {
+        this._wsSeek(d.seekTime);
+        this._msPosition();
+      }
+    });
+    set('seekbackward', (d) => {
+      if (!this._ws) return;
+      this._wsSeek(Math.max(0, this._ws.getCurrentTime() - ((d && d.seekOffset) || 10)));
+      this._msPosition();
+    });
+    set('seekforward', (d) => {
+      if (!this._ws) return;
+      this._wsSeek(this._ws.getCurrentTime() + ((d && d.seekOffset) || 10));
+      this._msPosition();
+    });
+    // prev/next jump between tracklist cues within the mix, or between mixes
+    // when mounted inside <offgrid-playlist> (which sets `mediaNav`). Left
+    // unregistered otherwise so OS widgets don't show dead buttons.
+    if (this._msCueTimes().length) {
+      set('previoustrack', () => this._msPrevCue());
+      set('nexttrack', () => this._msNextCue());
+    } else if (this.mediaNav) {
+      set('previoustrack', () => this.mediaNav.prev());
+      set('nexttrack', () => this.mediaNav.next());
+    } else {
+      set('previoustrack', null);
+      set('nexttrack', null);
+    }
+  }
+
+  // CD-style: >3s into the current track restarts it, otherwise jump to the
+  // previous cue (or 0:00 before the first cue).
+  _msPrevCue() {
+    if (!this._ws) return;
+    const cues = this._msCueTimes();
+    const t = this._ws.getCurrentTime();
+    let i = -1;
+    for (let k = 0; k < cues.length; k++) if (cues[k] <= t) i = k;
+    if (i >= 0 && t - cues[i] > 3) this._wsSeek(cues[i]);
+    else if (i > 0) this._wsSeek(cues[i - 1]);
+    else this._wsSeek(0);
+    this._msPosition();
+  }
+
+  _msNextCue() {
+    if (!this._ws) return;
+    const cues = this._msCueTimes();
+    const t = this._ws.getCurrentTime();
+    const next = cues.find((c) => c > t + 0.5);
+    if (next != null) {
+      this._wsSeek(next);
+      this._msPosition();
+    }
+  }
+
+  // Keep duration/position in sync so lock-screen scrubbers work.
+  _msPosition() {
+    if (!('mediaSession' in navigator) || msOwner !== this || !this._ws) return;
+    try {
+      const duration = this._ws.getDuration();
+      if (!Number.isFinite(duration) || duration <= 0) return;
+      const position = Math.min(Math.max(this._ws.getCurrentTime(), 0), duration);
+      navigator.mediaSession.setPositionState({ duration, position, playbackRate: 1 });
+    } catch (e) { /* ignore */ }
+  }
+
+  _msSetPaused() {
+    if (!('mediaSession' in navigator) || msOwner !== this) return;
+    try { navigator.mediaSession.playbackState = 'paused'; } catch (e) { /* ignore */ }
+    this._msPosition();
+  }
+
+  // Give up the session (element removed from the page). Keeps another
+  // player's session intact via the owner guard.
+  _msRelease() {
+    if (!('mediaSession' in navigator) || msOwner !== this) return;
+    msOwner = null;
+    try {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.playbackState = 'none';
+    } catch (e) { /* ignore */ }
+    ['play', 'pause', 'seekto', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack'].forEach((action) => {
+      try { navigator.mediaSession.setActionHandler(action, null); } catch (e) { /* ignore */ }
+    });
   }
 
   // ── Play tracking + likes ─────────────────────────────────────────
@@ -2546,6 +2734,9 @@ class OffgridPlaylist extends HTMLElement {
     // discards the old element, whose disconnectedCallback flushes its session.
     if (t.mixId) player.setAttribute('mix-id', t.mixId);
     if (this.getAttribute('api-base')) player.setAttribute('api-base', this.getAttribute('api-base'));
+    // OS media-widget prev/next advance the playlist (inner players have no
+    // tracklist cues of their own).
+    player.mediaNav = { prev: () => this._advance(-1), next: () => this._advance(1) };
 
     // Style override for embedding
     player.style.cssText = 'display:block;';

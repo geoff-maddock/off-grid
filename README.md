@@ -526,7 +526,8 @@ Clicking the cover art opens the full-size image in a built-in lightbox (click t
 `Escape` to close). The "More" panel appears whenever a `description` or `release-date` is present.
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
-click-to-seek. Provide it either as a JS property (used by the player page from the manifest):
+click-to-seek, and the currently playing track is highlighted as playback crosses each timestamp.
+Provide it either as a JS property (used by the player page from the manifest):
 
 ```js
 player.tracks = [
@@ -586,6 +587,23 @@ Pause every other player when one starts:
   });
 </script>
 ```
+
+### Media session (OS / lock-screen controls)
+
+While a mix plays, the player populates the browser's [Media Session API](https://developer.mozilla.org/en-US/docs/Web/API/Media_Session_API),
+so OS media widgets (Chrome's media hub, the Windows media overlay, phone lock screens) show real
+metadata instead of the page title:
+
+- **Title** — the currently playing tracklist entry (`Artist – Title`), updating live as playback
+  crosses each timestamp; falls back to the mix title when there's no tracklist.
+- **Artist / album** — the player's `artist` attribute and the mix title.
+- **Artwork** — the `thumb` cover image.
+- **Controls** — play, pause, and scrubbing (via `setPositionState`) work from the widget.
+  **Previous/next track** jump between tracklist timestamps within the mix (previous restarts the
+  current track first, CD-style); inside an `<offgrid-playlist>` they advance between mixes instead.
+
+The media session is global to the page, so with multiple players the one that played most recently
+owns it. Browsers without Media Session support are unaffected — everything degrades silently.
 
 ### JavaScript API
 
