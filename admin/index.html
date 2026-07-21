@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <!-- ?v= busts browser caches when these files change; bump it alongside edits -->
-  <link rel="stylesheet" href="admin.css?v=20260710">
+  <link rel="stylesheet" href="admin.css?v=20260721">
 </head>
 <body>
   <div class="page">
@@ -116,6 +116,9 @@
         No users yet.
       </div>
     </div>
+
+    <!-- Mix view page (routed: #/mix/<id>) — content rendered by renderMixView() -->
+    <div class="tab-panel" id="panel-mix-view"></div>
 
   </div>
 
@@ -319,7 +322,7 @@
   <!-- Optional deployment config (gitignored): sets window.OFFGRID_API_BASE so
        login needs only email + password. Harmless 404 if absent. -->
   <script src="../config.local.js"></script>
-  <script src="peaks.js?v=20260710"></script>
-  <script src="admin.js?v=20260710"></script>
+  <script src="peaks.js?v=20260721"></script>
+  <script src="admin.js?v=20260721"></script>
 </body>
 </html>

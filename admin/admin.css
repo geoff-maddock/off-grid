@@ -816,3 +816,296 @@ html, body {
     margin: 1px 0;
   }
 }
+
+/* ── Mix view page (#/mix/<id>) ──────────────────────────────────── */
+.mix-title-link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.mix-title-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 20px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+.back-link:hover {
+  color: var(--accent);
+}
+
+.mix-view-head {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.mix-view-cover {
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.mix-view-cover.thumb-placeholder {
+  background: var(--bg3);
+}
+
+.mix-view-headings {
+  min-width: 0;
+}
+
+.mix-view-kind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.mix-view-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.mix-view-title {
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 6px 0 2px;
+}
+
+.mix-view-artist {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.mix-view-desc {
+  font-size: 13px;
+  color: var(--text);
+  max-width: 640px;
+  margin-bottom: 10px;
+}
+
+.mix-view-headings .tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.mix-view-headings .tag {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--text-muted);
+}
+
+.mix-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mix-view-actions .btn {
+  text-decoration: none;
+}
+
+/* Stat tiles: hero numbers in text ink; the label carries identity */
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.stat-tile {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.stat-value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.mix-view-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.mix-view-section {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.mix-view-section h3 {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+
+.hint-inline {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+#panel-mix-view .hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mix-view-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  font-size: 13px;
+}
+
+.meta-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.meta-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.meta-value.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+.meta-value a {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border);
+}
+
+.meta-value a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.mix-view-tracklist {
+  list-style: none;
+  font-size: 13px;
+}
+
+.mix-view-tracklist li {
+  padding: 4px 0;
+  border-bottom: 1px solid #222;
+}
+
+.mix-view-tracklist li:last-child {
+  border-bottom: none;
+}
+
+.mix-view-tracklist .tl-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: inline-block;
+  min-width: 52px;
+}
+
+/* Daily listening chart: thin single-series bars, rounded data-ends,
+   2px surface gaps; each full-height column is the hover/tooltip target */
+.daily-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 120px;
+}
+
+.chart-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 3px;
+}
+
+.chart-col:hover {
+  background: var(--bg-hover);
+}
+
+.chart-bar {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 4px 4px 0 0;
+}
+
+.chart-col:hover .chart-bar {
+  background: #ff7733;
+}
+
+.daily-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Stack the view page on small screens */
+@media (max-width: 720px) {
+  .mix-view-head {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .mix-view-cover {
+    width: 120px;
+    height: 120px;
+  }
+
+  .mix-view-columns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}

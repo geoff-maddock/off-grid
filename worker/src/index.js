@@ -21,6 +21,7 @@
  *   *      /api/playlists         — playlist CRUD
  *   *      /api/manifest          — generate / publish manifest
  *   GET    /api/stats             — per-mix play/like aggregates
+ *   GET    /api/stats/:mixId      — one mix's stats detail (unique listeners, daily activity)
  */
 
 import { authenticate } from './auth.js';

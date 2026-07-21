@@ -91,8 +91,13 @@ export async function handleTrack(request, env, path) {
 }
 
 // Authed: GET /api/stats — per-mix aggregates for the requesting owner's mixes.
+//         GET /api/stats/:mixId — detail for one mix (unique listeners + daily activity).
 export async function handleStats(request, env, path, method, user) {
-  if (method !== 'GET' || path !== '/api/stats') return null;
+  if (method !== 'GET') return null;
+
+  const detail = path.match(/^\/api\/stats\/([^/]+)$/);
+  if (detail) return statsDetail(env.DB, decodeURIComponent(detail[1]), user);
+  if (path !== '/api/stats') return null;
 
   const db = env.DB;
   const ownerId = await resolveOwnerId(db, user);
@@ -122,6 +127,49 @@ export async function handleStats(request, env, path, method, user) {
     lastPlayedAt: row.last_played_at,
   }));
   return jsonResponse({ stats });
+}
+
+// One mix's aggregates plus what the log can add: distinct anonymous sessions
+// all-time, and per-day seconds/sessions for the last 30 days (zero-days are
+// absent — the client fills the calendar). Owner-scoped like every /api route.
+async function statsDetail(db, mixId, user) {
+  const ownerId = await resolveOwnerId(db, user);
+
+  let sql = `SELECT m.id,
+                    COALESCE(s.play_count, 0) AS play_count,
+                    COALESCE(s.total_seconds, 0) AS total_seconds,
+                    COALESCE(s.like_count, 0) AS like_count,
+                    s.last_played_at
+             FROM mixes m
+             LEFT JOIN mix_stats s ON s.mix_id = m.id
+             WHERE m.id = ?`;
+  const params = [mixId];
+  if (ownerId) { sql += ' AND m.owner_id = ?'; params.push(ownerId); }
+  const row = await db.prepare(sql).bind(...params).first();
+  if (!row) return jsonResponse({ error: 'Mix not found' }, 404);
+
+  const [unique, daily] = await Promise.all([
+    db.prepare('SELECT COUNT(DISTINCT session_id) AS n FROM play_events WHERE mix_id = ?')
+      .bind(mixId).first(),
+    db.prepare(
+      `SELECT date(created_at) AS day,
+              SUM(seconds) AS seconds,
+              COUNT(DISTINCT session_id) AS sessions
+       FROM play_events
+       WHERE mix_id = ? AND created_at >= datetime('now', '-30 days')
+       GROUP BY day ORDER BY day ASC`
+    ).bind(mixId).all(),
+  ]);
+
+  return jsonResponse({
+    mixId: row.id,
+    playCount: row.play_count,
+    totalSeconds: row.total_seconds,
+    likeCount: row.like_count,
+    lastPlayedAt: row.last_played_at,
+    uniqueListeners: unique?.n ?? 0,
+    daily: daily.results.map((d) => ({ day: d.day, seconds: d.seconds, sessions: d.sessions })),
+  });
 }
 
 // Beacon bodies are text/plain and size-capped; any parse failure → null → 400.

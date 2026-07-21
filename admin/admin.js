@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderMixes();
   renderPlaylists();
   showApp();
+  route();
 });
 
 // Parse the invite hash: #invite=<token>&api=<workerUrl>&r2=<r2PublicUrl>
@@ -116,6 +117,7 @@ async function loadStats() {
     m.playCount = 0;
     m.totalSeconds = 0;
     m.likeCount = 0;
+    m.lastPlayedAt = null;
   }
   if (!API_URL || !authToken) return;
   try {
@@ -128,6 +130,7 @@ async function loadStats() {
       m.playCount = s.playCount || 0;
       m.totalSeconds = s.totalSeconds || 0;
       m.likeCount = s.likeCount || 0;
+      m.lastPlayedAt = s.lastPlayedAt || null;
     }
   } catch (err) {
     console.warn('Could not load play stats:', err);
@@ -180,6 +183,9 @@ function bindEvents() {
   document.getElementById('btn-export').addEventListener('click', exportManifest);
   document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-file').click());
   document.getElementById('import-file').addEventListener('change', importManifest);
+
+  // Routing (#/mix/<id> ↔ the tab views)
+  window.addEventListener('hashchange', route);
 
   // Search
   document.getElementById('mix-search').addEventListener('input', renderMixes);
@@ -297,7 +303,7 @@ function renderMixes() {
       ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
       : '<div class="thumb-placeholder"></div>'}
       </td>
-      <td class="col-title">${esc(m.title)}</td>
+      <td class="col-title"><a class="mix-title-link" href="#/mix/${encodeURIComponent(m.id)}">${esc(m.title)}</a></td>
       <td class="col-artist">${esc(m.artist || '')}</td>
       <td class="col-duration">${m.duration ? formatDuration(m.duration) : '—'}</td>
       <td class="col-released">${m.releaseDate ? esc(String(m.releaseDate).slice(0, 10)) : '—'}</td>
@@ -307,6 +313,7 @@ function renderMixes() {
       <td class="col-likes">${m.likeCount || 0}</td>
       <td class="tags-cell">${renderRowTags(m.tags)}</td>
       <td class="actions-cell">
+        <button class="btn btn-sm" onclick="viewMix('${esc(m.id)}')" title="Open this mix's detail &amp; stats page">View</button>
         <button class="btn btn-sm" onclick="editMix('${esc(m.id)}')">Edit</button>
         <button class="btn btn-sm" onclick="copyMixLink('${esc(m.id)}')" title="Copy a share link to just this mix">Link</button>
         <button class="btn btn-sm btn-danger" onclick="deleteMix('${esc(m.id)}')">Delete</button>
@@ -445,6 +452,8 @@ async function saveMix(e) {
 
   closeMixModal();
   renderMixes();
+  // An edit opened from the mix view page should refresh that page too.
+  if ((location.hash || '').startsWith('#/mix/')) route();
   toast(editId ? 'Mix updated.' : 'Mix added.');
 }
 
@@ -454,15 +463,23 @@ window.editMix = function (id) {
   if (mix) openMixModal(mix);
 };
 
-// Copy a share link that opens the player page showing just this one mix.
-window.copyMixLink = function (id) {
+// Player-page URL showing just this one mix. A real account scopes via
+// ?user=<id>; the bootstrap/owner uses the default manifest.
+function singleMixUrl(id) {
   const playerBase = new URL('..', location.href).href; // admin lives at <site>/admin/
-  // A real account scopes via ?user=<id>; the bootstrap/owner uses the default manifest.
   const uid = (currentUser && currentUser.email) ? currentUser.id : null;
-  const url = uid
+  return uid
     ? `${playerBase}?user=${encodeURIComponent(uid)}&mix=${encodeURIComponent(id)}`
     : `${playerBase}?mix=${encodeURIComponent(id)}`;
-  navigator.clipboard.writeText(url).then(() => toast('Single-mix link copied.'));
+}
+
+// Copy a share link that opens the player page showing just this one mix.
+window.copyMixLink = function (id) {
+  navigator.clipboard.writeText(singleMixUrl(id)).then(() => toast('Single-mix link copied.'));
+};
+
+window.viewMix = function (id) {
+  location.hash = '#/mix/' + encodeURIComponent(id);
 };
 
 window.deleteMix = function (id) {
@@ -484,6 +501,173 @@ window.deleteMix = function (id) {
     toast('Mix deleted.');
   });
 };
+
+// ── Routing ────────────────────────────────────────────────────────
+// The admin is tab-based at the root; `#/mix/<id>` swaps in the per-mix view
+// page. (Invite links use `#invite=…`, handled before the app boots, so they
+// never reach this router.)
+function route() {
+  const m = (location.hash || '').match(/^#\/mix\/(.+)$/);
+  const panel = document.getElementById('panel-mix-view');
+  const tabs = document.querySelector('.tabs');
+  if (m) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    panel.classList.add('active');
+    tabs.style.display = 'none';
+    renderMixView(decodeURIComponent(m[1]));
+  } else {
+    tabs.style.display = '';
+    panel.classList.remove('active');
+    panel.innerHTML = '';
+    const tab = document.querySelector('.tab.active') || document.querySelector('.tab[data-tab="mixes"]');
+    if (tab) document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+  }
+}
+
+// ── Mix view page ──────────────────────────────────────────────────
+function renderMixView(id) {
+  const root = document.getElementById('panel-mix-view');
+  root.dataset.mixId = id;
+  const mix = manifest.mixes.find(mm => mm.id === id);
+  if (!mix) {
+    root.innerHTML = `
+      <a class="back-link" href="#">&larr; All mixes</a>
+      <div class="empty-state">Mix not found.</div>`;
+    return;
+  }
+
+  const thumb = mix.thumb ? (mix.thumb.startsWith('http') ? mix.thumb : '../' + mix.thumb) : '';
+  const tracks = (mix.tracks && mix.tracks.length) ? mix.tracks : parseTracklist(mix.tracklist || '');
+  const apiMode = !!(API_URL && authToken);
+
+  const fileLink = (label, value) => value
+    ? `<div class="meta-label">${label}</div>
+       <div class="meta-value"><a href="${esc(value.startsWith('http') ? value : '../' + value)}" target="_blank" rel="noopener">${esc(value)}</a></div>`
+    : '';
+
+  root.innerHTML = `
+    <a class="back-link" href="#">&larr; All mixes</a>
+
+    <div class="mix-view-head">
+      ${thumb
+      ? `<img class="mix-view-cover" src="${esc(thumb)}" alt="" onerror="this.outerHTML='<div class=\\'mix-view-cover thumb-placeholder\\'></div>'">`
+      : '<div class="mix-view-cover thumb-placeholder"></div>'}
+      <div class="mix-view-headings">
+        <div class="mix-view-kind">Mix<span class="mix-view-swatch" style="background:${esc(normalizeHex(mix.color) || '#ff5500')}"></span></div>
+        <h2 class="mix-view-title">${esc(mix.title)}</h2>
+        <div class="mix-view-artist">${esc(mix.artist || '')}</div>
+        ${mix.description ? `<p class="mix-view-desc">${esc(mix.description)}</p>` : ''}
+        ${(mix.tags || []).length ? `<div class="tag-list">${mix.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
+        <div class="mix-view-actions">
+          <button class="btn btn-sm" onclick="editMix('${esc(mix.id)}')">Edit</button>
+          <button class="btn btn-sm" onclick="copyMixLink('${esc(mix.id)}')" title="Copy a share link to just this mix">Copy Link</button>
+          <a class="btn btn-sm" href="${esc(singleMixUrl(mix.id))}" target="_blank" rel="noopener">&#9654; Open in Player</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-tiles" id="mix-view-tiles">
+      ${statTile('Plays', mix.playCount || 0)}
+      ${statTile('Time played', mix.totalSeconds >= 1 ? formatDuration(Math.round(mix.totalSeconds)) : '—')}
+      ${statTile('Likes', mix.likeCount || 0)}
+      ${statTile('Last played', mix.lastPlayedAt ? String(mix.lastPlayedAt).slice(0, 10) : '—', mix.lastPlayedAt ? `${esc(String(mix.lastPlayedAt))} UTC` : '')}
+    </div>
+
+    <div id="mix-view-activity">
+      ${apiMode ? '<div class="hint">Loading listening activity…</div>' : '<div class="hint">Detailed stats need API mode — log in with your Worker URL.</div>'}
+    </div>
+
+    <div class="mix-view-columns">
+      <section class="mix-view-section">
+        <h3>Details</h3>
+        <div class="mix-view-meta">
+          <div class="meta-label">ID</div><div class="meta-value mono">${esc(mix.id)}</div>
+          <div class="meta-label">Duration</div><div class="meta-value">${mix.duration ? formatDuration(mix.duration) : '—'}</div>
+          <div class="meta-label">Released</div><div class="meta-value">${mix.releaseDate ? esc(String(mix.releaseDate).slice(0, 10)) : '—'}</div>
+          <div class="meta-label">Added</div><div class="meta-value">${mix.createdAt ? esc(String(mix.createdAt).slice(0, 10)) : '—'}</div>
+          ${fileLink('Audio', mix.src)}
+          ${fileLink('Cover', mix.thumb)}
+          ${fileLink('Peaks', mix.peaks)}
+        </div>
+      </section>
+
+      <section class="mix-view-section">
+        <h3>Tracklist${tracks.length ? ` · ${tracks.length}` : ''}</h3>
+        ${tracks.length
+      ? `<ol class="mix-view-tracklist">${tracks.map(t => `
+            <li><span class="tl-time">${esc(t.time || '–')}</span> ${[t.artist, t.title].filter(Boolean).map(esc).join(' — ') || '<em>(unparsed)</em>'}</li>`).join('')}
+          </ol>`
+      : '<div class="hint">No tracklist yet — add one via Edit.</div>'}
+      </section>
+    </div>`;
+
+  if (apiMode) loadMixActivity(id);
+}
+
+function statTile(label, value, title = '') {
+  return `<div class="stat-tile"${title ? ` title="${title}"` : ''}>
+    <div class="stat-value">${value}</div>
+    <div class="stat-label">${label}</div>
+  </div>`;
+}
+
+// Fetch GET /api/stats/:mixId and fill in the activity section. Fail-soft: a
+// Worker without the endpoint (404) or a network error just clears the loader.
+async function loadMixActivity(id) {
+  let detail = null;
+  try {
+    const resp = await apiFetch(`/api/stats/${encodeURIComponent(id)}`);
+    if (resp.ok) detail = await resp.json();
+  } catch (_) { /* leave detail null */ }
+
+  // The user may have navigated away while we fetched.
+  const root = document.getElementById('panel-mix-view');
+  const target = document.getElementById('mix-view-activity');
+  if (!target || !root.classList.contains('active') || root.dataset.mixId !== id) return;
+  if (!detail) { target.innerHTML = ''; return; }
+
+  const tiles = document.getElementById('mix-view-tiles');
+  if (tiles) tiles.insertAdjacentHTML('beforeend',
+    statTile('Unique listeners', detail.uniqueListeners, 'Distinct anonymous sessions, all-time'));
+
+  target.innerHTML = renderDailyChart(detail.daily || []);
+}
+
+// Bar chart of listening per day over the last 30 days (single series: seconds
+// listened; sessions ride along in each bar's tooltip). Zero-days are filled in
+// so the x-axis is a true calendar.
+function renderDailyChart(daily) {
+  const byDay = new Map(daily.map(d => [d.day, d]));
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    days.push({ day, seconds: byDay.get(day)?.seconds || 0, sessions: byDay.get(day)?.sessions || 0 });
+  }
+  const max = Math.max(...days.map(d => d.seconds));
+  if (!max) return '<div class="hint">No listening activity in the last 30 days.</div>';
+
+  const fmtDay = (iso) => new Date(iso + 'T00:00:00Z')
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const bars = days.map(d => {
+    const pct = d.seconds ? Math.max(3, Math.round((d.seconds / max) * 100)) : 0;
+    const mins = Math.round(d.seconds / 60);
+    const label = `${fmtDay(d.day)} — ${d.seconds ? `${mins || '<1'} min listened · ${d.sessions} session${d.sessions === 1 ? '' : 's'}` : 'no listening'}`;
+    return `<div class="chart-col" title="${esc(label)}">
+      <div class="chart-bar" style="height:${pct}%" role="img" aria-label="${esc(label)}"></div>
+    </div>`;
+  }).join('');
+
+  return `
+    <section class="mix-view-section">
+      <h3>Listening per day <span class="hint-inline">last 30 days (UTC)</span></h3>
+      <div class="daily-chart">${bars}</div>
+      <div class="daily-chart-axis">
+        <span>${fmtDay(days[0].day)}</span>
+        <span>${fmtDay(days[15].day)}</span>
+        <span>${fmtDay(days[29].day)}</span>
+      </div>
+    </section>`;
+}
 
 // ── Playlists Rendering ────────────────────────────────────────────
 function renderPlaylists() {
@@ -1170,7 +1354,7 @@ function renderLoginForm(loginEl, mode, inviteToken) {
   if (off) off.addEventListener('click', () => {
     loginEl.remove();
     document.querySelector('.page').style.display = 'block';
-    loadManifest().then(() => loadStats()).then(() => { bindEvents(); renderMixes(); renderPlaylists(); });
+    loadManifest().then(() => loadStats()).then(() => { bindEvents(); renderMixes(); renderPlaylists(); route(); });
   });
 
   // Config-driven: resolve the R2 public URL from the Worker. Reveal the URL

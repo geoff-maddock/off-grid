@@ -96,6 +96,11 @@ Without any deployment config, the login screen also offers **Use offline** to e
   the date and stat columns (and, on phone-size screens, Duration, Artist, and Tags) are hidden
   progressively to keep the table readable; a mix's first three tags show as chips with a "+N"
   overflow badge.
+- **Mix view page** — click a mix's title (or its **View** button) to open a per-mix detail page at
+  `admin/#/mix/<id>`: cover, description, tags, file links, and the full tracklist, plus stat tiles
+  (plays, time played, likes, last played, unique listeners) and a **listening-per-day chart** for
+  the last 30 days, fed by the authenticated `GET /api/stats/:mixId` endpoint. The activity section
+  needs API mode (and a Worker with that endpoint); the details render fine without it.
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
 - **Publish** — write your library's `manifest.json` to R2. Afterward the admin shows **your manifest
   URL** plus a **▶ Preview** button (see [Viewing & sharing a library](#viewing--sharing-a-library)).
@@ -440,7 +445,8 @@ Worker; without them it's a complete no-op. Requires migration `007_play_trackin
   cross-origin without preflight.
 
 Stats appear in the admin mixes table (Plays / Time played / Likes) via the authenticated
-`GET /api/stats` endpoint.
+`GET /api/stats` endpoint, and each mix's view page (`admin/#/mix/<id>`) adds unique listeners and
+a daily listening chart via `GET /api/stats/:mixId`.
 
 ---
 
@@ -636,6 +642,7 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 | `POST` | `/api/track/play` | public | Listening heartbeat from the player: `{ mixId, sessionId, seconds }` → `204`. Seconds are clamped to 300/event (throttled background tabs can flush minutes at once); ≥ 6 events per session per minute are silently dropped |
 | `POST` | `/api/track/like` | public | Anonymous like: `{ mixId, action }` (`action`: `like` \| `unlike`, default `like`) → `204` |
 | `GET`  | `/api/stats` | user | Per-mix aggregates for your mixes → `{ stats: [{ mixId, title, artist, playCount, totalSeconds, likeCount, lastPlayedAt }] }` |
+| `GET`  | `/api/stats/:mixId` | user | One mix's stats detail → the same aggregates plus `uniqueListeners` (distinct anonymous sessions, all-time) and `daily`: `[{ day, seconds, sessions }]` for the last 30 days (UTC; zero days omitted) |
 
 The public tracking endpoints accept their JSON body as **`text/plain`** — the player sends
 `navigator.sendBeacon` simple requests so they survive page unload and work from cross-origin
