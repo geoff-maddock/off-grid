@@ -188,7 +188,8 @@ Dark.
 
 **Search** matches mix title, artist, tags, **and the track names inside each mix**, so typing a track's
 artist or title surfaces the mixes that contain it. On `#/tracks` the same box filters tracks by
-artist/title. On `#/playlists` it filters playlists by their name plus the mixes and tracks they
+artist/title, and typing an exact mix title (case-insensitive) lists every track on that mix. On
+`#/playlists` it filters playlists by their name plus the mixes and tracks they
 contain, so typing a mix or track name narrows to the playlists that include it.
 
 > Because tracks aren't a shared entity in the data model, "every mix containing a track" is computed

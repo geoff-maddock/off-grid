@@ -1079,8 +1079,8 @@
         input.value = '';
         sb.classList.remove('has-value');
         if (search === 'tracks') {
-          input.placeholder = 'Search tracks by artist or title...';
-          hint.textContent = 'Searches track artists and titles.';
+          input.placeholder = 'Search tracks by artist, title, or mix...';
+          hint.textContent = 'Searches track artists and titles; an exact mix title lists every track on that mix.';
         } else if (search === 'playlists') {
           input.placeholder = 'Search playlists — by mix or track inside them...';
           hint.textContent = 'Searches playlist names and the mixes and tracks they contain.';
@@ -1131,9 +1131,18 @@
 
     function setTrackFilter(list, noResults) {
       activeFilter = (q) => {
+        // Typing a full mix title (case-insensitive) also surfaces every track
+        // on that mix, on top of the usual artist/title substring matching.
+        const titleMixIds = new Set();
+        if (q) {
+          for (const m of state.mixes) {
+            if ((m.title || '').toLowerCase().trim() === q) titleMixIds.add(String(m.id));
+          }
+        }
         let visible = 0;
         list.querySelectorAll('.track-row').forEach(row => {
-          const match = !q || row.dataset.search.includes(q);
+          const match = !q || row.dataset.search.includes(q)
+            || (titleMixIds.size > 0 && (row.dataset.mixIds || '').split(',').some(id => titleMixIds.has(id)));
           row.style.display = match ? '' : 'none';
           if (match) visible++;
         });
@@ -1394,6 +1403,7 @@
         a.className = 'track-row';
         a.href = '#/track/' + encodeURIComponent(t.slug);
         a.dataset.search = `${t.artist} ${t.title}`.toLowerCase();
+        a.dataset.mixIds = [...t.mixIds].join(',');
         const n = t.mixIds.size;
         a.innerHTML =
           `<span class="track-row-main"><span class="track-artist">${esc(t.artist || 'Unknown')}</span>` +
