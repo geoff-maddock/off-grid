@@ -82,7 +82,8 @@ Without any deployment config, the login screen also offers **Use offline** to e
   duration **in your browser** (Web Audio), then uploads the peaks JSON — no `ffmpeg`, no manual
   step. Override or supply peaks manually under **Advanced** if you ever need to.
 - **File uploads** — push audio and cover art straight to R2
-- **Playlists** — build playlists by selecting and ordering mixes
+- **Playlists** — build playlists by selecting and ordering mixes; upload a playlist cover image
+  to R2 the same way as mix covers
 - **Tracklists** — paste a tracklist into one field; the admin parses each line (timestamp, artist,
   title, and an optional link) into individual tracks on save. Missing timestamps are auto-filled
   evenly across the mix; a URL on a line (e.g. a Bandcamp link) becomes a clickable link in the
@@ -366,6 +367,7 @@ are defined as JSON in a child `<script type="application/json">`:
 |-----------|----------|-------------|
 | `color`   | No       | Accent color for the embedded player and track list |
 | `artist`  | No       | Default artist for tracks that don't specify one |
+| `thumb`   | No       | URL to a playlist cover image, shown in a header above the player; also the fallback artwork for tracks without their own `thumb` |
 | `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
 | `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
 | `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |

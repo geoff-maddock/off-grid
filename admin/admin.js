@@ -1113,7 +1113,7 @@ async function handleFileUpload(input) {
   const progressEl = btn.closest('.form-group').querySelector('.upload-progress');
 
   const fieldMap = { audio: 'mix-src', covers: 'mix-thumb', peaks: 'mix-peaks' };
-  const targetInput = document.getElementById(fieldMap[prefix]);
+  const targetInput = document.getElementById(input.dataset.field || fieldMap[prefix]);
 
   btn.classList.add('uploading');
   setProgress(progressEl, `Uploading ${file.name}…`, 0);
