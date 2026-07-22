@@ -367,7 +367,8 @@ are defined as JSON in a child `<script type="application/json">`:
 |-----------|----------|-------------|
 | `color`   | No       | Accent color for the embedded player and track list |
 | `artist`  | No       | Default artist for tracks that don't specify one |
-| `thumb`   | No       | URL to a playlist cover image, shown in a header above the player; also the fallback artwork for tracks without their own `thumb` |
+| `thumb`   | No       | URL to a playlist cover image, shown in a header above the player (click to view full-size); also the fallback artwork for tracks without their own `thumb` |
+| `title`   | No       | Playlist title, shown prominently in the cover header alongside the `artist` |
 | `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
 | `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
 | `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |

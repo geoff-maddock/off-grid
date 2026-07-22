@@ -2203,7 +2203,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb'];
+    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title'];
   }
 
   constructor() {
@@ -2342,12 +2342,46 @@ class OffgridPlaylist extends HTMLElement {
           border-radius: var(--radius);
           border: 1px solid var(--border);
           flex-shrink: 0;
+          cursor: zoom-in;
+        }
+
+        .pl-header-info {
+          min-width: 0;
+        }
+
+        .pl-header-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text);
         }
 
         .pl-header-artist {
           font-size: 13px;
-          font-weight: 600;
-          color: var(--text);
+          font-weight: 500;
+          color: var(--text-muted);
+        }
+
+        /* Full-size artwork lightbox */
+        .lightbox {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          cursor: zoom-out;
+          padding: 20px;
+        }
+
+        .lightbox.open { display: flex; }
+
+        .lightbox-img {
+          max-width: 90%;
+          max-height: 90%;
+          object-fit: contain;
+          border-radius: 4px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }
 
         /* Embedded player slot */
@@ -2673,9 +2707,13 @@ class OffgridPlaylist extends HTMLElement {
       <div class="playlist-wrap" part="playlist">
         ${this.getAttribute('thumb') ? `
           <div class="pl-header">
-            <img class="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover">
-            ${this.getAttribute('artist')
-              ? `<div class="pl-header-artist">${this._esc(this.getAttribute('artist'))}</div>` : ''}
+            <img class="pl-cover" id="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover">
+            <div class="pl-header-info">
+              ${this.getAttribute('title')
+                ? `<div class="pl-header-title">${this._esc(this.getAttribute('title'))}</div>` : ''}
+              ${this.getAttribute('artist')
+                ? `<div class="pl-header-artist">${this._esc(this.getAttribute('artist'))}</div>` : ''}
+            </div>
           </div>` : ''}
         <div class="player-slot" id="player-slot"></div>
 
@@ -2738,11 +2776,49 @@ class OffgridPlaylist extends HTMLElement {
         <div class="embed-panel" id="embed-panel">
           <div class="embed-code" id="embed-code"><button class="embed-copy-btn" id="embed-copy-btn">Copy</button></div>
         </div>
+
+        <div class="lightbox" id="lightbox">
+          <img class="lightbox-img" id="lightbox-img" alt="">
+        </div>
       </div>
     `;
 
     this._mountPlayer(0);
     this._bindListEvents();
+    this._bindLightbox();
+  }
+
+  // Cover lightbox — click the header cover to view the full-size image,
+  // same behavior as the mix player's artwork lightbox.
+  _bindLightbox() {
+    const cover = this.shadowRoot.querySelector('#pl-cover');
+    const lightbox = this.shadowRoot.querySelector('#lightbox');
+    const lightboxImg = this.shadowRoot.querySelector('#lightbox-img');
+    if (this._onLightboxKey) {
+      document.removeEventListener('keydown', this._onLightboxKey);
+      this._onLightboxKey = null;
+    }
+    if (!cover || !lightbox || !lightboxImg) return;
+    cover.addEventListener('click', () => {
+      const thumb = this.getAttribute('thumb');
+      if (!thumb) return;
+      lightboxImg.src = thumb;
+      lightbox.classList.add('open');
+    });
+    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+    this._onLightboxKey = (e) => {
+      if (e.key === 'Escape' && lightbox.classList.contains('open')) {
+        lightbox.classList.remove('open');
+      }
+    };
+    document.addEventListener('keydown', this._onLightboxKey);
+  }
+
+  disconnectedCallback() {
+    if (this._onLightboxKey) {
+      document.removeEventListener('keydown', this._onLightboxKey);
+      this._onLightboxKey = null;
+    }
   }
 
   _mountPlayer(index) {
@@ -2887,11 +2963,13 @@ class OffgridPlaylist extends HTMLElement {
     const theme = this.getAttribute('theme');
     const size = this.getAttribute('size');
     const thumb = this.getAttribute('thumb');
+    const title = this.getAttribute('title');
     if (color) attrs += `\n  color="${this._esc(color)}"`;
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
     if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
     if (size) attrs += `\n  size="${this._esc(size)}"`;
     if (thumb) attrs += `\n  thumb="${this._esc(thumb)}"`;
+    if (title) attrs += `\n  title="${this._esc(title)}"`;
     // Bake the API base in so embeds keep reporting plays (mixIds ride along
     // in the serialized tracks JSON below).
     const apiBase = this.getAttribute('api-base')
