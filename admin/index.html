@@ -259,7 +259,14 @@
         </div>
         <div class="form-group">
           <label for="playlist-thumb">Thumbnail (URL or path)</label>
-          <input type="text" id="playlist-thumb" placeholder="playlist-cover.jpg">
+          <div class="upload-row">
+            <input type="text" id="playlist-thumb" placeholder="playlist-cover.jpg">
+            <label class="btn btn-sm upload-btn" id="upload-playlist-thumb-btn">
+              Upload
+              <input type="file" accept="image/*" data-upload="covers" data-field="playlist-thumb" style="display:none">
+            </label>
+          </div>
+          <div class="upload-progress" id="upload-playlist-thumb-progress"></div>
         </div>
         <div class="form-group">
           <label>Mixes (check to include, drag ≡ to reorder)</label>

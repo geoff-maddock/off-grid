@@ -1264,6 +1264,7 @@
       playlist.setAttribute('theme', state.theme);
       playlist.setAttribute('color', pl.color || state.site.accent || '#ff5500');
       if (pl.creator) playlist.setAttribute('artist', pl.creator);
+      if (pl.thumb) playlist.setAttribute('thumb', pl.thumb);
       const tracks = (pl.mixIds || [])
         .map(id => state.mixMap.get(id))
         .filter(Boolean)

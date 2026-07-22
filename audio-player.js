@@ -2203,7 +2203,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size', 'api-base'];
+    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb'];
   }
 
   constructor() {
@@ -2323,6 +2323,31 @@ class OffgridPlaylist extends HTMLElement {
         /* SLIM size — tighten track rows */
         :host([size="slim"]) .track-num {
           padding: 8px 0;
+        }
+
+        /* Playlist header (cover art) */
+        .pl-header {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
+          background: var(--bg2);
+          border-bottom: 1px solid var(--border);
+        }
+
+        .pl-cover {
+          width: 64px;
+          height: 64px;
+          object-fit: cover;
+          border-radius: var(--radius);
+          border: 1px solid var(--border);
+          flex-shrink: 0;
+        }
+
+        .pl-header-artist {
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text);
         }
 
         /* Embedded player slot */
@@ -2646,6 +2671,12 @@ class OffgridPlaylist extends HTMLElement {
       </style>
 
       <div class="playlist-wrap" part="playlist">
+        ${this.getAttribute('thumb') ? `
+          <div class="pl-header">
+            <img class="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover">
+            ${this.getAttribute('artist')
+              ? `<div class="pl-header-artist">${this._esc(this.getAttribute('artist'))}</div>` : ''}
+          </div>` : ''}
         <div class="player-slot" id="player-slot"></div>
 
         <ul class="track-list" id="track-list">
@@ -2725,7 +2756,9 @@ class OffgridPlaylist extends HTMLElement {
     player.setAttribute('title', t.title || t.src.split('/').pop());
     if (t.artist || this.getAttribute('artist'))
       player.setAttribute('artist', t.artist || this.getAttribute('artist'));
-    if (t.thumb) player.setAttribute('thumb', t.thumb);
+    // Fall back to the playlist's own cover for tracks without artwork.
+    const thumb = t.thumb || this.getAttribute('thumb');
+    if (thumb) player.setAttribute('thumb', thumb);
     if (t.peaks) player.setAttribute('peaks', t.peaks);
     player.setAttribute('color', this._color);
     if (this.getAttribute('theme')) player.setAttribute('theme', this._theme);
@@ -2853,10 +2886,12 @@ class OffgridPlaylist extends HTMLElement {
     const artist = this.getAttribute('artist');
     const theme = this.getAttribute('theme');
     const size = this.getAttribute('size');
+    const thumb = this.getAttribute('thumb');
     if (color) attrs += `\n  color="${this._esc(color)}"`;
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
     if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
     if (size) attrs += `\n  size="${this._esc(size)}"`;
+    if (thumb) attrs += `\n  thumb="${this._esc(thumb)}"`;
     // Bake the API base in so embeds keep reporting plays (mixIds ride along
     // in the serialized tracks JSON below).
     const apiBase = this.getAttribute('api-base')
