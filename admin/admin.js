@@ -699,6 +699,11 @@ function renderPlaylists() {
   empty.style.display = 'none';
   tbody.innerHTML = playlists.map(p => `
     <tr data-id="${esc(p.id)}">
+      <td class="thumb-cell">
+        ${p.thumb
+      ? `<img src="${p.thumb.startsWith('http') ? esc(p.thumb) : '../' + esc(p.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
+      : '<div class="thumb-placeholder"></div>'}
+      </td>
       <td>${esc(p.title)}</td>
       <td>${esc(p.creator || '')}</td>
       <td>${p.mixIds.length} track${p.mixIds.length !== 1 ? 's' : ''}</td>
