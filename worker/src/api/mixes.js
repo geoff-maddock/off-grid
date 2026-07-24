@@ -5,6 +5,17 @@
 import { listMixes, getMix, createMix, updateMix, deleteMix, resolveOwnerId } from '../db.js';
 import { cleanupDeletedFiles } from '../r2.js';
 
+// Optional ?limit= / ?offset= for list endpoints (omitted → everything, so
+// existing clients and manifest generation are unaffected). Exported for reuse.
+export function pageParams(url) {
+  const limit = parseInt(url.searchParams.get('limit'), 10);
+  const offset = parseInt(url.searchParams.get('offset'), 10);
+  const out = {};
+  if (Number.isFinite(limit) && limit > 0) out.limit = Math.min(limit, 1000);
+  if (Number.isFinite(offset) && offset >= 0) out.offset = offset;
+  return out;
+}
+
 export async function handleMixes(request, env, path, method, user) {
   const db = env.DB;
   const ownerId = await resolveOwnerId(db, user); // scope all reads/writes to this owner
@@ -18,6 +29,7 @@ export async function handleMixes(request, env, path, method, user) {
       sort: url.searchParams.get('sort'),
       dir: url.searchParams.get('dir'),
       ownerId,
+      ...pageParams(url),
     });
     return jsonResponse(mixes);
   }

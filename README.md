@@ -625,7 +625,7 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 
 | Method   | Path              | Description |
 |----------|-------------------|-------------|
-| `GET`    | `/api/mixes`      | List mixes (`?tag=`, `?artist=`, `?sort=`, `?dir=`) |
+| `GET`    | `/api/mixes`      | List mixes (`?tag=`, `?artist=`, `?sort=`, `?dir=`, `?limit=`, `?offset=`) |
 | `GET`    | `/api/mixes/:id`  | Get one mix |
 | `POST`   | `/api/mixes`      | Create |
 | `PUT`    | `/api/mixes/:id`  | Update |
@@ -635,7 +635,7 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 
 | Method   | Path                              | Description |
 |----------|-----------------------------------|-------------|
-| `GET`    | `/api/playlists`                  | List playlists (each with ordered `mixIds`) |
+| `GET`    | `/api/playlists`                  | List playlists (each with ordered `mixIds`; `?limit=`, `?offset=`) |
 | `GET`    | `/api/playlists/:id`              | Get one |
 | `POST`   | `/api/playlists`                  | Create |
 | `PUT`    | `/api/playlists/:id`              | Update |

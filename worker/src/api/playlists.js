@@ -7,6 +7,7 @@ import {
   addMixToPlaylist, removeMixFromPlaylist, resolveOwnerId
 } from '../db.js';
 import { cleanupDeletedFiles } from '../r2.js';
+import { pageParams } from './mixes.js';
 
 export async function handlePlaylists(request, env, path, method, user) {
   const db = env.DB;
@@ -14,7 +15,7 @@ export async function handlePlaylists(request, env, path, method, user) {
 
   // GET /api/playlists
   if (method === 'GET' && path === '/api/playlists') {
-    const playlists = await listPlaylists(db, ownerId);
+    const playlists = await listPlaylists(db, ownerId, pageParams(new URL(request.url)));
     return jsonResponse(playlists);
   }
 

@@ -4,7 +4,7 @@
 
 // ── Mixes ──────────────────────────────────────────────────────────
 
-export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'asc', ownerId } = {}) {
+export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'asc', ownerId, limit, offset } = {}) {
   const allowedSorts = ['title', 'artist', 'duration', 'release_date', 'sort_order', 'created_at'];
   const sortCol = allowedSorts.includes(sort) ? sort : 'sort_order';
   const sortDir = dir === 'desc' ? 'DESC' : 'ASC';
@@ -18,13 +18,45 @@ export async function listMixes(db, { tag, artist, sort = 'sort_order', dir = 'a
   let sql = `SELECT * FROM mixes`;
   if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
   sql += ` ORDER BY ${sortCol} ${sortDir}`;
+  if (Number.isFinite(limit)) {
+    sql += ' LIMIT ?';
+    params.push(limit);
+    if (Number.isFinite(offset)) { sql += ' OFFSET ?'; params.push(offset); }
+  }
 
   const result = await db.prepare(sql).bind(...params).all();
   const mixes = result.results.map(parseMixRow);
-  for (const mix of mixes) {
-    mix.tracks = await getMixTracks(db, mix.id);
-  }
+  await attachMixTracks(db, mixes);
   return mixes;
+}
+
+// D1 caps bound parameters per statement, so IN(...) batches are chunked.
+const IN_CHUNK = 90;
+
+// Batch-load every mix's tracks with one IN(...) query per chunk instead of
+// one query per mix (the old 1+N pattern made large-library lists and
+// manifest publishes slow).
+async function attachMixTracks(db, mixes) {
+  const byId = new Map();
+  for (const m of mixes) { m.tracks = []; byId.set(m.id, m); }
+  const ids = [...byId.keys()];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const ph = chunk.map(() => '?').join(', ');
+    const result = await db.prepare(
+      `SELECT mix_id, position, time, time_seconds, artist, title, url FROM mix_tracks WHERE mix_id IN (${ph}) ORDER BY mix_id, position ASC`
+    ).bind(...chunk).all();
+    for (const t of result.results || []) {
+      byId.get(t.mix_id).tracks.push({
+        position: t.position,
+        time: t.time || '',
+        seconds: t.time_seconds,
+        artist: t.artist || '',
+        title: t.title || '',
+        url: t.url || '',
+      });
+    }
+  }
 }
 
 // ownerId (optional) scopes the lookup — returns null if the mix isn't owned by them.
@@ -111,16 +143,21 @@ async function setMixTracks(db, mixId, tracks) {
 
 // ── Playlists ──────────────────────────────────────────────────────
 
-export async function listPlaylists(db, ownerId) {
-  const sql = ownerId
-    ? 'SELECT * FROM playlists WHERE owner_id = ? ORDER BY sort_order ASC, title ASC'
-    : 'SELECT * FROM playlists ORDER BY sort_order ASC, title ASC';
-  const result = await (ownerId ? db.prepare(sql).bind(ownerId) : db.prepare(sql)).all();
+export async function listPlaylists(db, ownerId, { limit, offset } = {}) {
+  const params = [];
+  let sql = 'SELECT * FROM playlists';
+  if (ownerId) { sql += ' WHERE owner_id = ?'; params.push(ownerId); }
+  sql += ' ORDER BY sort_order ASC, title ASC';
+  if (Number.isFinite(limit)) {
+    sql += ' LIMIT ?';
+    params.push(limit);
+    if (Number.isFinite(offset)) { sql += ' OFFSET ?'; params.push(offset); }
+  }
+  const result = await db.prepare(sql).bind(...params).all();
 
-  const playlists = [];
-  for (const row of result.results) {
-    const mixes = await getPlaylistMixes(db, row.id);
-    playlists.push({
+  const byId = new Map();
+  const playlists = result.results.map((row) => {
+    const pl = {
       id: row.id,
       title: row.title,
       description: row.description,
@@ -128,8 +165,23 @@ export async function listPlaylists(db, ownerId) {
       thumb: row.thumb || null,
       color: row.color,
       sortOrder: row.sort_order,
-      mixIds: mixes.map(m => m.mix_id),
-    });
+      mixIds: [],
+    };
+    byId.set(pl.id, pl);
+    return pl;
+  });
+
+  // Batch member lookups (see attachMixTracks for the 1+N rationale).
+  const ids = [...byId.keys()];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const chunk = ids.slice(i, i + IN_CHUNK);
+    const ph = chunk.map(() => '?').join(', ');
+    const members = await db.prepare(
+      `SELECT playlist_id, mix_id FROM playlist_mixes WHERE playlist_id IN (${ph}) ORDER BY playlist_id, position ASC`
+    ).bind(...chunk).all();
+    for (const m of members.results || []) {
+      byId.get(m.playlist_id).mixIds.push(m.mix_id);
+    }
   }
   return playlists;
 }
