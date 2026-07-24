@@ -94,7 +94,6 @@ async function main() {
     `worker: ${workerBase || '(not set)'}, manifest: ${manifestUrl || '(not set)'}`);
 
   // 2. Worker /config
-  let needsSetup = null;
   if (workerBase) {
     try {
       const res = await get(`${workerBase}/config`);
@@ -103,7 +102,6 @@ async function main() {
           'Is the Worker deployed and the URL right (no trailing slash)? cd worker && npx wrangler deploy');
       } else {
         const body = await res.json();
-        needsSetup = body.needsSetup;
         if (!body.r2PublicUrl) {
           record('warn', 'Worker /config', 'r2PublicUrl is null',
             'Set R2_PUBLIC_URL under [vars] in worker/wrangler.toml and redeploy — without it, admin login needs manual URL fields.');

@@ -1,0 +1,19 @@
+{
+  "name": "offgrid-dev",
+  "private": true,
+  "description": "Dev tooling only (lint + tests). The frontend has no build step; the Worker is its own npm project in worker/.",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
+    "vitest": "^3.0.0"
+  }
+}

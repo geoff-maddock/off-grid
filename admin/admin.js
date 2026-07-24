@@ -147,18 +147,18 @@ function bindEvents() {
       const btn = e.target.closest('button[data-action]');
       if (!btn || !el.contains(btn)) return;
       const id = getId(btn);
-      const fn = actions[btn.dataset.action];
-      if (id && fn) fn(id);
+      const fn = window[actions[btn.dataset.action]];
+      if (id && typeof fn === 'function') fn(id);
     });
   };
   const rowId = (btn) => btn.closest('tr')?.dataset.id;
   delegateActions(document.getElementById('mix-tbody'), rowId,
-    { view: viewMix, edit: editMix, link: copyMixLink, delete: deleteMix });
+    { view: 'viewMix', edit: 'editMix', link: 'copyMixLink', delete: 'deleteMix' });
   delegateActions(document.getElementById('playlist-tbody'), rowId,
-    { edit: editPlaylist, delete: deletePlaylist });
+    { edit: 'editPlaylist', delete: 'deletePlaylist' });
   delegateActions(document.getElementById('panel-mix-view'),
     (btn) => btn.closest('#panel-mix-view')?.dataset.mixId,
-    { edit: editMix, link: copyMixLink });
+    { edit: 'editMix', link: 'copyMixLink' });
 
   // Tabs
   document.querySelectorAll('.tab').forEach(tab => {
@@ -882,7 +882,6 @@ window.deletePlaylist = function (id) {
 function initPlaylistDragDrop(list) {
   let dragItem = null;
   let placeholder = null;
-  let startY = 0;
   let offsetY = 0;
 
   list.querySelectorAll('.drag-handle').forEach(handle => {
@@ -892,7 +891,6 @@ function initPlaylistDragDrop(list) {
       if (!item) return;
 
       dragItem = item;
-      startY = e.clientY;
       const rect = item.getBoundingClientRect();
       offsetY = e.clientY - rect.top;
 

@@ -1,0 +1,11 @@
+# Prettier is opt-in for new/edited files — the large legacy files keep their
+# existing formatting (a wholesale reformat would bury real history in noise).
+audio-player.js
+admin/admin.js
+index.html
+node_modules/
+worker/node_modules/
+mix/
+mixes/
+offline/
+data/
