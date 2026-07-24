@@ -25,6 +25,171 @@ const OFFGRID_SCRIPT_SRC = (document.currentScript && document.currentScript.src
 // writes are guarded by `msOwner === this`.
 let msOwner = null;
 
+// ── Shared between <offgrid-player> and <offgrid-playlist> ──────────
+// One source of truth for the logic and CSS both components need, so the two
+// can't drift apart (they had: the theme palettes differed slightly). The
+// class methods delegate here.
+const OffgridShared = {
+  esc(str) {
+    return String(str == null ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  // Pick a legible foreground (#111 or #fff) for a given background hex, based
+  // on relative luminance. Used by the "color" theme so any accent hue stays
+  // readable. Falls back to white for unparseable input.
+  contrastColor(hex) {
+    const m = String(hex).trim().replace('#', '');
+    let r, g, b;
+    if (m.length === 3) {
+      r = parseInt(m[0] + m[0], 16); g = parseInt(m[1] + m[1], 16); b = parseInt(m[2] + m[2], 16);
+    } else if (m.length === 6) {
+      r = parseInt(m.slice(0, 2), 16); g = parseInt(m.slice(2, 4), 16); b = parseInt(m.slice(4, 6), 16);
+    } else {
+      return '#fff';
+    }
+    if ([r, g, b].some(v => Number.isNaN(v))) return '#fff';
+    // Relative luminance (sRGB, gamma-approx)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#111' : '#fff';
+  },
+
+  // CSS custom-property block for :host, driven by theme + accent. The
+  // palette is the union of what either component uses — --wave-bg is
+  // player-only, --bg-hover playlist-only; unused vars are harmless.
+  themeVars(theme, c) {
+    if (theme === 'light') {
+      return `--accent: ${c};
+          --bg: #ffffff;
+          --bg2: #f4f4f4;
+          --bg3: #e8e8e8;
+          --bg-hover: #eeeeee;
+          --text: #1a1a1a;
+          --text-muted: #666;
+          --wave-bg: #d0d0d0;
+          --border: #dddddd;
+          --border-hover: #c4c4c4;`;
+    }
+    if (theme === 'color') {
+      const fg = this.contrastColor(c);
+      return `--accent: ${fg};
+          --bg: ${c};
+          --bg2: color-mix(in srgb, ${c} 85%, black);
+          --bg3: color-mix(in srgb, ${c} 72%, black);
+          --bg-hover: color-mix(in srgb, ${c} 80%, black);
+          --text: ${fg};
+          --text-muted: color-mix(in srgb, ${fg} 60%, ${c});
+          --wave-bg: color-mix(in srgb, ${fg} 30%, ${c});
+          --border: color-mix(in srgb, ${fg} 25%, ${c});
+          --border-hover: color-mix(in srgb, ${fg} 45%, ${c});`;
+    }
+    // dark (default)
+    return `--accent: ${c};
+          --bg: #1a1a1a;
+          --bg2: #252525;
+          --bg3: #2e2e2e;
+          --bg-hover: #2a2a2a;
+          --text: #f0f0f0;
+          --text-muted: #888;
+          --wave-bg: #333;
+          --border: #333;
+          --border-hover: #444;`;
+  },
+
+  // Fonts + reset shared by both shadow roots.
+  baseCss: `
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }`,
+
+  // Full-size artwork lightbox (each component's template carries the
+  // #lightbox markup; this is the styling both share).
+  lightboxCss: `
+        .lightbox {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.85);
+          display: none;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          cursor: zoom-out;
+          padding: 20px;
+        }
+
+        .lightbox.open { display: flex; }
+
+        .lightbox-img {
+          max-width: 90%;
+          max-height: 90%;
+          object-fit: contain;
+          border-radius: 4px;
+          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }`,
+
+  // Click `triggerSelector` to view the component's `thumb` full-size;
+  // backdrop click or Escape closes. Manages the document-level key listener
+  // on the component (its disconnectedCallback removes it). No-op when the
+  // trigger or lightbox isn't in the current markup.
+  bindLightbox(component, triggerSelector) {
+    const sr = component.shadowRoot;
+    const trigger = sr.querySelector(triggerSelector);
+    const lightbox = sr.querySelector('#lightbox');
+    const lightboxImg = sr.querySelector('#lightbox-img');
+    if (component._onLightboxKey) {
+      document.removeEventListener('keydown', component._onLightboxKey);
+      component._onLightboxKey = null;
+    }
+    if (!trigger || !lightbox || !lightboxImg) return;
+    trigger.addEventListener('click', () => {
+      const thumb = component.getAttribute('thumb');
+      if (!thumb) return;
+      lightboxImg.src = thumb;
+      lightbox.classList.add('open');
+    });
+    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+    component._onLightboxKey = (e) => {
+      if (e.key === 'Escape' && lightbox.classList.contains('open')) {
+        lightbox.classList.remove('open');
+      }
+    };
+    document.addEventListener('keydown', component._onLightboxKey);
+  },
+
+  // Embed panel: toggle open (regenerating the snippet each time) and
+  // copy-to-clipboard with the "Copied!" flash.
+  bindEmbedPanel(shadowRoot, btnSelector, generate) {
+    const btn = shadowRoot.querySelector(btnSelector);
+    const panel = shadowRoot.querySelector('#embed-panel');
+    const code = shadowRoot.querySelector('#embed-code');
+    const copy = shadowRoot.querySelector('#embed-copy-btn');
+    if (!btn || !panel || !code || !copy) return;
+    btn.addEventListener('click', () => {
+      const isOpen = panel.classList.toggle('open');
+      if (isOpen) {
+        code.textContent = generate();
+        code.appendChild(copy);
+      }
+    });
+    copy.addEventListener('click', () => {
+      navigator.clipboard.writeText(generate()).then(() => {
+        copy.textContent = 'Copied!';
+        copy.classList.add('copied');
+        setTimeout(() => {
+          copy.textContent = 'Copy';
+          copy.classList.remove('copied');
+        }, 2000);
+      });
+    });
+  },
+
+  // Update a component's #theme-style override block (live retheme, #49).
+  applyThemeStyle(component) {
+    const el = component.shadowRoot && component.shadowRoot.querySelector('#theme-style');
+    if (el) el.textContent = `:host { ${component._themeVars()} }`;
+  },
+};
+
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
     return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href', 'mix-id', 'api-base'];
@@ -159,9 +324,7 @@ class OffgridPlayer extends HTMLElement {
   // destroys live playback — see #49. The #theme-style element sits after the
   // main stylesheet, so its :host block wins by source order.
   _applyThemeLive() {
-    const el = this.shadowRoot.querySelector('#theme-style');
-    if (!el) return;
-    el.textContent = `:host { ${this._themeVars()} }`;
+    OffgridShared.applyThemeStyle(this);
     if (this._ws) {
       this._ws.setOptions({
         waveColor: this._waveBgColor(),
@@ -185,61 +348,13 @@ class OffgridPlayer extends HTMLElement {
     return (this.getAttribute('size') || 'standard').toLowerCase() === 'slim' ? 'slim' : 'standard';
   }
 
-  // Pick a legible foreground (#111 or #fff) for a given background hex, based
-  // on relative luminance. Used by the "color" theme so any accent hue stays
-  // readable. Falls back to white for unparseable input.
   _contrastColor(hex) {
-    const m = String(hex).trim().replace('#', '');
-    let r, g, b;
-    if (m.length === 3) {
-      r = parseInt(m[0] + m[0], 16); g = parseInt(m[1] + m[1], 16); b = parseInt(m[2] + m[2], 16);
-    } else if (m.length === 6) {
-      r = parseInt(m.slice(0, 2), 16); g = parseInt(m.slice(2, 4), 16); b = parseInt(m.slice(4, 6), 16);
-    } else {
-      return '#fff';
-    }
-    if ([r, g, b].some(v => Number.isNaN(v))) return '#fff';
-    // Relative luminance (sRGB, gamma-approx)
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return lum > 0.55 ? '#111' : '#fff';
+    return OffgridShared.contrastColor(hex);
   }
 
   // CSS custom-property block for :host, driven by the current theme + accent.
   _themeVars() {
-    const c = this._color;
-    if (this._theme === 'light') {
-      return `--accent: ${c};
-          --bg: #ffffff;
-          --bg2: #f4f4f4;
-          --bg3: #e8e8e8;
-          --text: #1a1a1a;
-          --text-muted: #666;
-          --wave-bg: #d0d0d0;
-          --border: #dddddd;
-          --border-hover: #c4c4c4;`;
-    }
-    if (this._theme === 'color') {
-      const fg = this._contrastColor(c);
-      return `--accent: ${fg};
-          --bg: ${c};
-          --bg2: color-mix(in srgb, ${c} 85%, black);
-          --bg3: color-mix(in srgb, ${c} 72%, black);
-          --text: ${fg};
-          --text-muted: color-mix(in srgb, ${fg} 60%, ${c});
-          --wave-bg: color-mix(in srgb, ${fg} 30%, ${c});
-          --border: color-mix(in srgb, ${fg} 25%, ${c});
-          --border-hover: color-mix(in srgb, ${fg} 45%, ${c});`;
-    }
-    // dark (default) — original values
-    return `--accent: ${c};
-          --bg: #1a1a1a;
-          --bg2: #252525;
-          --bg3: #2e2e2e;
-          --text: #f0f0f0;
-          --text-muted: #888;
-          --wave-bg: #333;
-          --border: #333;
-          --border-hover: #444;`;
+    return OffgridShared.themeVars(this._theme, this._color);
   }
 
   // Parse a #rgb/#rrggbb string to [r,g,b], or null if unparseable.
@@ -371,10 +486,7 @@ class OffgridPlayer extends HTMLElement {
     const artistHref = this.getAttribute('artist-href') || '';
 
     this.shadowRoot.innerHTML = `
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>${OffgridShared.baseCss}
 
         :host {
           display: block;
@@ -469,28 +581,7 @@ class OffgridPlayer extends HTMLElement {
 
         .thumb-img { cursor: zoom-in; }
 
-        /* Full-size artwork lightbox */
-        .lightbox {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.85);
-          display: none;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          cursor: zoom-out;
-          padding: 20px;
-        }
-
-        .lightbox.open { display: flex; }
-
-        .lightbox-img {
-          max-width: 90%;
-          max-height: 90%;
-          object-fit: contain;
-          border-radius: 4px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-        }
+        /* Full-size artwork lightbox */${OffgridShared.lightboxCss}
 
         .meta-row {
           flex: 1;
@@ -1247,24 +1338,7 @@ class OffgridPlayer extends HTMLElement {
     // Artwork lightbox — click the cover to view the full-size image. Bound on
     // the wrap (stable across _updateMeta rebuilds); no-op when only a
     // placeholder is shown (no thumb).
-    const thumbWrap = this.shadowRoot.querySelector('.thumb-wrap');
-    const lightbox = this.shadowRoot.querySelector('#lightbox');
-    const lightboxImg = this.shadowRoot.querySelector('#lightbox-img');
-    if (thumbWrap && lightbox && lightboxImg) {
-      thumbWrap.addEventListener('click', () => {
-        const thumb = this.getAttribute('thumb');
-        if (!thumb) return;
-        lightboxImg.src = thumb;
-        lightbox.classList.add('open');
-      });
-      lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
-      this._onLightboxKey = (e) => {
-        if (e.key === 'Escape' && lightbox.classList.contains('open')) {
-          lightbox.classList.remove('open');
-        }
-      };
-      document.addEventListener('keydown', this._onLightboxKey);
-    }
+    OffgridShared.bindLightbox(this, '.thumb-wrap');
 
     playBtn.addEventListener('click', () => {
       if (!this._initialized) {
@@ -1349,31 +1423,7 @@ class OffgridPlayer extends HTMLElement {
     resizeHandle.addEventListener('pointerdown', onPointerDown);
 
     // Embed button
-    const embedBtn = this.shadowRoot.querySelector('#embed-btn');
-    const embedPanel = this.shadowRoot.querySelector('#embed-panel');
-    const embedCode = this.shadowRoot.querySelector('#embed-code');
-    const embedCopyBtn = this.shadowRoot.querySelector('#embed-copy-btn');
-
-    embedBtn.addEventListener('click', () => {
-      const isOpen = embedPanel.classList.toggle('open');
-      if (isOpen) {
-        const code = this._generateEmbedCode();
-        embedCode.textContent = code;
-        embedCode.appendChild(embedCopyBtn);
-      }
-    });
-
-    embedCopyBtn.addEventListener('click', () => {
-      const code = this._generateEmbedCode();
-      navigator.clipboard.writeText(code).then(() => {
-        embedCopyBtn.textContent = 'Copied!';
-        embedCopyBtn.classList.add('copied');
-        setTimeout(() => {
-          embedCopyBtn.textContent = 'Copy';
-          embedCopyBtn.classList.remove('copied');
-        }, 2000);
-      });
-    });
+    OffgridShared.bindEmbedPanel(this.shadowRoot, '#embed-btn', () => this._generateEmbedCode());
 
     // Like button (hidden unless mix-id + api-base are set)
     const likeBtn = this.shadowRoot.querySelector('#like-btn');
@@ -2253,8 +2303,7 @@ class OffgridPlayer extends HTMLElement {
   }
 
   _esc(str) {
-    return String(str == null ? '' : str)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return OffgridShared.esc(str);
   }
 
   _fmt(secs) {
@@ -2319,8 +2368,7 @@ class OffgridPlaylist extends HTMLElement {
   attributeChangedCallback(name, oldVal, newVal) {
     if (!this.shadowRoot || oldVal === newVal) return;
     if (name === 'theme' || name === 'color') {
-      const el = this.shadowRoot.querySelector('#theme-style');
-      if (el) el.textContent = `:host { ${this._themeVars()} }`;
+      OffgridShared.applyThemeStyle(this);
       if (this._playerEl) this._playerEl.setAttribute(name, newVal);
     }
   }
@@ -2354,66 +2402,19 @@ class OffgridPlaylist extends HTMLElement {
 
   // Pick a legible foreground (#111 or #fff) for a background hex (see OffgridPlayer).
   _contrastColor(hex) {
-    const m = String(hex).trim().replace('#', '');
-    let r, g, b;
-    if (m.length === 3) {
-      r = parseInt(m[0] + m[0], 16); g = parseInt(m[1] + m[1], 16); b = parseInt(m[2] + m[2], 16);
-    } else if (m.length === 6) {
-      r = parseInt(m.slice(0, 2), 16); g = parseInt(m.slice(2, 4), 16); b = parseInt(m.slice(4, 6), 16);
-    } else {
-      return '#fff';
-    }
-    if ([r, g, b].some(v => Number.isNaN(v))) return '#fff';
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return lum > 0.55 ? '#111' : '#fff';
+    return OffgridShared.contrastColor(hex);
   }
 
   // CSS custom-property block for :host, driven by the current theme + accent.
   _themeVars() {
-    const c = this._color;
-    if (this._theme === 'light') {
-      return `--accent: ${c};
-          --bg: #ffffff;
-          --bg2: #f4f4f4;
-          --bg3: #e8e8e8;
-          --bg-hover: #eeeeee;
-          --text: #1a1a1a;
-          --text-muted: #666;
-          --border: #dddddd;
-          --border-hover: #c4c4c4;`;
-    }
-    if (this._theme === 'color') {
-      const fg = this._contrastColor(c);
-      return `--accent: ${fg};
-          --bg: ${c};
-          --bg2: color-mix(in srgb, ${c} 88%, black);
-          --bg3: color-mix(in srgb, ${c} 72%, black);
-          --bg-hover: color-mix(in srgb, ${c} 80%, black);
-          --text: ${fg};
-          --text-muted: color-mix(in srgb, ${fg} 60%, ${c});
-          --border: color-mix(in srgb, ${fg} 25%, ${c});
-          --border-hover: color-mix(in srgb, ${fg} 45%, ${c});`;
-    }
-    // dark (default) — original values
-    return `--accent: ${c};
-          --bg: #1a1a1a;
-          --bg2: #222;
-          --bg3: #2e2e2e;
-          --bg-hover: #2a2a2a;
-          --text: #f0f0f0;
-          --text-muted: #888;
-          --border: #333;
-          --border-hover: #444;`;
+    return OffgridShared.themeVars(this._theme, this._color);
   }
 
   _render() {
     const tracks = this._tracks;
 
     this.shadowRoot.innerHTML = `
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
-
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      <style>${OffgridShared.baseCss}
 
         :host {
           display: block;
@@ -2475,28 +2476,7 @@ class OffgridPlaylist extends HTMLElement {
           color: var(--text-muted);
         }
 
-        /* Full-size artwork lightbox */
-        .lightbox {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.85);
-          display: none;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          cursor: zoom-out;
-          padding: 20px;
-        }
-
-        .lightbox.open { display: flex; }
-
-        .lightbox-img {
-          max-width: 90%;
-          max-height: 90%;
-          object-fit: contain;
-          border-radius: 4px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-        }
+        /* Full-size artwork lightbox */${OffgridShared.lightboxCss}
 
         /* Embedded player slot */
         .player-slot {
@@ -2907,27 +2887,7 @@ class OffgridPlaylist extends HTMLElement {
   // Cover lightbox — click the header cover to view the full-size image,
   // same behavior as the mix player's artwork lightbox.
   _bindLightbox() {
-    const cover = this.shadowRoot.querySelector('#pl-cover');
-    const lightbox = this.shadowRoot.querySelector('#lightbox');
-    const lightboxImg = this.shadowRoot.querySelector('#lightbox-img');
-    if (this._onLightboxKey) {
-      document.removeEventListener('keydown', this._onLightboxKey);
-      this._onLightboxKey = null;
-    }
-    if (!cover || !lightbox || !lightboxImg) return;
-    cover.addEventListener('click', () => {
-      const thumb = this.getAttribute('thumb');
-      if (!thumb) return;
-      lightboxImg.src = thumb;
-      lightbox.classList.add('open');
-    });
-    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
-    this._onLightboxKey = (e) => {
-      if (e.key === 'Escape' && lightbox.classList.contains('open')) {
-        lightbox.classList.remove('open');
-      }
-    };
-    document.addEventListener('keydown', this._onLightboxKey);
+    OffgridShared.bindLightbox(this, '#pl-cover');
   }
 
   disconnectedCallback() {
@@ -3019,30 +2979,8 @@ class OffgridPlaylist extends HTMLElement {
       autoToggle.classList.toggle('on');
     });
 
-    // Embed button — mirrors the single player's embed panel + copy behavior.
-    const embedBtn = this.shadowRoot.querySelector('#pl-embed-btn');
-    const embedPanel = this.shadowRoot.querySelector('#embed-panel');
-    const embedCode = this.shadowRoot.querySelector('#embed-code');
-    const embedCopyBtn = this.shadowRoot.querySelector('#embed-copy-btn');
-    if (embedBtn && embedPanel) {
-      embedBtn.addEventListener('click', () => {
-        const isOpen = embedPanel.classList.toggle('open');
-        if (isOpen) {
-          embedCode.textContent = this._generateEmbedCode();
-          embedCode.appendChild(embedCopyBtn);
-        }
-      });
-      embedCopyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(this._generateEmbedCode()).then(() => {
-          embedCopyBtn.textContent = 'Copied!';
-          embedCopyBtn.classList.add('copied');
-          setTimeout(() => {
-            embedCopyBtn.textContent = 'Copy';
-            embedCopyBtn.classList.remove('copied');
-          }, 2000);
-        });
-      });
-    }
+    // Embed button — same shared panel + copy behavior as the single player.
+    OffgridShared.bindEmbedPanel(this.shadowRoot, '#pl-embed-btn', () => this._generateEmbedCode());
 
     // Listen for play/pause to update bars
     this.shadowRoot.querySelector('#player-slot').addEventListener('trackplay', () => {
@@ -3076,8 +3014,7 @@ class OffgridPlaylist extends HTMLElement {
   }
 
   _esc(str) {
-    return String(str == null ? '' : str)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return OffgridShared.esc(str);
   }
 
   // Produce a self-contained <offgrid-playlist> embed snippet, mirroring
