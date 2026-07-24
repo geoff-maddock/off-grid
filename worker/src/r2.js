@@ -218,6 +218,45 @@ export async function handleDirectUpload(request, env, user) {
   return jsonResponse({ key: safeKey, contentType });
 }
 
+// Map a stored public URL back to its R2 key — but only when it clearly points
+// into the caller's own namespace via the configured public bucket URL.
+// Anything else (external URLs, legacy bucket-root keys, other users' files)
+// returns null and is left alone. Exported for testing.
+export function keyFromPublicUrl(value, env, ownerId) {
+  const base = (env.R2_PUBLIC_URL || '').trim().replace(/\/+$/, '');
+  const v = String(value || '');
+  if (!base || !ownerId || !v.startsWith(base + '/')) return null;
+  let key;
+  try { key = decodeURIComponent(v.slice(base.length + 1).split(/[?#]/)[0]); } catch { return null; }
+  if (key.includes('..')) return null;
+  return key.startsWith(`users/${ownerId}/`) ? key : null;
+}
+
+/**
+ * Best-effort R2 cleanup after a mix/playlist row is deleted. Call AFTER the
+ * D1 delete: any of these URLs still present on another mix or playlist then
+ * belongs to a live record and is skipped (covers files shared between
+ * records, e.g. pre-unique-key uploads). Never throws — a cleanup failure
+ * must not fail the delete that already happened.
+ */
+export async function cleanupDeletedFiles(env, db, ownerId, urls) {
+  for (const url of urls) {
+    try {
+      const key = keyFromPublicUrl(url, env, ownerId);
+      if (!key) continue;
+      const inMix = await db.prepare(
+        'SELECT id FROM mixes WHERE src = ?1 OR thumb = ?1 OR peaks = ?1 LIMIT 1'
+      ).bind(url).first();
+      if (inMix) continue;
+      const inPlaylist = await db.prepare(
+        'SELECT id FROM playlists WHERE thumb = ?1 LIMIT 1'
+      ).bind(url).first();
+      if (inPlaylist) continue;
+      await env.BUCKET.delete(key);
+    } catch (_) { /* best-effort */ }
+  }
+}
+
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,

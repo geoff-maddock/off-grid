@@ -6,6 +6,7 @@ import {
   listPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist,
   addMixToPlaylist, removeMixFromPlaylist, resolveOwnerId
 } from '../db.js';
+import { cleanupDeletedFiles } from '../r2.js';
 
 export async function handlePlaylists(request, env, path, method, user) {
   const db = env.DB;
@@ -62,6 +63,8 @@ export async function handlePlaylists(request, env, path, method, user) {
     const existing = await getPlaylist(db, id, ownerId); // 404 if not yours
     if (!existing) return jsonResponse({ error: 'Playlist not found' }, 404);
     await deletePlaylist(db, id);
+    // Best-effort cover cleanup once the row is gone (see cleanupDeletedFiles).
+    await cleanupDeletedFiles(env, db, ownerId, [existing.thumb]);
     return jsonResponse({ deleted: id });
   }
 

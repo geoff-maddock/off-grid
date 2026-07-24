@@ -625,7 +625,7 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 | `GET`    | `/api/mixes/:id`  | Get one mix |
 | `POST`   | `/api/mixes`      | Create |
 | `PUT`    | `/api/mixes/:id`  | Update |
-| `DELETE` | `/api/mixes/:id`  | Delete (also removes from playlists) |
+| `DELETE` | `/api/mixes/:id`  | Delete (also removes from playlists, clears play stats, and best-effort deletes its unreferenced R2 files) |
 
 ### Playlist CRUD
 
@@ -635,7 +635,7 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 | `GET`    | `/api/playlists/:id`              | Get one |
 | `POST`   | `/api/playlists`                  | Create |
 | `PUT`    | `/api/playlists/:id`              | Update |
-| `DELETE` | `/api/playlists/:id`              | Delete |
+| `DELETE` | `/api/playlists/:id`              | Delete (best-effort deletes its cover from R2 if unreferenced) |
 | `POST`   | `/api/playlists/:id/mixes`        | Add a mix (`{"mixId": "..."}`) |
 | `DELETE` | `/api/playlists/:id/mixes/:mixId` | Remove a mix |
 

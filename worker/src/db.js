@@ -68,9 +68,13 @@ export async function updateMix(db, id, mix) {
 }
 
 export async function deleteMix(db, id) {
-  await db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(id).run();
-  await db.prepare('DELETE FROM playlist_mixes WHERE mix_id = ?').bind(id).run();
-  await db.prepare('DELETE FROM mixes WHERE id = ?').bind(id).run();
+  await db.batch([
+    db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(id),
+    db.prepare('DELETE FROM playlist_mixes WHERE mix_id = ?').bind(id),
+    db.prepare('DELETE FROM play_events WHERE mix_id = ?').bind(id),
+    db.prepare('DELETE FROM mix_stats WHERE mix_id = ?').bind(id),
+    db.prepare('DELETE FROM mixes WHERE id = ?').bind(id),
+  ]);
 }
 
 // ── Mix Tracks (parsed tracklist) ──────────────────────────────────
@@ -179,8 +183,10 @@ export async function updatePlaylist(db, id, pl) {
 }
 
 export async function deletePlaylist(db, id) {
-  await db.prepare('DELETE FROM playlist_mixes WHERE playlist_id = ?').bind(id).run();
-  await db.prepare('DELETE FROM playlists WHERE id = ?').bind(id).run();
+  await db.batch([
+    db.prepare('DELETE FROM playlist_mixes WHERE playlist_id = ?').bind(id),
+    db.prepare('DELETE FROM playlists WHERE id = ?').bind(id),
+  ]);
 }
 
 // ── Playlist Mix Management ────────────────────────────────────────
