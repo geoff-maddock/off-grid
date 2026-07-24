@@ -1111,6 +1111,10 @@ html, body {
 }
 
 /* Unpublished-changes badge next to the Publish button */
+.publish-dirty[hidden] {
+  display: none; /* the display rule below would otherwise defeat [hidden] */
+}
+
 .publish-dirty {
   display: inline-flex;
   align-items: center;
