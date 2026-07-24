@@ -1385,11 +1385,18 @@ class OffgridPlayer extends HTMLElement {
     if (loadingShimmer) loadingShimmer.style.display = 'block';
 
     // Wait for peaks to load (if a peaks attribute was set)
-    if (this._peaksPromise) {
-      await this._peaksPromise;
-    }
+    try {
+      if (this._peaksPromise) {
+        await this._peaksPromise;
+      }
 
-    await this._loadWaveSurfer();
+      await this._loadWaveSurfer();
+    } catch (err) {
+      // CDN blocked/offline or init failure — show the error strip instead of
+      // leaving the play button spinning forever.
+      console.warn('Player init failed:', err);
+      this._showWaveError();
+    }
   }
 
   async _loadWaveSurfer() {
@@ -1536,23 +1543,29 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('error', (e) => {
       console.warn('WaveSurfer error:', e);
-      const playBtn = this.shadowRoot.querySelector('.play-btn');
-      playBtn.classList.remove('loading');
-      playBtn.disabled = true;
-      playBtn.style.opacity = '0.3';
-      playBtn.style.cursor = 'default';
-
-      const placeholder = this.shadowRoot.querySelector('#shimmer');
-      const loadingShimmer = this.shadowRoot.querySelector('#loading-shimmer');
-      const waveDiv = this.shadowRoot.querySelector('#waveform');
-      const errorEl = this.shadowRoot.querySelector('#wave-error');
-      if (placeholder) placeholder.style.display = 'none';
-      if (loadingShimmer) loadingShimmer.style.display = 'none';
-      if (waveDiv) waveDiv.style.display = 'none';
-      if (errorEl) errorEl.style.display = 'flex';
+      this._showWaveError();
     });
 
     this._ws.setVolume(0.8);
+  }
+
+  // Put the player into its error state: disabled play button, error strip in
+  // place of the waveform. Used for both media errors and script-load failure.
+  _showWaveError() {
+    const playBtn = this.shadowRoot.querySelector('.play-btn');
+    playBtn.classList.remove('loading');
+    playBtn.disabled = true;
+    playBtn.style.opacity = '0.3';
+    playBtn.style.cursor = 'default';
+
+    const placeholder = this.shadowRoot.querySelector('#shimmer');
+    const loadingShimmer = this.shadowRoot.querySelector('#loading-shimmer');
+    const waveDiv = this.shadowRoot.querySelector('#waveform');
+    const errorEl = this.shadowRoot.querySelector('#wave-error');
+    if (placeholder) placeholder.style.display = 'none';
+    if (loadingShimmer) loadingShimmer.style.display = 'none';
+    if (waveDiv) waveDiv.style.display = 'none';
+    if (errorEl) errorEl.style.display = 'flex';
   }
 
   async _fetchAsBlob(url) {
