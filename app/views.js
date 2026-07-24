@@ -226,6 +226,10 @@ function playlistSection(pl, { linkTitle = false } = {}) {
   if (pl.creator) playlist.setAttribute('artist', pl.creator);
   if (pl.thumb) playlist.setAttribute('thumb', pl.thumb);
   if (pl.title) playlist.setAttribute('title', pl.title);
+  // Header meta links: title -> the playlist's page (suppressed on its own
+  // page, where `href` is null), creator -> that creator's playlists.
+  if (href) playlist.setAttribute('title-href', href);
+  if (pl.creator) playlist.setAttribute('artist-href', '#/playlists/creator/' + encodeURIComponent(pl.creator));
   const tracks = (pl.mixIds || [])
     .map(id => state.mixMap.get(id))
     .filter(Boolean)

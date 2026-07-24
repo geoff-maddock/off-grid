@@ -2342,7 +2342,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title'];
+    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title', 'title-href', 'artist-href'];
   }
 
   constructor() {
@@ -2385,6 +2385,17 @@ class OffgridPlaylist extends HTMLElement {
   _sanitizeTracks(arr) {
     if (!Array.isArray(arr)) return [];
     return arr.filter((t) => t && typeof t === 'object' && typeof t.src === 'string' && t.src.trim());
+  }
+
+  // Header title/artist line: a link when the matching <attr>-href is set
+  // (the player page passes its playlist/creator routes), plain text otherwise.
+  _headerMeta(attr, cls) {
+    const text = this.getAttribute(attr);
+    if (!text) return '';
+    const href = this.getAttribute(attr + '-href');
+    return href
+      ? `<a class="${cls}" href="${this._esc(href)}">${this._esc(text)}</a>`
+      : `<div class="${cls}">${this._esc(text)}</div>`;
   }
 
   get tracks() { return this._tracks; }
@@ -2476,6 +2487,18 @@ class OffgridPlaylist extends HTMLElement {
           font-size: 13px;
           font-weight: 500;
           color: var(--text-muted);
+        }
+
+        a.pl-header-title,
+        a.pl-header-artist {
+          display: block;
+          text-decoration: none;
+        }
+
+        a.pl-header-title:hover,
+        a.pl-header-artist:hover {
+          color: var(--accent);
+          text-decoration: underline;
         }
 
         /* Full-size artwork lightbox */${OffgridShared.lightboxCss}
@@ -2807,10 +2830,8 @@ class OffgridPlaylist extends HTMLElement {
           <div class="pl-header">
             <img class="pl-cover" id="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover" loading="lazy" width="64" height="64">
             <div class="pl-header-info">
-              ${this.getAttribute('title')
-                ? `<div class="pl-header-title">${this._esc(this.getAttribute('title'))}</div>` : ''}
-              ${this.getAttribute('artist')
-                ? `<div class="pl-header-artist">${this._esc(this.getAttribute('artist'))}</div>` : ''}
+              ${this._headerMeta('title', 'pl-header-title')}
+              ${this._headerMeta('artist', 'pl-header-artist')}
             </div>
           </div>` : ''}
         <div class="player-slot" id="player-slot"></div>
