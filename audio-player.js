@@ -2231,14 +2231,21 @@ class OffgridPlaylist extends HTMLElement {
     // Parse inline JSON tracks
     const jsonEl = this.querySelector('script[type="application/json"]');
     if (jsonEl) {
-      try { this._tracks = JSON.parse(jsonEl.textContent); } catch(e) {}
+      try { this._tracks = this._sanitizeTracks(JSON.parse(jsonEl.textContent)); } catch(e) {}
     }
     this._render();
   }
 
   set tracks(arr) {
-    this._tracks = arr;
+    this._tracks = this._sanitizeTracks(arr);
     this._render();
+  }
+
+  // Malformed manifests degrade per-track: drop anything that isn't an object
+  // with a playable src instead of letting one bad entry blank the playlist.
+  _sanitizeTracks(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.filter((t) => t && typeof t === 'object' && typeof t.src === 'string' && t.src.trim());
   }
 
   get tracks() { return this._tracks; }
