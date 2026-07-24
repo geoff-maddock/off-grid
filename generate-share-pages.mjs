@@ -74,7 +74,7 @@ async function loadManifest(source) {
   return JSON.parse(fs.readFileSync(source, 'utf-8'));
 }
 
-// ---- Helpers (mirroring the SEO layer in index.html) ------------------------
+// ---- Helpers (mirroring the SEO layer in app/seo.js) ------------------------
 
 function esc(s) {
   return String(s == null ? '' : s)
@@ -112,7 +112,7 @@ function encFmt(src) {
     m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', opus: 'audio/opus' }[ext] || '';
 }
 
-// Same shape as mixJsonLd in index.html, with the share page as the canonical
+// Same shape as mixJsonLd in app/seo.js, with the share page as the canonical
 // url/@id and the chrome-less ?mix= page as the embed URL.
 function mixJsonLd(mix, pageUrl, embedUrl, siteBase) {
   const o = { '@context': 'https://schema.org', '@type': 'MusicRecording', '@id': pageUrl + '#mix', name: mix.title, url: pageUrl };

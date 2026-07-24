@@ -507,7 +507,15 @@ off-grid/
   QUICKSTART.md          # Abbreviated setup (commands only)
   CLAUDE.md              # Instructions for AI coding agents working in this repo
   IDEA.md                # Product vision and open questions
-  index.html             # Public player page (loads manifest.json from R2)
+  index.html             # Public player page shell (loads manifest.json from R2)
+  styles.css             # Player page styles
+  app/                   # Player page ES modules (native, no build step)
+    main.js              # Entry: router, manifest load, global wiring
+    views.js             # View renderers + page chrome
+    state.js             # Manifest-derived state, indexes, sorting, search filters
+    seo.js               # Per-view meta tags + JSON-LD
+    config.js            # URL params + manifest URL resolution
+    util.js              # Shared helpers (esc, slugify)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
   package.json           # Dev tooling only (lint + tests) — the frontend still has no build step

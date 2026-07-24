@@ -44,6 +44,14 @@ export default [
     rules: { 'no-useless-escape': 'off' },
   },
   {
+    // Player-page ES modules (loaded natively by the browser — no build step)
+    files: ['app/**/*.js'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: { ...globals.browser },
+    },
+  },
+  {
     files: ['worker/src/**/*.js'],
     languageOptions: {
       sourceType: 'module',

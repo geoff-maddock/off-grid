@@ -20,7 +20,12 @@ mkdir -p "$DEST/admin"
 
 # Player page + web component
 cp "$SRC/index.html"       "$DEST/index.html"
+cp "$SRC/styles.css"       "$DEST/styles.css"
 cp "$SRC/audio-player.js"  "$DEST/audio-player.js"
+
+# Player page app modules
+mkdir -p "$DEST/app"
+cp "$SRC"/app/*.js "$DEST/app/"
 
 # Admin SPA
 cp "$SRC/admin/index.html" "$SRC/admin/admin.js" "$SRC/admin/admin.css" "$SRC/admin/peaks.js" "$DEST/admin/"
@@ -36,5 +41,5 @@ else
 fi
 
 echo "Deployed Off Grid static frontend to: $DEST"
-echo "  index.html, audio-player.js, admin/{index.html,admin.js,admin.css,peaks.js}"
+echo "  index.html, styles.css, app/*.js, audio-player.js, admin/{index.html,admin.js,admin.css,peaks.js}"
 echo "Next: commit & push your site repo to publish."
