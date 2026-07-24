@@ -316,7 +316,8 @@ From here:
 
 ```bash
 node scripts/check.mjs               # uses config.local.js
-node scripts/check.mjs --token <jwt-or-admin-token>   # also test an authenticated endpoint
+node scripts/check.mjs --token <jwt-or-admin-token>   # also test authenticated endpoints
+node scripts/check.mjs --email you@example.com --password <pw>   # also test the login flow itself
 
 # Or fully explicit (e.g. in CI):
 node scripts/check.mjs --worker https://<worker-url> --manifest https://<manifest-url>

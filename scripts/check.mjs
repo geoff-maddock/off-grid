@@ -3,14 +3,16 @@
  * Deployment doctor — verifies a live Off Grid install end to end.
  *
  * Runs the onboarding checkpoints automatically: the Worker's /config
- * endpoint, the published manifest, the first mix's audio/peaks URLs, bucket
- * CORS, and (optionally) an authenticated API call. Prints a pass/fail list
+ * endpoint, the published manifest, the first mix's audio/peaks/cover URLs,
+ * playlist integrity, bucket CORS, and (optionally) the login flow and
+ * authenticated API calls. Prints a pass/fail list
  * with a fix hint for every failure. Exit code 0 = healthy (warnings allowed),
  * 1 = at least one failure — safe to wire into CI or a cron.
  *
  * Usage:
  *   node scripts/check.mjs                        # reads config.local.js
  *   node scripts/check.mjs --token <jwt-or-admin-token>
+ *   node scripts/check.mjs --email you@example.com --password <pw>   # also tests the login flow
  *   node scripts/check.mjs --worker https://offgrid-api.YOUR-SUBDOMAIN.workers.dev \
  *                          --manifest https://pub-xxxxxxxx.r2.dev/data/manifest.json
  *   node scripts/check.mjs --config path/to/config.local.js --verbose
@@ -60,6 +62,8 @@ const local = loadLocalConfig(configPath);
 const workerBase = (argValue('--worker') || local.OFFGRID_API_BASE || '').replace(/\/+$/, '');
 const manifestUrl = argValue('--manifest') || local.OFFGRID_MANIFEST_URL || '';
 const token = argValue('--token');
+const email = argValue('--email');
+const password = argValue('--password');
 
 // ── Check harness ───────────────────────────────────────────────────
 
@@ -163,9 +167,9 @@ async function main() {
   // 4. First mix assets
   const first = manifest && Array.isArray(manifest.mixes) ? manifest.mixes[0] : null;
   if (first) {
-    for (const [field, label] of [['src', 'audio'], ['peaks', 'peaks']]) {
+    for (const [field, label] of [['src', 'audio'], ['peaks', 'peaks'], ['thumb', 'cover']]) {
       const url = first[field];
-      if (!url) { if (field === 'peaks') record('skip', `First mix ${label}`, 'none set'); continue; }
+      if (!url) { if (field !== 'src') record('skip', `First mix ${label}`, 'none set'); continue; }
       if (!/^https?:\/\//.test(url)) {
         record('warn', `First mix ${label}`, `relative URL (${url}) — fine for local/offline use, but embeds on other sites need absolute R2 URLs`);
         continue;
@@ -181,28 +185,83 @@ async function main() {
     }
   }
 
-  // 5. Authenticated API (optional)
-  if (token) {
+  // 5. Playlist integrity (from the published manifest)
+  const playlists = manifest && Array.isArray(manifest.playlists) ? manifest.playlists : null;
+  if (playlists && playlists.length) {
+    const mixIds = new Set((manifest.mixes || []).map((m) => m.id));
+    const broken = [];
+    for (const pl of playlists) {
+      if (!pl.id || !pl.title) { broken.push(`${pl.id || '(no id)'}: missing id/title`); continue; }
+      const dangling = (pl.mixIds || []).filter((id) => !mixIds.has(id));
+      if (dangling.length) broken.push(`${pl.id}: references missing mix(es) ${dangling.join(', ')}`);
+    }
+    if (broken.length) {
+      record('fail', 'Playlists', broken.join('; '),
+        'The published manifest is inconsistent — re-save the playlist(s) in the admin and click Publish.');
+    } else {
+      record('pass', 'Playlists', `${playlists.length} playlist(s), all mix references resolve`);
+    }
+  } else if (manifest) {
+    record('skip', 'Playlists', 'none in the manifest');
+  }
+
+  // 6. Login flow (optional) — exercises POST /auth/login with real credentials.
+  let sessionToken = null;
+  if (email && password) {
     if (workerBase) {
       try {
-        const res = await get(`${workerBase}/api/mixes`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await get(`${workerBase}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
         if (res.ok) {
-          const mixes = await res.json();
-          record('pass', 'Authenticated API', `GET /api/mixes → ${Array.isArray(mixes) ? mixes.length + ' mix(es)' : 'ok'}`);
+          const body = await res.json();
+          sessionToken = body.token || null;
+          if (sessionToken) record('pass', 'Login flow', `POST /auth/login → token for ${email}`);
+          else record('fail', 'Login flow', 'HTTP 200 but no token in the response', 'Check the Worker logs (npx wrangler tail).');
         } else if (res.status === 401) {
-          record('fail', 'Authenticated API', 'HTTP 401',
-            'Token rejected — it must be a login JWT (from /auth/login) or the exact ADMIN_TOKEN secret. JWTs expire; log in again for a fresh one.');
+          record('fail', 'Login flow', 'HTTP 401 — wrong email or password');
+        } else if (res.status === 429) {
+          record('fail', 'Login flow', 'HTTP 429 — rate limited', 'Too many failed attempts from this IP; wait 15 minutes.');
         } else {
-          record('fail', 'Authenticated API', `HTTP ${res.status}`, 'Unexpected response — check the Worker logs (npx wrangler tail).');
+          record('fail', 'Login flow', `HTTP ${res.status}`, 'Check the Worker logs (npx wrangler tail).');
         }
       } catch (err) {
-        record('fail', 'Authenticated API', err.message, 'Worker unreachable.');
+        record('fail', 'Login flow', err.message, 'Worker unreachable.');
       }
     } else {
-      record('skip', 'Authenticated API', '--token given but no Worker URL configured', 'Set OFFGRID_API_BASE or pass --worker.');
+      record('skip', 'Login flow', '--email/--password given but no Worker URL configured', 'Set OFFGRID_API_BASE or pass --worker.');
     }
   } else {
-    record('skip', 'Authenticated API', 'pass --token <jwt-or-admin-token> to test it');
+    record('skip', 'Login flow', 'pass --email <email> --password <password> to test it');
+  }
+
+  // 7. Authenticated API (uses --token, or the login-flow token from above)
+  const authToken = token || sessionToken;
+  if (authToken) {
+    if (workerBase) {
+      for (const [path_, label] of [['/api/mixes', 'mix(es)'], ['/api/playlists', 'playlist(s)']]) {
+        try {
+          const res = await get(`${workerBase}${path_}`, { headers: { Authorization: `Bearer ${authToken}` } });
+          if (res.ok) {
+            const rows = await res.json();
+            record('pass', `Authenticated GET ${path_}`, Array.isArray(rows) ? `${rows.length} ${label}` : 'ok');
+          } else if (res.status === 401) {
+            record('fail', `Authenticated GET ${path_}`, 'HTTP 401',
+              'Token rejected — it must be a login JWT (from /auth/login) or the exact ADMIN_TOKEN secret. JWTs expire; log in again for a fresh one.');
+          } else {
+            record('fail', `Authenticated GET ${path_}`, `HTTP ${res.status}`, 'Unexpected response — check the Worker logs (npx wrangler tail).');
+          }
+        } catch (err) {
+          record('fail', `Authenticated GET ${path_}`, err.message, 'Worker unreachable.');
+        }
+      }
+    } else {
+      record('skip', 'Authenticated API', 'token available but no Worker URL configured', 'Set OFFGRID_API_BASE or pass --worker.');
+    }
+  } else {
+    record('skip', 'Authenticated API', 'pass --token <jwt-or-admin-token> (or --email/--password) to test it');
   }
 
   finish();
