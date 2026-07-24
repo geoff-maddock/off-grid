@@ -231,6 +231,9 @@ function playlistSection(pl, { linkTitle = false } = {}) {
     .filter(Boolean)
     .map(m => ({
       src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks, mixId: m.id,
+      // The mix's tracklist entries — the mounted player shows the same
+      // Tracklist button/panel as on the mix's own page.
+      tracks: m.tracks,
       // Same meta links as standalone players: title -> mix page,
       // artist -> artist filter (see makePlayer).
       titleHref: '#/mix/' + encodeURIComponent(m.id),

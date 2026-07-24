@@ -2066,15 +2066,17 @@ class OffgridPlayer extends HTMLElement {
       this._wsSeek(this._ws.getCurrentTime() + ((d && d.seekOffset) || 10));
       this._msPosition();
     });
-    // prev/next jump between tracklist cues within the mix, or between mixes
-    // when mounted inside <offgrid-playlist> (which sets `mediaNav`). Left
-    // unregistered otherwise so OS widgets don't show dead buttons.
-    if (this._msCueTimes().length) {
-      set('previoustrack', () => this._msPrevCue());
-      set('nexttrack', () => this._msNextCue());
-    } else if (this.mediaNav) {
+    // prev/next advance between mixes when mounted inside <offgrid-playlist>
+    // (which sets `mediaNav` — this wins even when the mix has its own
+    // tracklist cues, keeping the documented playlist behavior), or jump
+    // between tracklist cues within a standalone mix. Left unregistered
+    // otherwise so OS widgets don't show dead buttons.
+    if (this.mediaNav) {
       set('previoustrack', () => this.mediaNav.prev());
       set('nexttrack', () => this.mediaNav.next());
+    } else if (this._msCueTimes().length) {
+      set('previoustrack', () => this._msPrevCue());
+      set('nexttrack', () => this._msNextCue());
     } else {
       set('previoustrack', null);
       set('nexttrack', null);
@@ -2927,8 +2929,11 @@ class OffgridPlaylist extends HTMLElement {
     // discards the old element, whose disconnectedCallback flushes its session.
     if (t.mixId) player.setAttribute('mix-id', t.mixId);
     if (this.getAttribute('api-base')) player.setAttribute('api-base', this.getAttribute('api-base'));
-    // OS media-widget prev/next advance the playlist (inner players have no
-    // tracklist cues of their own).
+    // The mix's own tracklist (if any) — gives the inner player the same
+    // Tracklist button/panel as a standalone mix player.
+    if (Array.isArray(t.tracks) && t.tracks.length) player.tracks = t.tracks;
+    // OS media-widget prev/next advance the playlist; mediaNav wins over the
+    // mix's tracklist cues (see the media-session registration).
     player.mediaNav = { prev: () => this._advance(-1), next: () => this._advance(1) };
 
     // Style override for embedding
