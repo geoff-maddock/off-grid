@@ -510,6 +510,10 @@ off-grid/
   index.html             # Public player page (loads manifest.json from R2)
   audio-player.js        # Web component source (<offgrid-player>, <offgrid-playlist>)
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
+  package.json           # Dev tooling only (lint + tests) — the frontend still has no build step
+  eslint.config.mjs      # Flat-config ESLint (browser / worker / node file groups)
+  tests/                 # Vitest suite for the Worker's security-critical modules (npm test)
+  .github/workflows/     # CI: lint + tests on push/PR
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   generate-share-pages.mjs # Static per-mix share pages (OG/Twitter/JSON-LD) for scrapers
   mix/                   # Generated share pages (gitignored build artifact)

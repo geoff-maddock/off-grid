@@ -52,7 +52,9 @@ walkthroughs to the README.
 - **Default infra names**: Worker `offgrid-api`, D1 `offgrid-db`, R2 bucket `offgrid-media`. These
   are defaults users override in `wrangler.toml`.
 - No build step for the frontend — `index.html`, `audio-player.js`, and `admin/` are plain static
-  files. The only `npm` project is `worker/` (Wrangler).
+  files. `worker/` is its own npm project (Wrangler); the root `package.json` is dev tooling only
+  (ESLint + vitest). Run `npm run lint` and `npm test` from the repo root before finishing a task;
+  CI (`.github/workflows/ci.yml`) enforces both. New tests go in `tests/*.test.mjs`.
 - WaveSurfer.js is loaded from CDN on first play; don't bundle it.
 
 ## Architecture (one-liner)
