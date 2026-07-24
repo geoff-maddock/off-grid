@@ -1073,7 +1073,7 @@ class OffgridPlayer extends HTMLElement {
         <div class="top">
           <div class="thumb-wrap">
             ${thumb
-              ? `<img src="${thumb}" alt="thumbnail" class="thumb-img">`
+              ? `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img">`
               : `<div class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
@@ -1083,12 +1083,12 @@ class OffgridPlayer extends HTMLElement {
 
           <div class="meta-row">
             ${titleHref
-              ? `<a class="track-title" href="${this._esc(titleHref)}">${title}</a>`
-              : `<div class="track-title">${title}</div>`}
+              ? `<a class="track-title" href="${this._esc(titleHref)}">${this._esc(title)}</a>`
+              : `<div class="track-title">${this._esc(title)}</div>`}
             ${artist
               ? (artistHref
-                ? `<a class="track-artist" href="${this._esc(artistHref)}">${artist}</a>`
-                : `<div class="track-artist">${artist}</div>`)
+                ? `<a class="track-artist" href="${this._esc(artistHref)}">${this._esc(artist)}</a>`
+                : `<div class="track-artist">${this._esc(artist)}</div>`)
               : ''}
             <div class="time-row">
               <span class="time-display time-current">0:00</span>
@@ -1616,7 +1616,7 @@ class OffgridPlayer extends HTMLElement {
 
     const thumbWrap = this.shadowRoot.querySelector('.thumb-wrap');
     if (thumbWrap && thumb) {
-      thumbWrap.innerHTML = `<img src="${thumb}" alt="thumbnail" class="thumb-img">`;
+      thumbWrap.innerHTML = `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img">`;
     }
 
     this._renderDetails();
@@ -1695,7 +1695,7 @@ class OffgridPlayer extends HTMLElement {
     }
 
     tagWrap.innerHTML = tags.map(t =>
-      `<span class="tag-pill">${t}</span>`
+      `<span class="tag-pill">${this._esc(t)}</span>`
     ).join('');
 
     tagWrap.querySelectorAll('.tag-pill').forEach(pill => {
@@ -2729,12 +2729,12 @@ class OffgridPlaylist extends HTMLElement {
                 </div>
               </div>
               ${t.thumb
-                ? `<img class="track-thumb" src="${t.thumb}" alt="">`
+                ? `<img class="track-thumb" src="${this._esc(t.thumb)}" alt="">`
                 : `<div class="thumb-ph"><svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/></svg></div>`}
               <div class="track-info">
-                <div class="track-name">${t.title || t.src.split('/').pop()}</div>
+                <div class="track-name">${this._esc(t.title || t.src.split('/').pop())}</div>
                 ${t.artist || this.getAttribute('artist')
-                  ? `<div class="track-sub">${t.artist || this.getAttribute('artist')}</div>` : ''}
+                  ? `<div class="track-sub">${this._esc(t.artist || this.getAttribute('artist'))}</div>` : ''}
               </div>
               <div class="track-arrow">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
