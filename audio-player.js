@@ -127,6 +127,58 @@ const OffgridShared = {
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
         }`,
 
+  // Tag pill styling shared by the player meta row and the playlist header.
+  tagPillCss: `
+        .tag-pill {
+          display: inline-block;
+          background: color-mix(in srgb, var(--accent) 12%, transparent);
+          border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+          border-radius: 20px;
+          padding: 1px 8px;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 9px;
+          letter-spacing: 0.03em;
+          color: color-mix(in srgb, var(--accent) 80%, var(--text));
+          text-transform: lowercase;
+          line-height: 1.6;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s;
+        }
+
+        .tag-pill:hover {
+          background: color-mix(in srgb, var(--accent) 22%, transparent);
+          border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+        }`,
+
+  // The `tags` attribute accepts a JSON array or a comma-separated list.
+  parseTags(attr) {
+    try {
+      const parsed = JSON.parse(attr);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return attr ? attr.split(',').map((t) => t.trim()).filter(Boolean) : [];
+    }
+  },
+
+  // Render the host's `tags` attribute as clickable pills into `container`.
+  // Clicks dispatch a composed `tagclick` event the hosting page routes to
+  // its tag view.
+  renderTagPills(host, container) {
+    if (!container) return;
+    const tags = this.parseTags(host.getAttribute('tags') || '');
+    container.innerHTML = tags.map((t) =>
+      `<button type="button" class="tag-pill">${this.esc(t)}</button>`
+    ).join('');
+    container.querySelectorAll('.tag-pill').forEach((pill) => {
+      pill.addEventListener('click', () => {
+        host.dispatchEvent(new CustomEvent('tagclick', {
+          bubbles: true, composed: true,
+          detail: { tag: pill.textContent },
+        }));
+      });
+    });
+  },
+
   // Click `triggerSelector` to view the component's `thumb` full-size;
   // backdrop click or Escape closes. Manages the document-level key listener
   // on the component (its disconnectedCallback removes it). No-op when the
@@ -656,27 +708,7 @@ class OffgridPlayer extends HTMLElement {
           outline: 2px solid var(--accent);
           outline-offset: -2px;
         }
-
-        .tag-pill {
-          display: inline-block;
-          background: color-mix(in srgb, var(--accent) 12%, transparent);
-          border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-          border-radius: 20px;
-          padding: 1px 8px;
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 9px;
-          letter-spacing: 0.03em;
-          color: color-mix(in srgb, var(--accent) 80%, var(--text));
-          text-transform: lowercase;
-          line-height: 1.6;
-          cursor: pointer;
-          transition: background 0.15s, border-color 0.15s;
-        }
-
-        .tag-pill:hover {
-          background: color-mix(in srgb, var(--accent) 22%, transparent);
-          border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-        }
+        ${OffgridShared.tagPillCss}
 
         .play-btn-wrap {
           display: flex;
@@ -1821,29 +1853,7 @@ class OffgridPlayer extends HTMLElement {
   }
 
   _renderTags() {
-    const tagWrap = this.shadowRoot.querySelector('#tag-wrap');
-    if (!tagWrap) return;
-
-    const tagsAttr = this.getAttribute('tags') || '';
-    let tags = [];
-    try {
-      tags = JSON.parse(tagsAttr);
-    } catch {
-      tags = tagsAttr ? tagsAttr.split(',').map(t => t.trim()).filter(Boolean) : [];
-    }
-
-    tagWrap.innerHTML = tags.map(t =>
-      `<button type="button" class="tag-pill">${this._esc(t)}</button>`
-    ).join('');
-
-    tagWrap.querySelectorAll('.tag-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        this.dispatchEvent(new CustomEvent('tagclick', {
-          bubbles: true, composed: true,
-          detail: { tag: pill.textContent }
-        }));
-      });
-    });
+    OffgridShared.renderTagPills(this, this.shadowRoot.querySelector('#tag-wrap'));
   }
 
   _generateEmbedCode() {
@@ -2342,7 +2352,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title', 'title-href', 'artist-href'];
+    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title', 'title-href', 'artist-href', 'tags'];
   }
 
   constructor() {
@@ -2500,6 +2510,18 @@ class OffgridPlaylist extends HTMLElement {
           color: var(--accent);
           text-decoration: underline;
         }
+
+        .pl-header-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-top: 4px;
+        }
+
+        .pl-header-tags:empty {
+          display: none;
+        }
+        ${OffgridShared.tagPillCss}
 
         /* Full-size artwork lightbox */${OffgridShared.lightboxCss}
 
@@ -2832,6 +2854,7 @@ class OffgridPlaylist extends HTMLElement {
             <div class="pl-header-info">
               ${this._headerMeta('title', 'pl-header-title')}
               ${this._headerMeta('artist', 'pl-header-artist')}
+              <div class="pl-header-tags" id="pl-header-tags"></div>
             </div>
           </div>` : ''}
         <div class="player-slot" id="player-slot"></div>
@@ -2905,6 +2928,7 @@ class OffgridPlaylist extends HTMLElement {
     this._mountPlayer(0);
     this._bindListEvents();
     this._bindLightbox();
+    OffgridShared.renderTagPills(this, this.shadowRoot.querySelector('#pl-header-tags'));
   }
 
   // Cover lightbox — click the header cover to view the full-size image,
@@ -2953,6 +2977,8 @@ class OffgridPlaylist extends HTMLElement {
     // The mix's own tracklist (if any) — gives the inner player the same
     // Tracklist button/panel as a standalone mix player.
     if (Array.isArray(t.tracks) && t.tracks.length) player.tracks = t.tracks;
+    // The mix's tag pills, clickable like on standalone players.
+    if (Array.isArray(t.tags) && t.tags.length) player.setAttribute('tags', JSON.stringify(t.tags));
     // OS media-widget prev/next advance the playlist; mediaNav wins over the
     // mix's tracklist cues (see the media-session registration).
     player.mediaNav = { prev: () => this._advance(-1), next: () => this._advance(1) };
@@ -3058,12 +3084,14 @@ class OffgridPlaylist extends HTMLElement {
     const size = this.getAttribute('size');
     const thumb = this.getAttribute('thumb');
     const title = this.getAttribute('title');
+    const tags = this.getAttribute('tags');
     if (color) attrs += `\n  color="${this._esc(color)}"`;
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
     if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
     if (size) attrs += `\n  size="${this._esc(size)}"`;
     if (thumb) attrs += `\n  thumb="${this._esc(thumb)}"`;
     if (title) attrs += `\n  title="${this._esc(title)}"`;
+    if (tags) attrs += `\n  tags="${this._esc(tags)}"`;
     // Bake the API base in so embeds keep reporting plays (mixIds ride along
     // in the serialized tracks JSON below).
     const apiBase = this.getAttribute('api-base')

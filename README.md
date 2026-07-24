@@ -375,6 +375,7 @@ are defined as JSON in a child `<script type="application/json">`:
 | `thumb`   | No       | URL to a playlist cover image, shown in a header above the player (click to view full-size); also the fallback artwork for tracks without their own `thumb` |
 | `title`   | No       | Playlist title, shown prominently in the cover header alongside the `artist` |
 | `title-href` / `artist-href` | No | Make the header title/artist links (the player page points them at its playlist page and creator-filtered views); omitted from copied embed snippets |
+| `tags`    | No       | JSON array (or comma list) of tags shown as pills in the cover header — the player page aggregates them from the member mixes; clicks emit `tagclick` |
 | `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
 | `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
 | `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |

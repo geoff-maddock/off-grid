@@ -238,11 +238,17 @@ function playlistSection(pl, { linkTitle = false } = {}) {
       // The mix's tracklist entries — the mounted player shows the same
       // Tracklist button/panel as on the mix's own page.
       tracks: m.tracks,
+      // The mix's tags, rendered as clickable pills on the mounted player.
+      tags: m.tags,
       // Same meta links as standalone players: title -> mix page,
       // artist -> artist filter (see makePlayer).
       titleHref: '#/mix/' + encodeURIComponent(m.id),
       artistHref: m.artist ? '#/artist/' + encodeURIComponent(m.artist) : undefined,
     }));
+  // Aggregated tags across the member mixes, shown as pills in the playlist
+  // header (clicking one goes to that tag's mix list, like player pills).
+  const plTags = [...new Set(tracks.flatMap(t => t.tags || []))];
+  if (plTags.length) playlist.setAttribute('tags', JSON.stringify(plTags));
   playlist.tracks = tracks;
   section.appendChild(playlist);
   return section;
