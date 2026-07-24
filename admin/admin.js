@@ -1653,16 +1653,34 @@ async function submitInvite(e) {
   }
 }
 
-function apiFetch(path, options = {}) {
+async function apiFetch(path, options = {}) {
   const url = `${API_URL}${path}`;
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
+  const hadToken = !!authToken;
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
-  return fetch(url, { ...options, headers });
+  const resp = await fetch(url, { ...options, headers });
+  // A 401 on an authenticated call means the session expired or was revoked
+  // (7-day JWT, password change, account disable). Handle it once, centrally.
+  // /auth/* is excluded: the startup /auth/me probe has its own handling.
+  if (resp.status === 401 && hadToken && !path.startsWith('/auth/')) {
+    handleSessionExpired();
+  }
+  return resp;
+}
+
+let sessionExpiredHandled = false;
+function handleSessionExpired() {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+  localStorage.removeItem('offgrid_token');
+  authToken = '';
+  toast('Your session has expired — please sign in again.', 'error');
+  showLogin();
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
