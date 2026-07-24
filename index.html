@@ -1259,6 +1259,7 @@
     function playlistSection(pl, { linkTitle = false } = {}) {
       const href = linkTitle && pl.id ? `#/playlist/${encodeURIComponent(pl.id)}` : null;
       const section = sectionEl(pl.title, href);
+      section.dataset.playlistId = pl.id;
       section.dataset.search = playlistSearchText(pl);
       const playlist = document.createElement('offgrid-playlist');
       playlist.setAttribute('theme', state.theme);
@@ -1865,11 +1866,51 @@
       });
     })();
 
-    // Sort control re-renders the current view
+    // Sort control re-renders the current view — except while a mix is
+    // playing, where a rebuild would stop the audio; then the existing
+    // elements are reordered in place instead (they survive DOM moves).
     document.getElementById('sort-select').addEventListener('change', (e) => {
       state.sort = e.target.value;
+      if (resortInPlace()) return;
       render();
     });
+
+    // Move `container`'s children into `keys` order. Bails (false) unless the
+    // children map 1:1 onto the keys, so any mismatch falls back to render().
+    function reorderByKey(container, keys, getKey) {
+      const byKey = new Map([...container.children].map(el => [getKey(el), el]));
+      if (byKey.size !== container.children.length) return false;
+      if (keys.length !== byKey.size || keys.some(k => !byKey.has(k))) return false;
+      for (const k of keys) container.appendChild(byKey.get(k));
+      return true;
+    }
+
+    function resortInPlace() {
+      if (!document.querySelector('offgrid-player[playing]')) return false;
+      const root = view();
+      let done = false;
+      // Mix stacks: entries keyed by the inner player's mix-id.
+      const stack = root.querySelector('.player-stack');
+      if (stack) {
+        const entryId = (el) => el.querySelector('offgrid-player')?.getAttribute('mix-id');
+        const mixes = [...stack.children].map(el => state.mixMap.get(entryId(el)));
+        if (!mixes.every(Boolean)) return false;
+        if (!reorderByKey(stack, sortMixes(mixes).map(m => m.id), entryId)) return false;
+        done = true;
+      }
+      // Playlist sections (keyed via data-playlist-id) re-sort among
+      // themselves; appendChild keeps them after the mix section.
+      const plSections = [...root.children].filter(el => el.dataset && el.dataset.playlistId);
+      if (plSections.length) {
+        const pls = plSections.map(el => state.playlists.find(p => p.id === el.dataset.playlistId));
+        if (!pls.every(Boolean)) return done;
+        for (const pl of sortPlaylists(pls)) {
+          root.appendChild(plSections.find(el => el.dataset.playlistId === pl.id));
+        }
+        done = true;
+      }
+      return done;
+    }
 
     // Filter toggle shows/hides the chip panel (per-view groups)
     document.getElementById('browse-toggle').addEventListener('click', () => {
@@ -1893,7 +1934,10 @@
       document.documentElement.dataset.theme = t;
       try { localStorage.setItem('theme', t); } catch (e) { /* private mode */ }
       updateThemeToggleLabel(t);
-      render();  // re-creates embedded elements with the new `theme` attribute
+      // Re-theme embedded elements in place — rebuilding them would stop any
+      // mix that's currently playing (they live-update on the theme attribute).
+      document.querySelectorAll('offgrid-player, offgrid-playlist')
+        .forEach(el => el.setAttribute('theme', t));
     }
 
     updateThemeToggleLabel(state.theme);

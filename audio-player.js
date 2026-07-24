@@ -53,6 +53,10 @@ class OffgridPlayer extends HTMLElement {
   }
 
   connectedCallback() {
+    // A DOM move (remove + re-insert, e.g. an in-place re-sort) re-fires this;
+    // re-rendering would destroy live playback state — see #49.
+    if (this._rendered) return;
+    this._rendered = true;
     this._render();
     this._initInlineTracklist();
     this._applyStartAt();
@@ -105,23 +109,28 @@ class OffgridPlayer extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this._msRelease();
-    // The playlist swaps tracks by discarding the whole player element, so
-    // flush any unreported listening time before teardown.
-    this._tkStop();
-    if (this._tkOnHidden) {
-      document.removeEventListener('visibilitychange', this._tkOnHidden);
-      window.removeEventListener('pagehide', this._tkOnHidden);
-      this._tkOnHidden = null;
-    }
-    if (this._ws) {
-      this._ws.destroy();
-      this._ws = null;
-    }
-    if (this._onLightboxKey) {
-      document.removeEventListener('keydown', this._onLightboxKey);
-      this._onLightboxKey = null;
-    }
+    // Deferred so a synchronous remove+insert (a DOM move) skips teardown and
+    // playback survives — see #49. A real removal proceeds one microtask later.
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      this._msRelease();
+      // The playlist swaps tracks by discarding the whole player element, so
+      // flush any unreported listening time before teardown.
+      this._tkStop();
+      if (this._tkOnHidden) {
+        document.removeEventListener('visibilitychange', this._tkOnHidden);
+        window.removeEventListener('pagehide', this._tkOnHidden);
+        this._tkOnHidden = null;
+      }
+      if (this._ws) {
+        this._ws.destroy();
+        this._ws = null;
+      }
+      if (this._onLightboxKey) {
+        document.removeEventListener('keydown', this._onLightboxKey);
+        this._onLightboxKey = null;
+      }
+    });
   }
 
   attributeChangedCallback(name, oldVal, newVal) {
@@ -140,6 +149,24 @@ class OffgridPlayer extends HTMLElement {
     }
     if (name === 'open-tracklist') {
       this._applyTracklistOpen();
+    }
+    if ((name === 'theme' || name === 'color') && oldVal !== newVal) {
+      this._applyThemeLive();
+    }
+  }
+
+  // Re-theme in place (no re-render) so switching the page theme never
+  // destroys live playback — see #49. The #theme-style element sits after the
+  // main stylesheet, so its :host block wins by source order.
+  _applyThemeLive() {
+    const el = this.shadowRoot.querySelector('#theme-style');
+    if (!el) return;
+    el.textContent = `:host { ${this._themeVars()} }`;
+    if (this._ws) {
+      this._ws.setOptions({
+        waveColor: this._waveBgColor(),
+        progressColor: this._waveProgressColor(),
+      });
     }
   }
 
@@ -1074,6 +1101,8 @@ class OffgridPlayer extends HTMLElement {
           .vol-wrap { gap: 0; }
         }
       </style>
+
+      <style id="theme-style"></style>
 
       <div class="player" part="player">
         <div class="top">
@@ -2274,12 +2303,26 @@ class OffgridPlaylist extends HTMLElement {
   }
 
   connectedCallback() {
+    if (this._rendered) return; // DOM move, not first insert — see #49
+    this._rendered = true;
     // Parse inline JSON tracks
     const jsonEl = this.querySelector('script[type="application/json"]');
     if (jsonEl) {
       try { this._tracks = this._sanitizeTracks(JSON.parse(jsonEl.textContent)); } catch(e) {}
     }
     this._render();
+  }
+
+  // Live re-theme without re-rendering (which would tear down the embedded
+  // player mid-playback) — see #49. Forwards to the mounted inner player,
+  // which re-themes itself the same way.
+  attributeChangedCallback(name, oldVal, newVal) {
+    if (!this.shadowRoot || oldVal === newVal) return;
+    if (name === 'theme' || name === 'color') {
+      const el = this.shadowRoot.querySelector('#theme-style');
+      if (el) el.textContent = `:host { ${this._themeVars()} }`;
+      if (this._playerEl) this._playerEl.setAttribute(name, newVal);
+    }
   }
 
   set tracks(arr) {
@@ -2775,6 +2818,8 @@ class OffgridPlaylist extends HTMLElement {
         }
       </style>
 
+      <style id="theme-style"></style>
+
       <div class="playlist-wrap" part="playlist">
         ${this.getAttribute('thumb') ? `
           <div class="pl-header">
@@ -2886,10 +2931,14 @@ class OffgridPlaylist extends HTMLElement {
   }
 
   disconnectedCallback() {
-    if (this._onLightboxKey) {
-      document.removeEventListener('keydown', this._onLightboxKey);
-      this._onLightboxKey = null;
-    }
+    // Deferred like the player's: a synchronous DOM move must not tear down.
+    queueMicrotask(() => {
+      if (this.isConnected) return;
+      if (this._onLightboxKey) {
+        document.removeEventListener('keydown', this._onLightboxKey);
+        this._onLightboxKey = null;
+      }
+    });
   }
 
   _mountPlayer(index) {
