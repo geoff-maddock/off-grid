@@ -648,7 +648,8 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 | Method | Path                     | Description |
 |--------|--------------------------|-------------|
 | `GET`  | `/api/manifest`          | Generate manifest JSON from D1 |
-| `POST` | `/api/manifest/publish`  | Write `manifest.json` to R2 |
+| `GET`  | `/api/manifest/status`   | `{ dirty, publishedAt }` — has content changed since the last publish? Backs the admin's "Unpublished changes" badge |
+| `POST` | `/api/manifest/publish`  | Write `manifest.json` to R2 (clears the unpublished-changes flag) |
 
 ### Tracking & stats
 

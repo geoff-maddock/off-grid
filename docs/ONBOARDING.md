@@ -172,7 +172,7 @@ Apply the database schema — **all migrations, in order**:
 npm run db:migrate:all
 ```
 
-> This runs every file in `worker/migrations/` (001–007) against your remote D1 database.
+> This runs every file in `worker/migrations/` (001–008) against your remote D1 database.
 > (`npm run db:migrate` applies only `001_init.sql` — don't stop there, or tracklists, accounts,
 > rate limiting, and play tracking will be missing.) Migrations aren't tracked by
 > `wrangler d1 execute`: run each once, on a fresh database. On a **fresh install** running all

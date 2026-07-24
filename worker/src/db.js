@@ -312,6 +312,42 @@ export async function resolveOwnerId(db, user) {
   return user ? user.id : null;
 }
 
+// ── Publish state (unpublished-changes tracking) ───────────────────
+// All three helpers fail open: a missing publish_state table (migration 008
+// not yet applied) must never break content writes, publishing, or the admin.
+
+export async function markDirty(db, ownerId) {
+  if (!ownerId) return;
+  try {
+    await db.prepare(
+      `INSERT INTO publish_state (owner_id, dirty) VALUES (?, 1)
+       ON CONFLICT(owner_id) DO UPDATE SET dirty = 1`
+    ).bind(ownerId).run();
+  } catch { /* fail open */ }
+}
+
+export async function markPublished(db, ownerId) {
+  if (!ownerId) return;
+  try {
+    await db.prepare(
+      `INSERT INTO publish_state (owner_id, dirty, published_at) VALUES (?, 0, datetime('now'))
+       ON CONFLICT(owner_id) DO UPDATE SET dirty = 0, published_at = datetime('now')`
+    ).bind(ownerId).run();
+  } catch { /* fail open */ }
+}
+
+export async function getPublishState(db, ownerId) {
+  if (!ownerId) return { dirty: false, publishedAt: null };
+  try {
+    const row = await db.prepare(
+      'SELECT dirty, published_at FROM publish_state WHERE owner_id = ?'
+    ).bind(ownerId).first();
+    return { dirty: !!(row && row.dirty), publishedAt: row?.published_at || null };
+  } catch {
+    return { dirty: false, publishedAt: null };
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────
 
 function parseMixRow(row) {

@@ -476,6 +476,7 @@ async function saveMix(e) {
   // An edit opened from the mix view page should refresh that page too.
   if ((location.hash || '').startsWith('#/mix/')) route();
   toast(editId ? 'Mix updated.' : 'Mix added.');
+  setPublishDirty(true);
 }
 
 // Global functions for inline onclick handlers
@@ -520,6 +521,7 @@ window.deleteMix = function (id) {
     renderMixes();
     renderPlaylists();
     toast('Mix deleted.');
+    setPublishDirty(true);
   });
 };
 
@@ -855,6 +857,7 @@ async function savePlaylist(e) {
   closePlaylistModal();
   renderPlaylists();
   toast(editId ? 'Playlist updated.' : 'Playlist added.');
+  setPublishDirty(true);
 }
 
 window.editPlaylist = function (id) {
@@ -875,6 +878,7 @@ window.deletePlaylist = function (id) {
     manifest.playlists = manifest.playlists.filter(p => p.id !== id);
     renderPlaylists();
     toast('Playlist deleted.');
+    setPublishDirty(true);
   });
 };
 
@@ -1496,7 +1500,7 @@ function showApp() {
       headerActions.appendChild(logoutBtn);
     }
 
-    // Add Publish button for API mode
+    // Add Publish button for API mode, with the unpublished-changes badge.
     if (!document.getElementById('btn-publish')) {
       const publishBtn = document.createElement('button');
       publishBtn.id = 'btn-publish';
@@ -1505,7 +1509,16 @@ function showApp() {
       publishBtn.title = 'Regenerate manifest.json from D1 and write to R2';
       publishBtn.addEventListener('click', publishManifest);
       headerActions.insertBefore(publishBtn, headerActions.firstChild);
+
+      const dirtyBadge = document.createElement('span');
+      dirtyBadge.id = 'publish-dirty';
+      dirtyBadge.className = 'publish-dirty';
+      dirtyBadge.textContent = 'Unpublished changes';
+      dirtyBadge.title = 'Content has changed since the last Publish — the public page is showing the old manifest.';
+      dirtyBadge.hidden = true;
+      headerActions.insertBefore(dirtyBadge, publishBtn);
     }
+    refreshPublishState();
 
     // Reveal admin-only Users tab + show identity
     if (currentUser && currentUser.role === 'admin') {
@@ -1521,6 +1534,21 @@ function showApp() {
   }
 }
 
+// Unpublished-changes badge: server-backed (survives reloads via
+// GET /api/manifest/status) and updated optimistically after local writes.
+function setPublishDirty(dirty) {
+  const badge = document.getElementById('publish-dirty');
+  if (badge) badge.hidden = !dirty;
+}
+
+async function refreshPublishState() {
+  if (!API_URL || !authToken) return;
+  try {
+    const resp = await apiFetch('/api/manifest/status');
+    if (resp.ok) setPublishDirty(!!(await resp.json()).dirty);
+  } catch { /* non-fatal — the badge just stays as-is */ }
+}
+
 async function publishManifest() {
   if (!API_URL || !authToken) return;
   try {
@@ -1528,6 +1556,7 @@ async function publishManifest() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     toast(`Published: ${data.mixCount} mixes, ${data.playlistCount} playlists.`);
+    setPublishDirty(false);
     if (data.manifestKey && R2_PUBLIC_URL) {
       showManifestUrl(`${R2_PUBLIC_URL}/${data.manifestKey}`, data.legacyManifest);
     }

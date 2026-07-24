@@ -1109,3 +1109,21 @@ html, body {
     gap: 0;
   }
 }
+
+/* Unpublished-changes badge next to the Publish button */
+.publish-dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #e8b339;
+  white-space: nowrap;
+}
+
+.publish-dirty::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e8b339;
+}

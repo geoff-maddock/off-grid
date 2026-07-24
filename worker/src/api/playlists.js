@@ -4,7 +4,7 @@
 
 import {
   listPlaylists, getPlaylist, createPlaylist, updatePlaylist, deletePlaylist,
-  addMixToPlaylist, removeMixFromPlaylist, resolveOwnerId
+  addMixToPlaylist, removeMixFromPlaylist, resolveOwnerId, markDirty
 } from '../db.js';
 import { cleanupDeletedFiles } from '../r2.js';
 import { pageParams } from './mixes.js';
@@ -42,6 +42,7 @@ export async function handlePlaylists(request, env, path, method, user) {
       return jsonResponse({ error: 'Playlist with this ID already exists' }, 409);
     }
     const pl = await createPlaylist(db, { ...body, ownerId });
+    await markDirty(db, ownerId);
     return jsonResponse(pl, 201);
   }
 
@@ -55,6 +56,7 @@ export async function handlePlaylists(request, env, path, method, user) {
       return jsonResponse({ error: 'title is required' }, 400);
     }
     const pl = await updatePlaylist(db, id, body);
+    await markDirty(db, ownerId);
     return jsonResponse(pl);
   }
 
@@ -66,6 +68,7 @@ export async function handlePlaylists(request, env, path, method, user) {
     await deletePlaylist(db, id);
     // Best-effort cover cleanup once the row is gone (see cleanupDeletedFiles).
     await cleanupDeletedFiles(env, db, ownerId, [existing.thumb]);
+    await markDirty(db, ownerId);
     return jsonResponse({ deleted: id });
   }
 
@@ -78,6 +81,7 @@ export async function handlePlaylists(request, env, path, method, user) {
       return jsonResponse({ error: 'mixId is required' }, 400);
     }
     await addMixToPlaylist(db, playlistId, body.mixId);
+    await markDirty(db, ownerId);
     const pl = await getPlaylist(db, playlistId, ownerId);
     return jsonResponse(pl);
   }
@@ -88,6 +92,7 @@ export async function handlePlaylists(request, env, path, method, user) {
     if (!(await getPlaylist(db, playlistId, ownerId))) return jsonResponse({ error: 'Playlist not found' }, 404);
     const mixId = decodeURIComponent(plMixDelMatch[2]);
     await removeMixFromPlaylist(db, playlistId, mixId);
+    await markDirty(db, ownerId);
     const pl = await getPlaylist(db, playlistId, ownerId);
     return jsonResponse(pl);
   }

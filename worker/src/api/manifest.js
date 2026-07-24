@@ -2,7 +2,7 @@
  * Manifest generation and publish-to-R2 handler.
  */
 
-import { generateManifest, resolveOwnerId, getOwnerUserId } from '../db.js';
+import { generateManifest, resolveOwnerId, getOwnerUserId, markPublished, getPublishState } from '../db.js';
 
 export async function handleManifest(request, env, path, method, user) {
   const db = env.DB;
@@ -12,6 +12,11 @@ export async function handleManifest(request, env, path, method, user) {
   if (method === 'GET' && path === '/api/manifest') {
     const manifest = await generateManifest(db, ownerId);
     return jsonResponse(manifest);
+  }
+
+  // GET /api/manifest/status — has this owner's content changed since publish?
+  if (method === 'GET' && path === '/api/manifest/status') {
+    return jsonResponse(await getPublishState(db, ownerId));
   }
 
   // POST /api/manifest/publish — write the owner's manifest to R2
@@ -30,6 +35,8 @@ export async function handleManifest(request, env, path, method, user) {
     // point at data/manifest.json keep working unchanged.
     const isOwner = ownerId === (await getOwnerUserId(db));
     if (isOwner) await env.BUCKET.put('data/manifest.json', json, opts);
+
+    await markPublished(db, ownerId);
 
     return jsonResponse({
       published: true,

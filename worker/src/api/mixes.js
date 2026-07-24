@@ -2,7 +2,7 @@
  * Mix CRUD API handlers
  */
 
-import { listMixes, getMix, createMix, updateMix, deleteMix, resolveOwnerId } from '../db.js';
+import { listMixes, getMix, createMix, updateMix, deleteMix, resolveOwnerId, markDirty } from '../db.js';
 import { cleanupDeletedFiles } from '../r2.js';
 
 // Optional ?limit= / ?offset= for list endpoints (omitted → everything, so
@@ -54,6 +54,7 @@ export async function handleMixes(request, env, path, method, user) {
       return jsonResponse({ error: 'Mix with this ID already exists' }, 409);
     }
     const mix = await createMix(db, { ...body, ownerId });
+    await markDirty(db, ownerId);
     return jsonResponse(mix, 201);
   }
 
@@ -67,6 +68,7 @@ export async function handleMixes(request, env, path, method, user) {
       return jsonResponse({ error: 'title and src are required' }, 400);
     }
     const mix = await updateMix(db, id, body);
+    await markDirty(db, ownerId);
     return jsonResponse(mix);
   }
 
@@ -79,6 +81,7 @@ export async function handleMixes(request, env, path, method, user) {
     // After the row is gone: remove its files from R2 unless another record
     // still references them (best-effort, owner-scoped — see cleanupDeletedFiles).
     await cleanupDeletedFiles(env, db, ownerId, [existing.src, existing.thumb, existing.peaks]);
+    await markDirty(db, ownerId);
     return jsonResponse({ deleted: id });
   }
 
