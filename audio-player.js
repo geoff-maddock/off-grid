@@ -533,6 +533,12 @@ class OffgridPlayer extends HTMLElement {
           display: none;
         }
 
+        .tl-item:focus-visible,
+        #waveform:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: -2px;
+        }
+
         .tag-pill {
           display: inline-block;
           background: color-mix(in srgb, var(--accent) 12%, transparent);
@@ -1098,7 +1104,7 @@ class OffgridPlayer extends HTMLElement {
           </div>
 
           <div class="play-btn-wrap">
-            <button class="play-btn" aria-label="Play">
+            <button class="play-btn" aria-label="Play" aria-pressed="false">
               <div class="spinner"></div>
               <svg class="play-icon" width="16" height="16" viewBox="0 0 16 16" fill="white">
                 <path d="M3 2.5l11 5.5-11 5.5z"/>
@@ -1127,7 +1133,7 @@ class OffgridPlayer extends HTMLElement {
             </svg>
             <span id="error-msg">Failed to load audio</span>
           </div>
-          <div id="waveform" style="display:none"></div>
+          <div id="waveform" style="display:none" tabindex="0" role="slider" aria-label="Seek (arrow keys)" aria-valuemin="0"></div>
         </div>
 
         <div class="bottom-row">
@@ -1358,13 +1364,46 @@ class OffgridPlayer extends HTMLElement {
       });
     }
     if (tlList) {
-      tlList.addEventListener('click', (e) => {
+      const seekRow = (e) => {
         if (e.target.closest('.tl-link')) return; // let the link open; don't seek
         const li = e.target.closest('.tl-item');
         if (!li) return;
         const t = this._tracks[parseInt(li.dataset.i, 10)];
         if (t && Number.isFinite(t.seconds)) this._seekTo(t.seconds);
+      };
+      tlList.addEventListener('click', seekRow);
+      tlList.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        seekRow(e);
       });
+    }
+
+    // Keyboard seeking on the waveform (role="slider").
+    const waveEl = this.shadowRoot.querySelector('#waveform');
+    if (waveEl) {
+      waveEl.addEventListener('keydown', (e) => {
+        if (!this._ws || !this._ready) return;
+        const dur = this._ws.getDuration() || 0;
+        const cur = this._ws.getCurrentTime() || 0;
+        let t = null;
+        if (e.key === 'ArrowRight') t = Math.min(dur, cur + 5);
+        else if (e.key === 'ArrowLeft') t = Math.max(0, cur - 5);
+        else if (e.key === 'Home') t = 0;
+        else if (e.key === 'End') t = Math.max(0, dur - 0.5);
+        if (t === null) return;
+        e.preventDefault();
+        this._wsSeek(t);
+      });
+    }
+  }
+
+  // Keep the play button and waveform slider readable to assistive tech.
+  _setPlayingAria(playing) {
+    const btn = this.shadowRoot.querySelector('.play-btn');
+    if (btn) {
+      btn.setAttribute('aria-label', playing ? 'Pause' : 'Play');
+      btn.setAttribute('aria-pressed', playing ? 'true' : 'false');
     }
   }
 
@@ -1484,6 +1523,8 @@ class OffgridPlayer extends HTMLElement {
 
       const dur = this._ws.getDuration();
       this.shadowRoot.querySelector('.time-total').textContent = this._fmt(dur);
+      const waveEl = this.shadowRoot.querySelector('#waveform');
+      if (waveEl) waveEl.setAttribute('aria-valuemax', String(Math.round(dur)));
       if (msOwner === this) this._msPosition();
 
       if (this._seekOnReady != null) {
@@ -1499,6 +1540,8 @@ class OffgridPlayer extends HTMLElement {
     // rAF-driven: freezes in hidden tabs, so it only paints the clock.
     this._ws.on('audioprocess', (t) => {
       this.shadowRoot.querySelector('.time-current').textContent = this._fmt(t);
+      const waveEl = this.shadowRoot.querySelector('#waveform');
+      if (waveEl) waveEl.setAttribute('aria-valuenow', String(Math.round(t)));
     });
 
     // Media-driven (unlike audioprocess, keeps firing in hidden tabs while
@@ -1519,6 +1562,7 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('play', () => {
       this.setAttribute('playing', '');
+      this._setPlayingAria(true);
       this._tkStart();
       this._msActivate();
       this.dispatchEvent(new CustomEvent('trackplay', { bubbles: true, composed: true, detail: { src: this.getAttribute('src') } }));
@@ -1526,6 +1570,7 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('pause', () => {
       this.removeAttribute('playing');
+      this._setPlayingAria(false);
       this._tkStop();
       this._msSetPaused();
       this.dispatchEvent(new CustomEvent('trackpause', { bubbles: true, composed: true }));
@@ -1533,6 +1578,7 @@ class OffgridPlayer extends HTMLElement {
 
     this._ws.on('finish', () => {
       this.removeAttribute('playing');
+      this._setPlayingAria(false);
       this._tkStop();
       // Keep metadata so the OS widget survives a playlist auto-advance; the
       // next player's `play` re-claims the session with fresh metadata.
@@ -1708,7 +1754,7 @@ class OffgridPlayer extends HTMLElement {
     }
 
     tagWrap.innerHTML = tags.map(t =>
-      `<span class="tag-pill">${this._esc(t)}</span>`
+      `<button type="button" class="tag-pill">${this._esc(t)}</button>`
     ).join('');
 
     tagWrap.querySelectorAll('.tag-pill').forEach(pill => {
@@ -1762,7 +1808,7 @@ class OffgridPlayer extends HTMLElement {
     // If initialized but not ready, it will auto-play via _playOnReady
   }
   pause() { if (this._ws) this._ws.pause(); }
-  stop() { if (this._ws) { this._ws.stop(); this.removeAttribute('playing'); this._msSetPaused(); } }
+  stop() { if (this._ws) { this._ws.stop(); this.removeAttribute('playing'); this._setPlayingAria(false); this._msSetPaused(); } }
   isPlaying() { return this._ws ? this._ws.isPlaying() : false; }
 
   // Tracklist: array of { time?, seconds?, artist?, title? }
@@ -1808,7 +1854,7 @@ class OffgridPlayer extends HTMLElement {
       const linkHtml = safeUrl
         ? `<a class="tl-link" href="${this._esc(safeUrl)}" target="_blank" rel="noopener" title="Open link" aria-label="Open external link">&#8599;</a>`
         : '';
-      return `<li class="tl-item${seekable ? ' seekable' : ''}" data-i="${i}">` +
+      return `<li class="tl-item${seekable ? ' seekable' : ''}" data-i="${i}"${seekable ? ' tabindex="0" role="button"' : ''}>` +
         `<span class="tl-time">${this._esc(time) || '&middot;'}</span>` +
         `<span class="tl-label">${label}</span>${linkHtml}</li>`;
     }).join('');
@@ -2345,6 +2391,11 @@ class OffgridPlaylist extends HTMLElement {
           padding: 8px 0;
         }
 
+        .track-item:focus-visible {
+          outline: 2px solid var(--accent);
+          outline-offset: -2px;
+        }
+
         /* Playlist header (cover art) */
         .pl-header {
           display: flex;
@@ -2739,7 +2790,7 @@ class OffgridPlaylist extends HTMLElement {
 
         <ul class="track-list" id="track-list">
           ${tracks.map((t, i) => `
-            <li class="track-item${i === 0 ? ' active' : ''}" data-index="${i}">
+            <li class="track-item${i === 0 ? ' active' : ''}" data-index="${i}" tabindex="0" role="button">
               <div class="track-num">
                 <span class="num-label">${i + 1}</span>
                 <div class="bars">
@@ -2888,6 +2939,13 @@ class OffgridPlaylist extends HTMLElement {
 
   _bindListEvents() {
     const list = this.shadowRoot.querySelector('#track-list');
+    list.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const item = e.target.closest('.track-item');
+      if (!item) return;
+      e.preventDefault();
+      item.click();
+    });
     list.addEventListener('click', (e) => {
       const item = e.target.closest('.track-item');
       if (!item) return;
