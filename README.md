@@ -602,7 +602,7 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 | `POST`   | `/api/users/invite` | Create an invite (`{ email, role? }`) → one-time `inviteToken` |
 | `GET`    | `/api/users` | List users |
 | `PATCH`  | `/api/users/:id` | Set `role` / `status` |
-| `DELETE` | `/api/users/:id` | Delete a user |
+| `DELETE` | `/api/users/:id` | Delete a user (409 while they still own mixes/playlists — delete their content first) |
 
 ### R2 file operations
 

@@ -108,7 +108,16 @@ async function deleteUser(env, admin, id) {
   if (target.role === 'admin' && (await adminCount(env)) <= 1) {
     return json({ error: 'Cannot delete the last admin' }, 400);
   }
-  // NOTE: content ownership/reassignment arrives with Phase 2 (owner_id).
+  // Deleting a user who still owns content would orphan it in D1 and leak
+  // their users/<id>/ files in R2 — block until their library is empty.
+  const mixes = await env.DB.prepare('SELECT COUNT(*) AS n FROM mixes WHERE owner_id = ?').bind(id).first();
+  const playlists = await env.DB.prepare('SELECT COUNT(*) AS n FROM playlists WHERE owner_id = ?').bind(id).first();
+  const owned = (mixes?.n ?? 0) + (playlists?.n ?? 0);
+  if (owned > 0) {
+    return json({
+      error: `User still owns ${mixes?.n ?? 0} mix(es) and ${playlists?.n ?? 0} playlist(s) — delete their content first`,
+    }, 409);
+  }
   await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
   return json({ ok: true });
 }
