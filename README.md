@@ -612,6 +612,10 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 Both upload routes scope the key under the caller's `users/<id>/` namespace **and add a short
 random suffix to the filename** (`cover.jpg` → `cover-a1b2c3d4.jpg`) so same-named uploads never
 overwrite each other — always use the `key` returned in the response, not the one you sent.
+They also validate uploads per prefix: `audio/` accepts common audio extensions (max 500 MB),
+`covers/` accepts `jpg/jpeg/png/gif/webp/avif` images (max 10 MB), and `peaks/` accepts JSON
+(max 5 MB); anything else is rejected with a 400. `/presign` additionally takes a `size` field
+(`{ key, contentType, size }`) checked against the same caps.
 
 ### Mix CRUD
 

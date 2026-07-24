@@ -1073,7 +1073,7 @@ async function uploadBlobToR2(blob, key, { onProgress } = {}) {
   // Large file — presigned URL with upload progress
   const presignResp = await apiFetch('/presign', {
     method: 'POST',
-    body: JSON.stringify({ key, contentType }),
+    body: JSON.stringify({ key, contentType, size: blob.size }),
   });
   if (!presignResp.ok) {
     const err = await presignResp.json().catch(() => ({ error: 'Presign failed' }));

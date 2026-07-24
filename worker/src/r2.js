@@ -21,6 +21,53 @@ function scopeKey(key, ownerId) {
   return base + k;                         // prepend the owner's namespace
 }
 
+// Per-prefix upload rules: what may live under each users/<id>/<prefix>/.
+// Extensions are the primary gate (browsers report unreliable MIME types for
+// some audio containers); content types are checked against a pattern with an
+// octet-stream fallback allowed only where noted.
+const UPLOAD_RULES = {
+  audio: {
+    exts: ['mp3', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'wav', 'flac', 'webm'],
+    types: /^(audio\/|video\/(mp4|webm)$|application\/(ogg|octet-stream)$)/,
+    maxBytes: 500 * 1024 * 1024,
+  },
+  covers: {
+    exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'],
+    types: /^image\//,
+    maxBytes: 10 * 1024 * 1024,
+  },
+  peaks: {
+    exts: ['json'],
+    types: /^application\/json$/,
+    maxBytes: 5 * 1024 * 1024,
+  },
+};
+
+// Validate a scoped key (users/<id>/<prefix>/<name>) plus declared content
+// type and size against the prefix's rules. Returns an error string or null.
+// Exported for testing.
+export function validateUpload(scopedKey, contentType, size) {
+  const parts = scopedKey.split('/');
+  const prefix = parts[2];
+  const name = parts.slice(3).join('/');
+  const rules = UPLOAD_RULES[prefix];
+  if (!rules || !name) {
+    return `Uploads must go under one of: ${Object.keys(UPLOAD_RULES).join('/, ')}/`;
+  }
+  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  if (!rules.exts.includes(ext)) {
+    return `File type .${ext || '(none)'} is not allowed under ${prefix}/`;
+  }
+  const ct = String(contentType || '').split(';')[0].trim().toLowerCase();
+  if (!rules.types.test(ct)) {
+    return `Content type "${ct || 'unknown'}" is not allowed under ${prefix}/`;
+  }
+  if (Number.isFinite(size) && size > rules.maxBytes) {
+    return `File too large for ${prefix}/ (max ${Math.round(rules.maxBytes / (1024 * 1024))} MB)`;
+  }
+  return null;
+}
+
 // Insert a short random suffix before the extension so two uploads with the
 // same filename never overwrite each other. Exported for testing.
 export function uniqueKey(key) {
@@ -42,7 +89,7 @@ export function uniqueKey(key) {
  * Response: { url, key }   // key is the scoped "users/<id>/audio/my-mix.mp3"
  */
 export async function handlePresign(request, env, user) {
-  const { key, contentType } = await request.json();
+  const { key, contentType, size } = await request.json();
   if (!key) {
     return jsonResponse({ error: 'Missing key' }, 400);
   }
@@ -51,6 +98,12 @@ export async function handlePresign(request, env, user) {
   const scoped = scopeKey(key, ownerId);
   if (!scoped) {
     return jsonResponse({ error: 'Invalid key' }, 400);
+  }
+  // Size here is client-declared (presigned PUTs sign only the host header),
+  // so this is a sanity check, not enforcement — see #44.
+  const invalid = validateUpload(scoped, contentType, Number(size));
+  if (invalid) {
+    return jsonResponse({ error: invalid }, 400);
   }
   const safeKey = uniqueKey(scoped);
 
@@ -149,9 +202,14 @@ export async function handleDirectUpload(request, env, user) {
   if (!scoped) {
     return jsonResponse({ error: 'Invalid key' }, 400);
   }
-  const safeKey = uniqueKey(scoped);
 
   const contentType = request.headers.get('Content-Type') || 'application/octet-stream';
+  const declaredSize = Number(request.headers.get('Content-Length'));
+  const invalid = validateUpload(scoped, contentType, declaredSize);
+  if (invalid) {
+    return jsonResponse({ error: invalid }, 400);
+  }
+  const safeKey = uniqueKey(scoped);
 
   await env.BUCKET.put(safeKey, request.body, {
     httpMetadata: { contentType },
