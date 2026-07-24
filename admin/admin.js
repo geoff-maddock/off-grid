@@ -139,6 +139,27 @@ async function loadStats() {
 
 // ── Events ─────────────────────────────────────────────────────────
 function bindEvents() {
+  // Row action buttons are delegated: the handler reads the id from the row's
+  // data-id (or the view panel's data-mix-id), so ids never pass through a JS
+  // string context — see #48.
+  const delegateActions = (el, getId, actions) => {
+    el.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || !el.contains(btn)) return;
+      const id = getId(btn);
+      const fn = actions[btn.dataset.action];
+      if (id && fn) fn(id);
+    });
+  };
+  const rowId = (btn) => btn.closest('tr')?.dataset.id;
+  delegateActions(document.getElementById('mix-tbody'), rowId,
+    { view: viewMix, edit: editMix, link: copyMixLink, delete: deleteMix });
+  delegateActions(document.getElementById('playlist-tbody'), rowId,
+    { edit: editPlaylist, delete: deletePlaylist });
+  delegateActions(document.getElementById('panel-mix-view'),
+    (btn) => btn.closest('#panel-mix-view')?.dataset.mixId,
+    { edit: editMix, link: copyMixLink });
+
   // Tabs
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -313,10 +334,10 @@ function renderMixes() {
       <td class="col-likes">${m.likeCount || 0}</td>
       <td class="tags-cell">${renderRowTags(m.tags)}</td>
       <td class="actions-cell">
-        <button class="btn btn-sm" onclick="viewMix('${esc(m.id)}')" title="Open this mix's detail &amp; stats page">View</button>
-        <button class="btn btn-sm" onclick="editMix('${esc(m.id)}')">Edit</button>
-        <button class="btn btn-sm" onclick="copyMixLink('${esc(m.id)}')" title="Copy a share link to just this mix">Link</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteMix('${esc(m.id)}')">Delete</button>
+        <button class="btn btn-sm" data-action="view" title="Open this mix's detail &amp; stats page">View</button>
+        <button class="btn btn-sm" data-action="edit">Edit</button>
+        <button class="btn btn-sm" data-action="link" title="Copy a share link to just this mix">Link</button>
+        <button class="btn btn-sm btn-danger" data-action="delete">Delete</button>
       </td>
     </tr>
   `).join('');
@@ -559,8 +580,8 @@ function renderMixView(id) {
         ${mix.description ? `<p class="mix-view-desc">${esc(mix.description)}</p>` : ''}
         ${(mix.tags || []).length ? `<div class="tag-list">${mix.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
         <div class="mix-view-actions">
-          <button class="btn btn-sm" onclick="editMix('${esc(mix.id)}')">Edit</button>
-          <button class="btn btn-sm" onclick="copyMixLink('${esc(mix.id)}')" title="Copy a share link to just this mix">Copy Link</button>
+          <button class="btn btn-sm" data-action="edit">Edit</button>
+          <button class="btn btn-sm" data-action="link" title="Copy a share link to just this mix">Copy Link</button>
           <a class="btn btn-sm" href="${esc(singleMixUrl(mix.id))}" target="_blank" rel="noopener">&#9654; Open in Player</a>
         </div>
       </div>
@@ -708,8 +729,8 @@ function renderPlaylists() {
       <td>${esc(p.creator || '')}</td>
       <td>${p.mixIds.length} track${p.mixIds.length !== 1 ? 's' : ''}</td>
       <td class="actions-cell">
-        <button class="btn btn-sm" onclick="editPlaylist('${esc(p.id)}')">Edit</button>
-        <button class="btn btn-sm btn-danger" onclick="deletePlaylist('${esc(p.id)}')">Delete</button>
+        <button class="btn btn-sm" data-action="edit">Edit</button>
+        <button class="btn btn-sm btn-danger" data-action="delete">Delete</button>
       </td>
     </tr>
   `).join('');
@@ -1692,10 +1713,12 @@ function slugify(str) {
     .substring(0, 60);
 }
 
+// HTML-escape for text AND attribute contexts (quotes included — interpolated
+// values land inside attributes like data-id="..." and title="...").
 function esc(str) {
-  const div = document.createElement('div');
-  div.textContent = str || '';
-  return div.innerHTML;
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // Render up to 3 tag chips; overflow collapses into a "+N" chip whose
