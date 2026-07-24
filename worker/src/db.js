@@ -89,18 +89,20 @@ async function getMixTracks(db, mixId) {
   }));
 }
 
-// Replace all of a mix's tracks with the provided array (already parsed by the client).
+// Replace all of a mix's tracks with the provided array (already parsed by the
+// client). Batched so a failure can't leave the tracklist deleted but not
+// re-inserted (D1 runs a batch as a single transaction).
 async function setMixTracks(db, mixId, tracks) {
-  await db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(mixId).run();
-  if (!Array.isArray(tracks)) return;
-  for (let i = 0; i < tracks.length; i++) {
+  const stmts = [db.prepare('DELETE FROM mix_tracks WHERE mix_id = ?').bind(mixId)];
+  for (let i = 0; i < (Array.isArray(tracks) ? tracks.length : 0); i++) {
     const t = tracks[i] || {};
     const seconds = Number.isFinite(t.seconds) ? Math.round(t.seconds)
       : (Number.isFinite(t.timeSeconds) ? Math.round(t.timeSeconds) : null);
-    await db.prepare(
+    stmts.push(db.prepare(
       'INSERT INTO mix_tracks (mix_id, position, time, time_seconds, artist, title, url) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(mixId, i, String(t.time || ''), seconds, String(t.artist || ''), String(t.title || ''), String(t.url || '')).run();
+    ).bind(mixId, i, String(t.time || ''), seconds, String(t.artist || ''), String(t.title || ''), String(t.url || '')));
   }
+  await db.batch(stmts);
 }
 
 // ── Playlists ──────────────────────────────────────────────────────
@@ -190,14 +192,15 @@ async function getPlaylistMixes(db, playlistId) {
   return result.results;
 }
 
+// Batched: delete + re-insert run as one transaction (see setMixTracks).
 async function setPlaylistMixes(db, playlistId, mixIds) {
-  await db.prepare('DELETE FROM playlist_mixes WHERE playlist_id = ?').bind(playlistId).run();
-
+  const stmts = [db.prepare('DELETE FROM playlist_mixes WHERE playlist_id = ?').bind(playlistId)];
   for (let i = 0; i < mixIds.length; i++) {
-    await db.prepare(
+    stmts.push(db.prepare(
       'INSERT INTO playlist_mixes (playlist_id, mix_id, position) VALUES (?, ?, ?)'
-    ).bind(playlistId, mixIds[i], i).run();
+    ).bind(playlistId, mixIds[i], i));
   }
+  await db.batch(stmts);
 }
 
 export async function addMixToPlaylist(db, playlistId, mixId) {
