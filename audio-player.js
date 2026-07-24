@@ -1073,7 +1073,7 @@ class OffgridPlayer extends HTMLElement {
         <div class="top">
           <div class="thumb-wrap">
             ${thumb
-              ? `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img">`
+              ? `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img" loading="lazy" width="80" height="80">`
               : `<div class="thumb-placeholder">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/>
@@ -1629,7 +1629,7 @@ class OffgridPlayer extends HTMLElement {
 
     const thumbWrap = this.shadowRoot.querySelector('.thumb-wrap');
     if (thumbWrap && thumb) {
-      thumbWrap.innerHTML = `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img">`;
+      thumbWrap.innerHTML = `<img src="${this._esc(thumb)}" alt="thumbnail" class="thumb-img" loading="lazy" width="80" height="80">`;
     }
 
     this._renderDetails();
@@ -2727,7 +2727,7 @@ class OffgridPlaylist extends HTMLElement {
       <div class="playlist-wrap" part="playlist">
         ${this.getAttribute('thumb') ? `
           <div class="pl-header">
-            <img class="pl-cover" id="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover">
+            <img class="pl-cover" id="pl-cover" src="${this._esc(this.getAttribute('thumb'))}" alt="Playlist cover" loading="lazy" width="64" height="64">
             <div class="pl-header-info">
               ${this.getAttribute('title')
                 ? `<div class="pl-header-title">${this._esc(this.getAttribute('title'))}</div>` : ''}
@@ -2749,7 +2749,7 @@ class OffgridPlaylist extends HTMLElement {
                 </div>
               </div>
               ${t.thumb
-                ? `<img class="track-thumb" src="${this._esc(t.thumb)}" alt="">`
+                ? `<img class="track-thumb" src="${this._esc(t.thumb)}" alt="" loading="lazy" width="44" height="44">`
                 : `<div class="thumb-ph"><svg viewBox="0 0 24 24"><path d="M9 19V6l12-3v13M9 19c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm12-3c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/></svg></div>`}
               <div class="track-info">
                 <div class="track-name">${this._esc(t.title || t.src.split('/').pop())}</div>

@@ -321,7 +321,7 @@ function renderMixes() {
     <tr data-id="${esc(m.id)}">
       <td class="thumb-cell">
         ${m.thumb
-      ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
+      ? `<img src="${m.thumb.startsWith('http') ? esc(m.thumb) : '../' + esc(m.thumb)}" alt="" loading="lazy" width="36" height="36" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
       : '<div class="thumb-placeholder"></div>'}
       </td>
       <td class="col-title"><a class="mix-title-link" href="#/mix/${encodeURIComponent(m.id)}">${esc(m.title)}</a></td>
@@ -722,7 +722,7 @@ function renderPlaylists() {
     <tr data-id="${esc(p.id)}">
       <td class="thumb-cell">
         ${p.thumb
-      ? `<img src="${p.thumb.startsWith('http') ? esc(p.thumb) : '../' + esc(p.thumb)}" alt="" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
+      ? `<img src="${p.thumb.startsWith('http') ? esc(p.thumb) : '../' + esc(p.thumb)}" alt="" loading="lazy" width="36" height="36" onerror="this.parentElement.innerHTML='<div class=thumb-placeholder></div>'">`
       : '<div class="thumb-placeholder"></div>'}
       </td>
       <td>${esc(p.title)}</td>
