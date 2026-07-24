@@ -374,7 +374,10 @@ are defined as JSON in a child `<script type="application/json">`:
 | `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |
 
 Track objects also accept a `mixId` field — when present (the player page includes it from the
-manifest), the embedded player tracks plays and shows the like button for that mix.
+manifest), the embedded player tracks plays and shows the like button for that mix. They may also
+carry `titleHref`/`artistHref` links, which the mounted player renders on the mix title and artist
+name (the player page uses these for its mix/artist routes); both are stripped from copied embed
+snippets, where the page's hash routes wouldn't resolve.
 
 ### Play one at a time
 

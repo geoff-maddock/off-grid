@@ -229,7 +229,13 @@ function playlistSection(pl, { linkTitle = false } = {}) {
   const tracks = (pl.mixIds || [])
     .map(id => state.mixMap.get(id))
     .filter(Boolean)
-    .map(m => ({ src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks, mixId: m.id }));
+    .map(m => ({
+      src: m.src, title: m.title, artist: m.artist, thumb: m.thumb, peaks: m.peaks, mixId: m.id,
+      // Same meta links as standalone players: title -> mix page,
+      // artist -> artist filter (see makePlayer).
+      titleHref: '#/mix/' + encodeURIComponent(m.id),
+      artistHref: m.artist ? '#/artist/' + encodeURIComponent(m.artist) : undefined,
+    }));
   playlist.tracks = tracks;
   section.appendChild(playlist);
   return section;

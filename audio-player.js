@@ -2912,6 +2912,10 @@ class OffgridPlaylist extends HTMLElement {
     player.setAttribute('title', t.title || t.src.split('/').pop());
     if (t.artist || this.getAttribute('artist'))
       player.setAttribute('artist', t.artist || this.getAttribute('artist'));
+    // Optional per-track meta links (the player page passes its mix/artist
+    // routes) — same title/artist linking as standalone players.
+    if (t.titleHref) player.setAttribute('title-href', t.titleHref);
+    if (t.artistHref) player.setAttribute('artist-href', t.artistHref);
     // Fall back to the playlist's own cover for tracks without artwork.
     const thumb = t.thumb || this.getAttribute('thumb');
     if (thumb) player.setAttribute('thumb', thumb);
@@ -3045,9 +3049,16 @@ class OffgridPlaylist extends HTMLElement {
 
     let children = '\n';
     if (this._tracks && this._tracks.length) {
+      // Strip the per-track meta links: they're player-page hash routes,
+      // meaningless on the page hosting the embed (the standalone player's
+      // embed omits title-href/artist-href for the same reason).
+      const embedTracks = this._tracks.map((t) => {
+        const { titleHref: _titleHref, artistHref: _artistHref, ...rest } = t;
+        return rest;
+      });
       // Escape "<" so a track title containing "</script>" can't terminate the
       // block early. "<" is valid JSON and parses back to "<".
-      const json = JSON.stringify(this._tracks).replace(/</g, '\\u003c');
+      const json = JSON.stringify(embedTracks).replace(/</g, '\\u003c');
       children = `\n  <script type="application/json">${json}<\/script>\n`;
     }
 
