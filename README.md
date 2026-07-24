@@ -609,6 +609,10 @@ Authenticated endpoints take an `Authorization: Bearer <token>` header, where th
 | `GET`    | `/files?prefix=audio/`  | List R2 objects |
 | `DELETE` | `/files/:key`           | Delete an R2 object |
 
+Both upload routes scope the key under the caller's `users/<id>/` namespace **and add a short
+random suffix to the filename** (`cover.jpg` → `cover-a1b2c3d4.jpg`) so same-named uploads never
+overwrite each other — always use the `key` returned in the response, not the one you sent.
+
 ### Mix CRUD
 
 | Method   | Path              | Description |

@@ -21,6 +21,20 @@ function scopeKey(key, ownerId) {
   return base + k;                         // prepend the owner's namespace
 }
 
+// Insert a short random suffix before the extension so two uploads with the
+// same filename never overwrite each other. Exported for testing.
+export function uniqueKey(key) {
+  const suffix = [...crypto.getRandomValues(new Uint8Array(4))]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  const slash = key.lastIndexOf('/');
+  const dir = key.slice(0, slash + 1);
+  const name = key.slice(slash + 1);
+  const dot = name.lastIndexOf('.');
+  return dot > 0
+    ? `${dir}${name.slice(0, dot)}-${suffix}${name.slice(dot)}`
+    : `${dir}${name}-${suffix}`;
+}
+
 /**
  * Generate a presigned PUT URL for direct browser upload to R2.
  *
@@ -34,10 +48,11 @@ export async function handlePresign(request, env, user) {
   }
 
   const ownerId = await resolveOwnerId(env.DB, user);
-  const safeKey = scopeKey(key, ownerId);
-  if (!safeKey) {
+  const scoped = scopeKey(key, ownerId);
+  if (!scoped) {
     return jsonResponse({ error: 'Invalid key' }, 400);
   }
+  const safeKey = uniqueKey(scoped);
 
   const accountId = env.CF_ACCOUNT_ID || '';
   const accessKeyId = env.R2_ACCESS_KEY_ID || '';
@@ -130,10 +145,11 @@ export async function handleDirectUpload(request, env, user) {
   }
 
   const ownerId = await resolveOwnerId(env.DB, user);
-  const safeKey = scopeKey(key, ownerId);
-  if (!safeKey) {
+  const scoped = scopeKey(key, ownerId);
+  if (!scoped) {
     return jsonResponse({ error: 'Invalid key' }, 400);
   }
+  const safeKey = uniqueKey(scoped);
 
   const contentType = request.headers.get('Content-Type') || 'application/octet-stream';
 
