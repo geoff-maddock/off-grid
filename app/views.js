@@ -245,9 +245,12 @@ function playlistSection(pl, { linkTitle = false } = {}) {
       titleHref: '#/mix/' + encodeURIComponent(m.id),
       artistHref: m.artist ? '#/artist/' + encodeURIComponent(m.artist) : undefined,
     }));
-  // Aggregated tags across the member mixes, shown as pills in the playlist
+  // Aggregated tags across the member mixes, most-used first (ties keep
+  // first-seen order — Array.sort is stable), shown as pills in the playlist
   // header (clicking one goes to that tag's mix list, like player pills).
-  const plTags = [...new Set(tracks.flatMap(t => t.tags || []))];
+  const tagCounts = new Map();
+  tracks.forEach(t => (t.tags || []).forEach(tag => tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)));
+  const plTags = [...tagCounts.keys()].sort((a, b) => tagCounts.get(b) - tagCounts.get(a));
   if (plTags.length) playlist.setAttribute('tags', JSON.stringify(plTags));
   playlist.tracks = tracks;
   section.appendChild(playlist);

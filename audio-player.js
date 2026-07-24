@@ -162,14 +162,20 @@ const OffgridShared = {
 
   // Render the host's `tags` attribute as clickable pills into `container`.
   // Clicks dispatch a composed `tagclick` event the hosting page routes to
-  // its tag view.
-  renderTagPills(host, container) {
+  // its tag view. With `max`, only the first `max` pills show, followed by a
+  // "+N more" pill that reveals the rest (the attribute order is the display
+  // order, so the host controls ranking).
+  renderTagPills(host, container, { max } = {}) {
     if (!container) return;
     const tags = this.parseTags(host.getAttribute('tags') || '');
-    container.innerHTML = tags.map((t) =>
+    const shown = max && tags.length > max ? tags.slice(0, max) : tags;
+    const hidden = tags.length - shown.length;
+    container.innerHTML = shown.map((t) =>
       `<button type="button" class="tag-pill">${this.esc(t)}</button>`
-    ).join('');
-    container.querySelectorAll('.tag-pill').forEach((pill) => {
+    ).join('') + (hidden > 0
+      ? `<button type="button" class="tag-pill tag-more" aria-label="Show ${hidden} more tags">+${hidden} more</button>`
+      : '');
+    container.querySelectorAll('.tag-pill:not(.tag-more)').forEach((pill) => {
       pill.addEventListener('click', () => {
         host.dispatchEvent(new CustomEvent('tagclick', {
           bubbles: true, composed: true,
@@ -177,6 +183,8 @@ const OffgridShared = {
         }));
       });
     });
+    const more = container.querySelector('.tag-more');
+    if (more) more.addEventListener('click', () => this.renderTagPills(host, container));
   },
 
   // Click `triggerSelector` to view the component's `thumb` full-size;
@@ -2928,7 +2936,7 @@ class OffgridPlaylist extends HTMLElement {
     this._mountPlayer(0);
     this._bindListEvents();
     this._bindLightbox();
-    OffgridShared.renderTagPills(this, this.shadowRoot.querySelector('#pl-header-tags'));
+    OffgridShared.renderTagPills(this, this.shadowRoot.querySelector('#pl-header-tags'), { max: 6 });
   }
 
   // Cover lightbox — click the header cover to view the full-size image,
