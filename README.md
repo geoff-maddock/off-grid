@@ -518,11 +518,11 @@ off-grid/
   generate-share-pages.mjs # Static per-mix share pages (OG/Twitter/JSON-LD) for scrapers
   mix/                   # Generated share pages (gitignored build artifact)
   assets/                # Site icon (favicon.ico) + brand images
+  LICENSE                # MIT
   docs/
     ONBOARDING.md        # Full from-scratch self-hosting guide (start here)
     self-hosting.md      # Pointer to ONBOARDING.md (kept for old links)
-    multi-user-plan.md   # Design notes for the multi-user feature
-  context/               # Historical planning notes
+  context/               # Historical planning notes (incl. the shipped multi-user design)
   offline/               # Private notes & prod-specific material (gitignored)
   admin/
     index.html           # Admin SPA shell
@@ -686,4 +686,4 @@ and multi-user accounts with per-user manifests (see [Multi-user & ownership](#m
 
 ## License
 
-No license file is included yet. Add one (e.g. MIT) before publishing if you want others to reuse it freely.
+[MIT](./LICENSE).

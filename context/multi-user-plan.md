@@ -1,6 +1,7 @@
 # Multi-user accounts with per-user config — implementation plan
 
-Status: **in progress** (Phase 1 backend started). Tracks the IDEA.md open question
+Status: **shipped** — kept as a historical design record (see the README's
+"Multi-user & ownership" section for the feature as built). Tracked the IDEA.md open question
 "allow users to log in and have their cloudflare r2 info stored … map users to a set of config data".
 
 ## Decisions
