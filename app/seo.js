@@ -14,6 +14,14 @@ function mixPageUrl(id) {
   return SHARE_BASE ? SHARE_BASE + '/' + encodeURIComponent(id) + '/'
     : siteUrl('?mix=' + encodeURIComponent(id));
 }
+// Playlist share pages sit beside the mix ones (<base>/playlist/<slug>/),
+// derived from the conventional .../mix SHARE_BASE. Hash-route fallback when
+// share pages aren't generated.
+const PLAYLIST_SHARE_BASE = /\/mix$/.test(SHARE_BASE) ? SHARE_BASE.replace(/\/mix$/, '/playlist') : '';
+function playlistPageUrl(id) {
+  return PLAYLIST_SHARE_BASE ? PLAYLIST_SHARE_BASE + '/' + encodeURIComponent(id) + '/'
+    : siteUrl('#/playlist/' + encodeURIComponent(id));
+}
 // The chrome-less single-mix page — what an iframe embed should load.
 function mixEmbedUrl(id) { return siteUrl('?mix=' + encodeURIComponent(id)); }
 
@@ -126,10 +134,12 @@ function playlistsJsonLd(playlists, url, description) {
 }
 
 function playlistJsonLd(pl, url, description) {
-  const o = { '@context': 'https://schema.org', '@type': 'MusicPlaylist', '@id': url + '#playlist',
-    name: pl.title, url, description, numTracks: (pl.mixIds || []).length };
-  if (pl.creator) o.author = { '@type': 'MusicGroup', name: pl.creator };
   const tracks = (pl.mixIds || []).map(id => state.mixMap.get(id)).filter(Boolean);
+  const o = { '@context': 'https://schema.org', '@type': 'MusicPlaylist', '@id': url + '#playlist',
+    name: pl.title, url, description, numTracks: tracks.length };
+  if (pl.creator) o.author = { '@type': 'MusicGroup', name: pl.creator };
+  const image = pl.thumb || (tracks.find(m => m.thumb) || {}).thumb;
+  if (image) o.image = _abs(image);
   if (tracks.length) o.track = tracks.map(mixRef);
   return o;
 }
@@ -246,8 +256,11 @@ export function updateSEO(r) {
     if (pl) {
       const who = pl.creator ? ` by ${pl.creator}` : '';
       title = `${pl.title}${who} — ${siteName}`;
-      description = `${pl.title} — a playlist of ${(pl.mixIds || []).length} mixes.`;
-      image = firstThumb((pl.mixIds || []).map(id => state.mixMap.get(id)).filter(Boolean));
+      description = pl.description || `${pl.title} — a playlist of ${(pl.mixIds || []).length} mixes.`;
+      ogType = 'music.playlist';
+      canonical = playlistPageUrl(pl.id);
+      image = pl.thumb ? _abs(pl.thumb)
+        : firstThumb((pl.mixIds || []).map(id => state.mixMap.get(id)).filter(Boolean));
       jsonld = playlistJsonLd(pl, canonical, description);
     } else { title = `Playlist not found — ${siteName}`; description = tagline; }
   } else { // home

@@ -18,8 +18,9 @@ worker/wrangler.toml
 *.sqlite3
 *.db
 
-# Generated per-mix share pages (generate-share-pages.mjs output)
+# Generated share pages (generate-share-pages.mjs output)
 /mix/
+/playlist/
 
 # Your media lives in R2, not git. Ignore everything under mixes/
 # (audio, cover art, generated peaks) but keep the folder structure.

@@ -44,3 +44,5 @@
 // point at 404s.
 //
 // window.OFFGRID_SHARE_BASE = 'https://your-domain.com/mix';
+// Playlist share pages are assumed to live at the sibling .../playlist/ path
+// (the generator writes both dirs side by side).

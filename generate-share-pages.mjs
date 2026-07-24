@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 /**
- * Generate static per-mix share pages from the published manifest.
+ * Generate static share pages from the published manifest.
  *
  * Social scrapers (Facebook, LinkedIn, Google) don't run JS and never see
  * hash routes (#/mix/<slug>), so the player page's dynamic meta tags are
- * invisible to them. This script writes one real HTML page per mix —
- * mix/<slug>/index.html — carrying the full Open Graph / Twitter card /
- * MusicRecording JSON-LD markup, plus an instant redirect into the player
- * for human visitors. Serve the output folder next to index.html and share
- * <site>/mix/<slug>/ URLs (see OFFGRID_SHARE_BASE in config.local.example.js).
+ * invisible to them. This script writes one real HTML page per mix
+ * (mix/<slug>/index.html) and per playlist (playlist/<slug>/index.html) —
+ * carrying the full Open Graph / Twitter card / MusicRecording or
+ * MusicPlaylist JSON-LD markup, plus an instant redirect into the player
+ * for human visitors. Serve the output folders next to index.html and share
+ * <site>/mix/<slug>/ or <site>/playlist/<slug>/ URLs (see OFFGRID_SHARE_BASE
+ * in config.local.example.js).
  *
  * Usage:
  *   node generate-share-pages.mjs [options]
@@ -144,6 +146,28 @@ function mixJsonLd(mix, pageUrl, embedUrl, siteBase) {
   return o;
 }
 
+// Same shape as playlistJsonLd in app/seo.js: MusicPlaylist whose tracks are
+// the member mixes, each pointing at its own share page.
+function playlistJsonLd(pl, mixesById, pageUrl, description, image, siteBase) {
+  // numTracks counts the mixes that actually resolve in the manifest, so a
+  // dangling mixId can't make the metadata overstate the playlist.
+  const tracks = (pl.mixIds || []).map((id) => mixesById.get(id)).filter(Boolean);
+  const o = { '@context': 'https://schema.org', '@type': 'MusicPlaylist', '@id': pageUrl + '#playlist',
+    name: pl.title, url: pageUrl, description, numTracks: tracks.length };
+  if (pl.creator) o.author = { '@type': 'MusicGroup', name: pl.creator };
+  if (image) o.image = image;
+  if (tracks.length) {
+    o.track = tracks.map((m) => {
+      const rec = { '@type': 'MusicRecording', name: m.title };
+      if (safeSlug(m.id)) rec.url = `${siteBase}/mix/${encodeURIComponent(m.id)}/`;
+      if (m.artist) rec.byArtist = { '@type': 'MusicGroup', name: m.artist };
+      if (m.thumb) rec.image = abs(m.thumb, siteBase);
+      return rec;
+    });
+  }
+  return o;
+}
+
 // ---- Page rendering ---------------------------------------------------------
 
 function renderPage(mix, site, siteBase) {
@@ -217,12 +241,71 @@ function renderPage(mix, site, siteBase) {
   return lines.join('\n');
 }
 
-function renderSitemap(mixes, siteBase) {
+// One share page per playlist — summary card (playlists have no single audio
+// file to offer a player card for) with the playlist's own cover, falling
+// back to the first member mix's.
+function renderPlaylistPage(pl, mixesById, site, siteBase) {
+  const slug = pl.id;
+  const pageUrl = `${siteBase}/playlist/${encodeURIComponent(slug)}/`;
+  const siteName = site.title || 'Off Grid';
+  const who = pl.creator ? ` by ${pl.creator}` : '';
+  const title = `${pl.title}${who} — ${siteName}`;
+  const mixes = (pl.mixIds || []).map((id) => mixesById.get(id)).filter(Boolean);
+  const description = oneLine(pl.description)
+    || `${pl.title}${who} — a playlist of ${mixes.length} mix${mixes.length === 1 ? '' : 'es'}.`;
+  const thumb = pl.thumb || (mixes.find((m) => m.thumb) || {}).thumb;
+  const image = thumb ? abs(thumb, siteBase) : '';
+  const spa = `../../#/playlist/${encodeURIComponent(slug)}`;
+
+  const lines = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    MARKER,
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    `<title>${esc(title)}</title>`,
+    `<link rel="canonical" href="${esc(pageUrl)}">`,
+    `<meta name="description" content="${esc(description)}">`,
+    `<meta property="og:site_name" content="${esc(siteName)}">`,
+    '<meta property="og:type" content="music.playlist">',
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(description)}">`,
+    `<meta property="og:url" content="${esc(pageUrl)}">`,
+  ];
+  if (image) lines.push(`<meta property="og:image" content="${esc(image)}">`);
+  if (mixes.length) lines.push(`<meta property="music:song_count" content="${mixes.length}">`);
+  lines.push(
+    '<meta name="twitter:card" content="summary">',
+    `<meta name="twitter:title" content="${esc(title)}">`,
+    `<meta name="twitter:description" content="${esc(description)}">`,
+  );
+  if (image) lines.push(`<meta name="twitter:image" content="${esc(image)}">`);
+  const jsonld = JSON.stringify(playlistJsonLd(pl, mixesById, pageUrl, description, image, siteBase), null, 2)
+    .replace(/</g, '\\u003c');
+  lines.push(
+    `<script type="application/ld+json">${jsonld}</script>`,
+    `<script>location.replace('${spa}');</script>`,
+    `<noscript><meta http-equiv="refresh" content="0; url=${esc(spa)}"></noscript>`,
+    '</head>',
+    '<body>',
+    `<p><a href="${esc(spa)}">${esc(pl.title + who)} — open in the player</a></p>`,
+    '</body>',
+    '</html>',
+    '',
+  );
+  return lines.join('\n');
+}
+
+function renderSitemap(mixes, playlists, siteBase) {
   const urls = mixes.map((m) => {
     const loc = `${siteBase}/mix/${encodeURIComponent(m.id)}/`;
     const lastmod = m.releaseDate ? `\n    <lastmod>${esc(m.releaseDate)}</lastmod>` : '';
     return `  <url>\n    <loc>${esc(loc)}</loc>${lastmod}\n  </url>`;
-  });
+  }).concat(playlists.map((pl) => {
+    const loc = `${siteBase}/playlist/${encodeURIComponent(pl.id)}/`;
+    return `  <url>\n    <loc>${esc(loc)}</loc>\n  </url>`;
+  }));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
 }
 
@@ -267,6 +350,9 @@ async function main() {
   const siteBase = siteUrlRaw.replace(/\/+$/, '');
 
   const outDir = path.resolve(args.out || path.join(SCRIPT_DIR, 'mix'));
+  // Playlist pages live in a sibling `playlist/` dir (matching the
+  // <site>/mix/... and <site>/playlist/... URL layout).
+  const playlistOutDir = path.join(path.dirname(outDir), 'playlist');
 
   const manifest = await loadManifest(manifestSrc);
   const site = manifest.site || {};
@@ -282,11 +368,17 @@ async function main() {
     seen.add(mix.id);
     mixes.push(mix);
   }
+  const mixesById = new Map(mixes.map((m) => [m.id, m]));
+  const playlists = (manifest.playlists || []).filter((pl) => {
+    if (safeSlug(pl.id)) return true;
+    console.warn(`  Skipping playlist with unsafe id: ${JSON.stringify(pl.id)}`);
+    return false;
+  });
 
-  console.log(`Generating ${mixes.length} share page(s) from ${manifestSrc}`);
-  console.log(`  site: ${siteBase}  out: ${outDir}${args.dryRun ? '  (dry run)' : ''}`);
+  console.log(`Generating ${mixes.length} mix + ${playlists.length} playlist share page(s) from ${manifestSrc}`);
+  console.log(`  site: ${siteBase}  out: ${outDir}, ${playlistOutDir}${args.dryRun ? '  (dry run)' : ''}`);
 
-  if (!args.dryRun) resetOutDir(outDir);
+  if (!args.dryRun) { resetOutDir(outDir); resetOutDir(playlistOutDir); }
 
   for (const mix of mixes) {
     const html = renderPage(mix, site, siteBase);
@@ -298,9 +390,19 @@ async function main() {
     console.log(`  mix/${mix.id}/index.html (${mix.title})`);
   }
 
+  for (const pl of playlists) {
+    const html = renderPlaylistPage(pl, mixesById, site, siteBase);
+    const dir = path.join(playlistOutDir, pl.id);
+    if (!args.dryRun) {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, 'index.html'), html);
+    }
+    console.log(`  playlist/${pl.id}/index.html (${pl.title})`);
+  }
+
   if (args.sitemap) {
-    if (!args.dryRun) fs.writeFileSync(path.join(outDir, 'sitemap.xml'), renderSitemap(mixes, siteBase));
-    console.log(`  sitemap.xml (${mixes.length} urls)`);
+    if (!args.dryRun) fs.writeFileSync(path.join(outDir, 'sitemap.xml'), renderSitemap(mixes, playlists, siteBase));
+    console.log(`  sitemap.xml (${mixes.length + playlists.length} urls)`);
   }
   console.log('Done.');
 }

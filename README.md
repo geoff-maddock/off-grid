@@ -232,11 +232,15 @@ Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. A
 ### Static share pages (`generate-share-pages.mjs`)
 
 `generate-share-pages.mjs` reads your published manifest and writes one static page per mix to
-`mix/<slug>/index.html`. Each page carries the full scraper-readable markup — Open Graph `music.song`
-tags (`og:image` cover, `og:audio` + `og:audio:type`, `music:duration`/`music:release_date`), a Twitter
-`player` card pointing at the chrome-less `?mix=<id>` embed page (falls back to a `summary` card when
-the mix has no cover), and the same `MusicRecording` JSON-LD the SPA emits — plus an instant redirect
-into the player (`#/mix/<slug>`) for human visitors, with a `<noscript>` fallback.
+`mix/<slug>/index.html` **and one per playlist to `playlist/<slug>/index.html`**. Each mix page
+carries the full scraper-readable markup — Open Graph `music.song` tags (`og:image` cover,
+`og:audio` + `og:audio:type`, `music:duration`/`music:release_date`), a Twitter `player` card
+pointing at the chrome-less `?mix=<id>` embed page (falls back to a `summary` card when the mix has
+no cover), and the same `MusicRecording` JSON-LD the SPA emits. Playlist pages carry Open Graph
+`music.playlist` tags (`og:image` from the playlist's cover, falling back to its first mix's,
+`music:song_count`), a `summary` Twitter card, and `MusicPlaylist` JSON-LD whose tracks link to the
+member mixes' share pages. Every page ends with an instant redirect into the player
+(`#/mix/<slug>` / `#/playlist/<slug>`) for human visitors, with a `<noscript>` fallback.
 
 ```bash
 # Uses OFFGRID_MANIFEST_URL / OFFGRID_SITE_URL from config.local.js when present
@@ -250,9 +254,10 @@ node generate-share-pages.mjs \
 ```
 
 Flags: `--manifest <url|path>` (default: `OFFGRID_MANIFEST_URL`, else the sample `data/manifest.json`),
-`--site-url <url>` (required; default: `OFFGRID_SITE_URL`), `--out <dir>` (default: `mix/`, wiped and
-regenerated each run), `--sitemap` (also writes `mix/sitemap.xml` — point Search Console or a
-`Sitemap:` line in your robots.txt at it), `--dry-run`. Requires Node 18+.
+`--site-url <url>` (required; default: `OFFGRID_SITE_URL`), `--out <dir>` (default: `mix/`; playlist
+pages go to its sibling `playlist/` dir; both are wiped and regenerated each run), `--sitemap` (also
+writes `mix/sitemap.xml` covering mixes and playlists — point Search Console or a `Sitemap:` line in
+your robots.txt at it), `--dry-run`. Requires Node 18+.
 
 Then set **`window.OFFGRID_SHARE_BASE`** in `config.local.js` (see `config.local.example.js`) so the
 SPA's canonicals, `og:url`, and JSON-LD `@id`/`url` point at the share pages — and share
@@ -527,8 +532,8 @@ off-grid/
   tests/                 # Vitest suite for the Worker's security-critical modules (npm test)
   .github/workflows/     # CI: lint + tests on push/PR
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
-  generate-share-pages.mjs # Static per-mix share pages (OG/Twitter/JSON-LD) for scrapers
-  mix/                   # Generated share pages (gitignored build artifact)
+  generate-share-pages.mjs # Static mix + playlist share pages (OG/Twitter/JSON-LD) for scrapers
+  mix/ playlist/         # Generated share pages (gitignored build artifacts)
   assets/                # Site icon (favicon.ico) + brand images
   LICENSE                # MIT
   docs/
