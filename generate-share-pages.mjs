@@ -21,6 +21,12 @@
  *                            OFFGRID_SITE_URL from config.local.js. Required.
  *     --out <dir>            Output directory. Default: <repo>/mix
  *     --sitemap              Also write <out>/sitemap.xml
+ *     --r2-base <url>        Public base URL of the R2 bucket, used to look
+ *                            for share videos at <r2-base>/video/<slug>.mp4.
+ *                            Default: OFFGRID_R2_BASE from config.local.js,
+ *                            else derived from a …/data/manifest.json URL.
+ *     --no-video-check       Skip the HEAD probes for share videos (emits no
+ *                            og:video tags).
  *     --dry-run              Print what would be written, write nothing.
  *
  * Requires Node 18+ (uses global fetch for manifest URLs). Written as .mjs so
@@ -44,6 +50,8 @@ function parseArgs(argv) {
     else if (a === '--site-url') args.siteUrl = argv[++i];
     else if (a === '--out') args.out = argv[++i];
     else if (a === '--sitemap') args.sitemap = true;
+    else if (a === '--r2-base') args.r2Base = argv[++i];
+    else if (a === '--no-video-check') args.noVideoCheck = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--help' || a === '-h') { args.help = true; }
     else { console.error(`Unknown option: ${a}`); process.exit(1); }
@@ -63,11 +71,12 @@ function readConfigLocal() {
     };
     cfg.manifestUrl = grab('OFFGRID_MANIFEST_URL');
     cfg.siteUrl = grab('OFFGRID_SITE_URL');
+    cfg.r2Base = grab('OFFGRID_R2_BASE');
   } catch (_) { /* no config.local.js — fine */ }
   return cfg;
 }
 
-async function loadManifest(source) {
+export async function loadManifest(source) {
   if (/^https?:\/\//i.test(source)) {
     const res = await fetch(source);
     if (!res.ok) throw new Error(`Manifest fetch failed: ${res.status} ${res.statusText} (${source})`);
@@ -106,6 +115,27 @@ function isoDuration(sec) {
   if (sec <= 0) return '';
   const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
   return 'PT' + (h ? h + 'H' : '') + (m ? m + 'M' : '') + (s ? s + 'S' : '');
+}
+
+// Share videos (still cover + audio mp4 renditions for Discord's og:video
+// player — see generate-share-videos.mjs) live at a fixed key derived from
+// the mix slug, so both scripts agree without a manifest field.
+const VIDEO_WIDTH = 720;
+const VIDEO_HEIGHT = 720;
+
+// Public R2 base: explicit override, else derived from a hosted manifest URL
+// (…/data/manifest.json → its parent, which also handles per-user manifests
+// at …/users/<id>/data/manifest.json). '' when underivable (local path).
+export function r2BaseFrom(manifestSrc, override) {
+  if (override) return String(override).replace(/\/+$/, '');
+  const src = String(manifestSrc || '');
+  if (!/^https?:\/\//i.test(src) || !/\/data\/manifest\.json$/.test(src)) return '';
+  return src.replace(/\/data\/manifest\.json$/, '');
+}
+
+export function videoUrlFor(mix, r2Base) {
+  if (!r2Base || !safeSlug(mix.id)) return '';
+  return `${r2Base}/video/${encodeURIComponent(mix.id)}.mp4`;
 }
 
 function encFmt(src) {
@@ -170,7 +200,7 @@ function playlistJsonLd(pl, mixesById, pageUrl, description, image, siteBase) {
 
 // ---- Page rendering ---------------------------------------------------------
 
-function renderPage(mix, site, siteBase) {
+export function renderPage(mix, site, siteBase, videoUrl = '') {
   const slug = mix.id;
   const pageUrl = `${siteBase}/mix/${encodeURIComponent(slug)}/`;
   const embedUrl = `${siteBase}/?mix=${encodeURIComponent(slug)}`;
@@ -203,6 +233,19 @@ function renderPage(mix, site, siteBase) {
     `<meta property="og:url" content="${esc(pageUrl)}">`,
   ];
   if (image) lines.push(`<meta property="og:image" content="${esc(image)}">`);
+  // Discord ignores twitter:player and og:audio for non-whitelisted sites;
+  // a direct mp4 via og:video is the one path to an inline player there.
+  // If Discord ever renders only a static card, the test-time toggles are
+  // og:type → "video.other" above, then dropping the twitter:player block.
+  if (videoUrl) {
+    lines.push(
+      `<meta property="og:video" content="${esc(videoUrl)}">`,
+      `<meta property="og:video:secure_url" content="${esc(videoUrl)}">`,
+      '<meta property="og:video:type" content="video/mp4">',
+      `<meta property="og:video:width" content="${VIDEO_WIDTH}">`,
+      `<meta property="og:video:height" content="${VIDEO_HEIGHT}">`,
+    );
+  }
   if (audioUrl) {
     lines.push(`<meta property="og:audio" content="${esc(audioUrl)}">`);
     if (audioType) lines.push(`<meta property="og:audio:type" content="${esc(audioType)}">`);
@@ -244,7 +287,7 @@ function renderPage(mix, site, siteBase) {
 // One share page per playlist — summary card (playlists have no single audio
 // file to offer a player card for) with the playlist's own cover, falling
 // back to the first member mix's.
-function renderPlaylistPage(pl, mixesById, site, siteBase) {
+export function renderPlaylistPage(pl, mixesById, site, siteBase) {
   const slug = pl.id;
   const pageUrl = `${siteBase}/playlist/${encodeURIComponent(slug)}/`;
   const siteName = site.title || 'Off Grid';
@@ -325,12 +368,37 @@ function resetOutDir(outDir) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
+// HEAD-probe <r2Base>/video/<slug>.mp4 for every mix (10 at a time) and map
+// slug → video URL for the ones that exist. Share videos are optional — any
+// probe failure just means the page ships without og:video, never a build
+// failure.
+async function findShareVideos(mixes, r2Base, skip) {
+  const found = new Map();
+  if (!r2Base || skip) return found;
+  const candidates = mixes
+    .map((m) => [m.id, videoUrlFor(m, r2Base)])
+    .filter(([, url]) => url);
+  let warned = false;
+  for (let i = 0; i < candidates.length; i += 10) {
+    await Promise.all(candidates.slice(i, i + 10).map(async ([id, url]) => {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) found.set(id, url);
+      } catch (err) {
+        if (!warned) { console.warn(`  Warning: share-video probe failed (${err.message}) — pages will omit og:video.`); warned = true; }
+      }
+    }));
+  }
+  console.log(`  ${found.size} of ${mixes.length} mixes have share videos (og:video)`);
+  return found;
+}
+
 // ---- Main -------------------------------------------------------------------
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Usage: node generate-share-pages.mjs [--manifest <url|path>] [--site-url <url>] [--out <dir>] [--sitemap] [--dry-run]');
+    console.log('Usage: node generate-share-pages.mjs [--manifest <url|path>] [--site-url <url>] [--out <dir>] [--sitemap] [--r2-base <url>] [--no-video-check] [--dry-run]');
     process.exit(0);
   }
   const cfg = readConfigLocal();
@@ -378,10 +446,12 @@ async function main() {
   console.log(`Generating ${mixes.length} mix + ${playlists.length} playlist share page(s) from ${manifestSrc}`);
   console.log(`  site: ${siteBase}  out: ${outDir}, ${playlistOutDir}${args.dryRun ? '  (dry run)' : ''}`);
 
+  const videoUrls = await findShareVideos(mixes, r2BaseFrom(manifestSrc, args.r2Base || cfg.r2Base), args.noVideoCheck);
+
   if (!args.dryRun) { resetOutDir(outDir); resetOutDir(playlistOutDir); }
 
   for (const mix of mixes) {
-    const html = renderPage(mix, site, siteBase);
+    const html = renderPage(mix, site, siteBase, videoUrls.get(mix.id) || '');
     const dir = path.join(outDir, mix.id);
     if (!args.dryRun) {
       fs.mkdirSync(dir, { recursive: true });
@@ -407,7 +477,13 @@ async function main() {
   console.log('Done.');
 }
 
-main().catch((err) => {
-  console.error(`Error: ${err.message}`);
-  process.exit(1);
-});
+// Run only when invoked directly — the module is also imported by tests and
+// generate-share-videos.mjs for its helpers, and importing must never touch
+// the filesystem or network.
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+  main().catch((err) => {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  });
+}

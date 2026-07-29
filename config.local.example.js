@@ -21,6 +21,10 @@
 //
 // window.OFFGRID_R2_BASE = 'https://pub-xxxxxxxx.r2.dev';
 //
+// The share-page/share-video generators use the same base: Discord-playable
+// mp4 renditions are expected at <r2 base>/video/<slug>.mp4 (see
+// generate-share-videos.mjs).
+//
 // Worker API base URL (no trailing slash). When set, the admin page
 // (admin/index.html) logs in with just email + password: the Worker URL comes
 // from here and the R2 public URL from the Worker's GET /config endpoint.

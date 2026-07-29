@@ -156,6 +156,10 @@ function applySEO(d, siteName) {
   _setMeta('property', 'og:image', d.image);
   _setMeta('property', 'og:audio', d.audioUrl);
   _setMeta('property', 'og:audio:type', d.audioUrl ? d.audioType : '');
+  // og:video (the Discord inline-player mp4) is deliberately static-share-
+  // page-only: scrapers that would use it never run this JS, and emitting a
+  // guessed video/<slug>.mp4 URL here without an existence check would point
+  // JS-running crawlers at 404s. See generate-share-pages.mjs.
   // Twitter player card needs both an embed URL and an image; otherwise
   // fall back to a plain summary card.
   const player = d.embed && d.image ? d.embed : '';

@@ -257,7 +257,9 @@ Flags: `--manifest <url|path>` (default: `OFFGRID_MANIFEST_URL`, else the sample
 `--site-url <url>` (required; default: `OFFGRID_SITE_URL`), `--out <dir>` (default: `mix/`; playlist
 pages go to its sibling `playlist/` dir; both are wiped and regenerated each run), `--sitemap` (also
 writes `mix/sitemap.xml` covering mixes and playlists — point Search Console or a `Sitemap:` line in
-your robots.txt at it), `--dry-run`. Requires Node 18+.
+your robots.txt at it), `--r2-base <url>` (default: `OFFGRID_R2_BASE`, else derived from the manifest
+URL; used to look for share videos, below), `--no-video-check` (skip those lookups), `--dry-run`.
+Requires Node 18+.
 
 Then set **`window.OFFGRID_SHARE_BASE`** in `config.local.js` (see `config.local.example.js`) so the
 SPA's canonicals, `og:url`, and JSON-LD `@id`/`url` point at the share pages — and share
@@ -273,6 +275,42 @@ Run the script in your site's build/deploy step so pages regenerate on every dep
 > Share pages are frozen at build time: a mix published in the admin UI gets its page (and updated
 > metadata) on your site's next build. The `mix/` output folder is gitignored — treat it as a build
 > artifact.
+
+### Discord inline playback (`generate-share-videos.mjs`)
+
+Discord never renders the Twitter `player` card and ignores `og:audio` — inline players there are
+reserved for a hardcoded whitelist (Spotify, YouTube, SoundCloud…). The one mechanism open to
+everyone else is `og:video` pointing at a **direct mp4 file**, which Discord plays inline with full
+seek controls. `generate-share-videos.mjs` produces those mp4s: a still of the mix's cover (padded
+to 720×720) plus the audio as 128 kbps AAC, so the file is roughly the size of the mp3 (~1 MB/min).
+
+```bash
+# Render + upload every mix that doesn't have a video yet
+node generate-share-videos.mjs
+
+# One mix / a backfill chunk / preview without doing anything
+node generate-share-videos.mjs --mix my-mix
+node generate-share-videos.mjs --limit 10
+node generate-share-videos.mjs --dry-run
+```
+
+Flags: `--manifest <url|path>`, `--r2-base <url>` (defaults as above), `--bucket <name>` (default:
+`bucket_name` from `worker/wrangler.toml`), `--mix <slug>`, `--limit <n>`, `--force` (re-render even
+if the video exists — use after replacing a mix's audio or cover), `--dry-run`.
+
+Like `generate-peaks.js` this is a **local** step: it needs `ffmpeg`/`ffprobe` on your PATH and a
+logged-in wrangler for the upload (`npx wrangler r2 object put`, run from `worker/`). Renders land
+in `mixes/share-videos/` with downloads cached in `mixes/share-videos/cache/` (both gitignored).
+Videos are uploaded to `video/<slug>.mp4` in your media bucket; `generate-share-pages.mjs`
+HEAD-probes that URL per mix on each run and adds the `og:video` block only where a video exists —
+mixes without one keep their static card, and probe failures never break the build.
+
+Discord caches an embed per exact URL — while testing, append a throwaway `?v=2`, `?v=3`… to the
+share URL to see fresh tags. If Discord ever shows only a static card despite the tags, the two
+toggles to try in `renderPage()` are switching `og:type` to `video.other` and dropping the
+`twitter:player` block from video-bearing pages. Note: the free `pub-*.r2.dev` public URL is
+rate-limited by Cloudflare; if embeds throttle under real traffic, front the bucket with a custom
+domain.
 
 ---
 
@@ -539,6 +577,7 @@ off-grid/
   .github/workflows/     # CI: lint + tests on push/PR
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   generate-share-pages.mjs # Static mix + playlist share pages (OG/Twitter/JSON-LD) for scrapers
+  generate-share-videos.mjs # Cover-art mp4 renditions for Discord inline playback (Node.js + ffmpeg)
   mix/ playlist/         # Generated share pages (gitignored build artifacts)
   assets/                # Site icon (favicon.ico) + brand images
   LICENSE                # MIT
