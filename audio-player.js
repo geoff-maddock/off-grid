@@ -1891,8 +1891,9 @@ class OffgridPlayer extends HTMLElement {
       children = `\n  <script type="application/json" class="tracklist">${json}<\/script>\n`;
     }
 
+    // `defer` so the element upgrades after its inline JSON child is parsed.
     const scriptSrc = OFFGRID_SCRIPT_SRC || 'https://your-domain.com/audio-player.js';
-    return `<script src="${scriptSrc}"><\/script>\n\n<offgrid-player${attrs}>${children}</offgrid-player>`;
+    return `<script defer src="${scriptSrc}"><\/script>\n\n<offgrid-player${attrs}>${children}</offgrid-player>`;
   }
 
   // Public API
@@ -2374,12 +2375,27 @@ class OffgridPlaylist extends HTMLElement {
   connectedCallback() {
     if (this._rendered) return; // DOM move, not first insert — see #49
     this._rendered = true;
-    // Parse inline JSON tracks
-    const jsonEl = this.querySelector('script[type="application/json"]');
-    if (jsonEl) {
-      try { this._tracks = this._sanitizeTracks(JSON.parse(jsonEl.textContent)); } catch(e) {}
-    }
+    this._readInlineTracks();
     this._render();
+    // If this script runs during parsing (no `defer`, or placed before the
+    // element), the child <script> may not exist yet when we're upgraded — so
+    // re-check once the document has finished parsing (same fallback as
+    // OffgridPlayer._initInlineTracklist).
+    if (!this._tracks.length && document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        if (this._readInlineTracks()) this._render();
+      }, { once: true });
+    }
+  }
+
+  // Returns true if it populated _tracks from the inline JSON child (or they
+  // were already set via the `tracks` property).
+  _readInlineTracks() {
+    if (this._tracks.length) return true;
+    const jsonEl = this.querySelector('script[type="application/json"]');
+    if (!jsonEl) return false;
+    try { this._tracks = this._sanitizeTracks(JSON.parse(jsonEl.textContent)); } catch(e) {}
+    return this._tracks.length > 0;
   }
 
   // Live re-theme without re-rendering (which would tear down the embedded
@@ -3124,8 +3140,9 @@ class OffgridPlaylist extends HTMLElement {
       children = `\n  <script type="application/json">${json}<\/script>\n`;
     }
 
+    // `defer` so the element upgrades after its inline JSON child is parsed.
     const scriptSrc = OFFGRID_SCRIPT_SRC || 'https://your-domain.com/audio-player.js';
-    return `<script src="${scriptSrc}"><\/script>\n\n<offgrid-playlist${attrs}>${children}</offgrid-playlist>`;
+    return `<script defer src="${scriptSrc}"><\/script>\n\n<offgrid-playlist${attrs}>${children}</offgrid-playlist>`;
   }
 }
 

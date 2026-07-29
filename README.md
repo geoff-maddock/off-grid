@@ -281,11 +281,15 @@ Run the script in your site's build/deploy step so pages regenerate on every dep
 ### 1. Include the script
 
 ```html
-<script src="https://your-domain.com/audio-player.js"></script>
+<script defer src="https://your-domain.com/audio-player.js"></script>
 ```
 
 (Use the URL where you hosted `audio-player.js` — see
 [Onboarding Stage 5](docs/ONBOARDING.md#stage-5--host-the-frontend).)
+
+`defer` matters when a player or playlist carries its tracks as an inline JSON child (as the
+generated embed snippets do): it ensures the element upgrades only after its children are parsed,
+so the tracks are found on first render.
 
 ### 2. Add a player
 
