@@ -164,17 +164,21 @@ const OffgridShared = {
   // Clicks dispatch a composed `tagclick` event the hosting page routes to
   // its tag view. With `max`, only the first `max` pills show, followed by a
   // "+N more" pill that reveals the rest (the attribute order is the display
-  // order, so the host controls ranking).
-  renderTagPills(host, container, { max } = {}) {
+  // order, so the host controls ranking); once revealed, a "− less" pill
+  // collapses back to the truncated view.
+  renderTagPills(host, container, { max, expanded = false } = {}) {
     if (!container) return;
     const tags = this.parseTags(host.getAttribute('tags') || '');
-    const shown = max && tags.length > max ? tags.slice(0, max) : tags;
+    const truncated = max && tags.length > max && !expanded;
+    const shown = truncated ? tags.slice(0, max) : tags;
     const hidden = tags.length - shown.length;
     container.innerHTML = shown.map((t) =>
       `<button type="button" class="tag-pill">${this.esc(t)}</button>`
     ).join('') + (hidden > 0
       ? `<button type="button" class="tag-pill tag-more" aria-label="Show ${hidden} more tags">+${hidden} more</button>`
-      : '');
+      : expanded && max && tags.length > max
+        ? '<button type="button" class="tag-pill tag-more" aria-label="Show fewer tags">− less</button>'
+        : '');
     container.querySelectorAll('.tag-pill:not(.tag-more)').forEach((pill) => {
       pill.addEventListener('click', () => {
         host.dispatchEvent(new CustomEvent('tagclick', {
@@ -184,7 +188,8 @@ const OffgridShared = {
       });
     });
     const more = container.querySelector('.tag-more');
-    if (more) more.addEventListener('click', () => this.renderTagPills(host, container));
+    if (more) more.addEventListener('click', () =>
+      this.renderTagPills(host, container, { max, expanded: !expanded }));
   },
 
   // Click `triggerSelector` to view the component's `thumb` full-size;
