@@ -440,6 +440,16 @@ footer a {
   margin-bottom: 20px;
 }
 
+/* An explicit display on .browse-panel would beat the UA's [hidden] rule,
+   so pin it down. `hidden` strictly means "no chips in this view". */
+.browse-panel[hidden] {
+  display: none;
+}
+
+.browse-panel-inner {
+  min-width: 0;
+}
+
 .browse-group + .browse-group {
   margin-top: 16px;
 }
@@ -652,4 +662,46 @@ footer a {
   color: var(--text-muted);
   font-size: 13px;
   font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Wide-viewport layout: the filter panel becomes a permanent sticky rail
+   next to the content column. Below the breakpoint, .layout is a plain
+   block and the panel behaves as the collapsible mobile panel. */
+@media (min-width: 1100px) {
+  :root {
+    --max-w: 1240px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 0 32px;
+    align-items: start;
+  }
+
+  /* No chips in this view -> no rail; let the content column center. */
+  .layout:has(> .browse-panel[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout > .content {
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .browse-panel {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    margin-bottom: 0;
+  }
+
+  /* The rail is always open on desktop; the toggle only exists below the
+     breakpoint. */
+  .browse-toggle,
+  .filter-active-pill {
+    display: none;
+  }
 }

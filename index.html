@@ -53,7 +53,9 @@
         <a href="#/" class="nav-link" data-nav="home">Mixes</a>
         <a href="#/playlists" class="nav-link" data-nav="playlists">Playlists</a>
         <a href="#/tracks" class="nav-link" data-nav="tracks">Tracks</a>
-        <button class="browse-toggle" id="browse-toggle" type="button">Filter &#9662;</button>
+        <button class="browse-toggle" id="browse-toggle" type="button" aria-expanded="false"
+          aria-controls="browse-panel">Filter</button>
+        <span class="filter-active-pill" id="filter-active-pill" hidden></span>
       </div>
       <div class="toolbar-sort" id="toolbar-sort">
         <label for="sort-select">Sort</label>
@@ -67,53 +69,65 @@
       </div>
     </nav>
 
-    <!-- Filter panel (UI label "Filter"; ids/classes keep the historical
-         "browse" naming so self-hosters' custom CSS keeps working).
-         Groups are shown per view: artists+tags on Mixes, tags+creators on
-         Playlists, the A–Z artist index on Tracks. -->
-    <div class="browse-panel" id="browse-panel" hidden>
-      <div class="browse-group" id="artist-group">
-        <div class="browse-group-label">Artists</div>
-        <div class="chip-row" id="artist-chips"></div>
-      </div>
-      <div class="browse-group" id="tag-group">
-        <div class="browse-group-label">Tags</div>
-        <div class="chip-row" id="tag-chips"></div>
-      </div>
-      <div class="browse-group" id="playlist-tag-group" hidden>
-        <div class="browse-group-label">Tags</div>
-        <div class="chip-row" id="playlist-tag-chips"></div>
-      </div>
-      <div class="browse-group" id="creator-group" hidden>
-        <div class="browse-group-label">Creators</div>
-        <div class="chip-row" id="creator-chips"></div>
-      </div>
-      <div class="browse-group" id="track-letter-group" hidden>
-        <div class="browse-group-label">Artists A&ndash;Z</div>
-        <div class="chip-row" id="track-letter-chips"></div>
-      </div>
-    </div>
+    <div class="layout">
 
-    <!-- Search -->
-    <div class="search-bar" id="search-bar">
-      <input type="text" id="mix-search" placeholder="Search mixes &mdash; title, artist, tag, or track name..."
-        autocomplete="off">
-      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round">
-        <circle cx="11" cy="11" r="8" />
-        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-      </svg>
-      <button class="search-clear" id="search-clear">&times;</button>
-    </div>
-    <p class="search-hint" id="search-hint">Searches mix titles, artists, tags, and the track names inside each mix.
-    </p>
+      <!-- Filter panel (UI label "Filter"; ids/classes keep the historical
+           "browse" naming so self-hosters' custom CSS keeps working).
+           Groups are shown per view: artists+tags on Mixes, tags+creators on
+           Playlists, the A–Z artist index on Tracks. On wide viewports this
+           renders as a permanent sidebar; below the breakpoint the Filter
+           button collapses/expands it. -->
+      <aside class="browse-panel" id="browse-panel" hidden>
+        <div class="browse-panel-inner">
+          <div class="browse-group" id="artist-group">
+            <div class="browse-group-label">Artists</div>
+            <div class="chip-row" id="artist-chips"></div>
+          </div>
+          <div class="browse-group" id="tag-group">
+            <div class="browse-group-label">Tags</div>
+            <div class="chip-row" id="tag-chips"></div>
+          </div>
+          <div class="browse-group" id="playlist-tag-group" hidden>
+            <div class="browse-group-label">Tags</div>
+            <div class="chip-row" id="playlist-tag-chips"></div>
+          </div>
+          <div class="browse-group" id="creator-group" hidden>
+            <div class="browse-group-label">Creators</div>
+            <div class="chip-row" id="creator-chips"></div>
+          </div>
+          <div class="browse-group" id="track-letter-group" hidden>
+            <div class="browse-group-label">Artists A&ndash;Z</div>
+            <div class="chip-row" id="track-letter-chips"></div>
+          </div>
+        </div>
+      </aside>
 
-    <!-- View heading / breadcrumb (filtered views) -->
-    <div class="view-heading" id="view-heading" hidden></div>
+      <main class="content">
 
-    <!-- Main view (router fills this) -->
-    <div id="main-view">
-      <div class="manifest-status loading" id="manifest-loading">Loading mixes...</div>
+        <!-- Search -->
+        <div class="search-bar" id="search-bar">
+          <input type="text" id="mix-search" placeholder="Search mixes &mdash; title, artist, tag, or track name..."
+            autocomplete="off">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <button class="search-clear" id="search-clear">&times;</button>
+        </div>
+        <p class="search-hint" id="search-hint">Searches mix titles, artists, tags, and the track names inside each mix.
+        </p>
+
+        <!-- View heading / breadcrumb (filtered views) -->
+        <div class="view-heading" id="view-heading" hidden></div>
+
+        <!-- Main view (router fills this) -->
+        <div id="main-view">
+          <div class="manifest-status loading" id="manifest-loading">Loading mixes...</div>
+        </div>
+
+      </main>
+
     </div>
 
     <footer>
