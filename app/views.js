@@ -111,7 +111,13 @@ export function showChrome({ sort = false, browse = false, search = null, headin
   document.getElementById('toolbar-sort').style.display = sort ? '' : 'none';
   if (sort) document.getElementById('sort-select').value = state.sort;
 
-  const activeGroups = BROWSE_GROUPS[browse] || [];
+  // Detail views pass browse:false but still get their parent list view's
+  // groups, so the desktop rail persists across list <-> detail navigation
+  // (spec §1). nav 'home' covers mix detail; single-mix mode never has
+  // chips, so the panel stays hidden there regardless.
+  const NAV_GROUPS = { home: 'mixes', playlists: 'playlists', tracks: 'tracks' };
+  const groupsKey = browse || NAV_GROUPS[(heading && heading.nav) || 'home'];
+  const activeGroups = BROWSE_GROUPS[groupsKey] || [];
   let anyChips = false;
   for (const ids of Object.values(BROWSE_GROUPS)) {
     for (const id of ids) {
