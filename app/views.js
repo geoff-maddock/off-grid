@@ -3,6 +3,7 @@ import { _openTracklist } from './config.js';
 import {
   state, sortMixes, sortPlaylists, sortTracks, trackLetterOf,
   setMixFilter, setTrackFilter, setPlaylistFilter, setActiveFilter,
+  revealChip,
 } from './state.js';
 
 // View renderers + page chrome for the player page (extracted from
@@ -60,7 +61,52 @@ const BROWSE_GROUPS = {
   tracks: ['track-letter-group'],
 };
 
-export function showChrome({ sort = false, browse = false, search = null, heading = null }) {
+// Active filter -> which chip row it lives in and the route that clears it.
+const ACTIVE_CHIP_ROWS = {
+  artist: { row: 'artist-chips', clear: '#/' },
+  tag: { row: 'tag-chips', clear: '#/' },
+  'playlist-tag': { row: 'playlist-tag-chips', clear: '#/playlists' },
+  creator: { row: 'creator-chips', clear: '#/playlists' },
+  letter: { row: 'track-letter-chips', clear: '#/tracks' },
+};
+
+// Highlight the chip matching the view's active filter (clicking it again
+// clears), and mirror it as a dismissible pill next to the Filter button —
+// the narrow-screen closed state's only trace of the filter (the pill is
+// display:none on desktop, where the rail highlight covers it).
+function applyActiveFilterChip(active) {
+  document.querySelectorAll('.chip.chip-active').forEach(c => {
+    c.classList.remove('chip-active');
+    c.href = c.dataset.href;
+    const x = c.querySelector('.chip-x');
+    if (x) x.remove();
+  });
+  const pillHost = document.getElementById('filter-active-pill');
+  pillHost.hidden = true;
+  pillHost.innerHTML = '';
+  const conf = active && ACTIVE_CHIP_ROWS[active.type];
+  if (!conf) return;
+  const label = active.label || active.value;
+  const row = document.getElementById(conf.row);
+  const match = [...row.querySelectorAll('.chip')].find(c => c.dataset.value === active.value);
+  if (match) {
+    revealChip(match); // never leave the highlight hidden behind "+N more"
+    match.classList.add('chip-active');
+    match.href = conf.clear;
+    const x = document.createElement('span');
+    x.className = 'chip-x';
+    x.textContent = '×';
+    match.appendChild(x);
+  }
+  const pill = document.createElement('a');
+  pill.className = 'chip chip-active';
+  pill.href = conf.clear;
+  pill.innerHTML = `${esc(label)} <span class="chip-x">×</span>`;
+  pillHost.appendChild(pill);
+  pillHost.hidden = false;
+}
+
+export function showChrome({ sort = false, browse = false, search = null, heading = null, active = null }) {
   document.getElementById('toolbar').style.display = state.singleMix ? 'none' : '';
   document.getElementById('toolbar-sort').style.display = sort ? '' : 'none';
   if (sort) document.getElementById('sort-select').value = state.sort;
@@ -80,6 +126,7 @@ export function showChrome({ sort = false, browse = false, search = null, headin
   // `hidden` strictly means "no chips in this view" (both layouts); the
   // narrow-screen expand/collapse state is the .open class (see main.js).
   document.getElementById('browse-panel').hidden = !anyChips;
+  applyActiveFilterChip(active);
 
   const sb = document.getElementById('search-bar');
   const hint = document.getElementById('search-hint');
@@ -294,17 +341,21 @@ export function renderMixDetail(id) {
 export function renderPlaylistsView(filter = {}) {
   let playlists = state.playlists;
   let heading = { back: '#/', backText: 'All mixes', nav: 'playlists' };
+  let active = null;
   if (filter.tag) {
     playlists = state.playlistTagIndex.get(filter.tag) || [];
     heading = { back: '#/playlists', backText: 'All playlists', kind: 'Tag', title: filter.tag, nav: 'playlists' };
+    active = { type: 'playlist-tag', value: filter.tag };
   } else if (filter.creator) {
     playlists = state.creatorIndex.get(filter.creator) || [];
     heading = { back: '#/playlists', backText: 'All playlists', kind: 'Creator', title: filter.creator, nav: 'playlists' };
+    active = { type: 'creator', value: filter.creator };
   }
   showChrome({
     sort: playlists.length > 0, browse: 'playlists',
     search: playlists.length ? 'playlists' : null,
     heading,
+    active,
   });
   const root = view();
   root.innerHTML = '';
@@ -347,6 +398,7 @@ export function renderTag(tag) {
   showChrome({
     sort: true, browse: 'mixes', search: 'mixes',
     heading: { back: '#/', backText: 'All mixes', kind: 'Tag', title: tag, nav: 'home' },
+    active: { type: 'tag', value: tag },
   });
   renderMixList(state.tagIndex.get(tag) || [], { label: 'Mixes' });
 }
@@ -355,6 +407,7 @@ export function renderArtist(name) {
   showChrome({
     sort: true, browse: 'mixes', search: 'mixes',
     heading: { back: '#/', backText: 'All mixes', kind: 'Artist', title: name, nav: 'home' },
+    active: { type: 'artist', value: name },
   });
   renderMixList(state.artistIndex.get(name) || [], { label: 'Mixes' });
 }
@@ -366,6 +419,7 @@ export function renderTracks(letter = '') {
     heading: letter
       ? { back: '#/tracks', backText: 'All tracks', kind: 'Artists', title: letter === 'other' ? '#' : letter.toUpperCase(), nav: 'tracks' }
       : { back: '#/', backText: 'All mixes', nav: 'tracks' },
+    active: letter ? { type: 'letter', value: letter, label: letter === 'other' ? '#' : letter.toUpperCase() } : null,
   });
   const root = view();
   root.innerHTML = '';

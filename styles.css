@@ -562,6 +562,34 @@ footer a {
   color: var(--accent);
 }
 
+/* Chip for the view's active filter — clicking it clears the filter. */
+.chip-active,
+.chip-active:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.chip-active .chip-count {
+  color: var(--accent);
+}
+
+.chip-x {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* Active-filter pill beside the Filter button (narrow screens only —
+   the desktop media query hides it along with the button). */
+.filter-active-pill {
+  display: inline-flex;
+}
+
+.filter-active-pill[hidden] {
+  display: none;
+}
+
 /* Search helper line */
 .search-hint {
   font-size: 12px;
