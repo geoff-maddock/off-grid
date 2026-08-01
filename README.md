@@ -171,9 +171,13 @@ links are shareable and bookmarkable and work on a static host:
 | `#/track/<slug>`  | One track with its buy link, then every mix that contains it                |
 
 These hash routes are independent of the `?manifest=`/`?user=`/`?mix=` query params above (which pick
-*which* manifest to load). The **Filter** button reveals chips suited to each view: artist and tag
+*which* manifest to load). **Filter** chips suit each view: artist and tag
 chips on Mixes, tag chips (aggregated from each playlist's mixes) plus creator chips on Playlists
-(creators only appear when the library has more than one), and an artist A–Z index on Tracks;
+(creators only appear when the library has more than one), and an artist A–Z index on Tracks. On
+wide screens the chips live in a permanent sidebar; on narrow screens the **Filter** button
+expands/collapses them (the choice is remembered). Chip groups list the most-used entries first,
+capped at 12 with a **+N more** pill; the active filter's chip is highlighted and clicking it (or
+the pill beside the Filter button) clears the filter.
 **Sort** orders the list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also appears on the
 Playlists and Tracks tabs — on Playlists, Artist sorts by the playlist creator; on Tracks it orders
 by artist/title (Tracks have no date, so Newest keeps the natural artist–title order).

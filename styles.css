@@ -391,6 +391,10 @@ footer a {
 
 /* Filter button: caret flips with the panel, and the button takes the
    active-nav look while the panel is open. */
+.browse-toggle {
+  white-space: nowrap;
+}
+
 .browse-toggle::after {
   content: ' \25BE';
 }
@@ -536,6 +540,12 @@ footer a {
 .chip:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* The explicit display above would beat the UA's [hidden] rule — pin it
+   down so capped overflow chips actually hide. */
+.chip[hidden] {
+  display: none;
 }
 
 .chip-count {
