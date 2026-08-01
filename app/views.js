@@ -77,7 +77,9 @@ export function showChrome({ sort = false, browse = false, search = null, headin
   }
   const browseBtn = document.getElementById('browse-toggle');
   browseBtn.style.display = anyChips ? '' : 'none';
-  if (!anyChips) document.getElementById('browse-panel').hidden = true;
+  // `hidden` strictly means "no chips in this view" (both layouts); the
+  // narrow-screen expand/collapse state is the .open class (see main.js).
+  document.getElementById('browse-panel').hidden = !anyChips;
 
   const sb = document.getElementById('search-bar');
   const hint = document.getElementById('search-hint');

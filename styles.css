@@ -389,6 +389,22 @@ footer a {
   background: var(--surface);
 }
 
+/* Filter button: caret flips with the panel, and the button takes the
+   active-nav look while the panel is open. */
+.browse-toggle::after {
+  content: ' \25BE';
+}
+
+.browse-toggle[aria-expanded="true"]::after {
+  content: ' \25B4';
+}
+
+.browse-toggle[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
 .toolbar-sort {
   display: flex;
   align-items: center;
@@ -431,13 +447,20 @@ footer a {
   border-color: var(--accent);
 }
 
-/* Browse panel (tags + artists) */
+/* Browse panel (tags + artists). The 0fr <-> 1fr grid-row technique
+   animates the unknown content height on narrow screens; padding, border,
+   margin and opacity collapse alongside so the closed panel takes no
+   space. */
 .browse-panel {
+  display: grid;
+  grid-template-rows: 1fr;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 18px;
   margin-bottom: 20px;
+  transition: grid-template-rows 0.25s ease, padding 0.25s ease,
+    margin-bottom 0.25s ease, opacity 0.2s ease, border-width 0.25s ease;
 }
 
 /* An explicit display on .browse-panel would beat the UA's [hidden] rule,
@@ -448,6 +471,33 @@ footer a {
 
 .browse-panel-inner {
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* Keep collapsed chips out of the tab order the moment the panel starts
+     closing (visibility flips back instantly on open). */
+  transition: visibility 0s linear 0.25s;
+}
+
+/* Collapsed state — only below the breakpoint; the desktop rail ignores
+   .open entirely. */
+@media (max-width: 1099px) {
+  .browse-panel:not(.open) {
+    grid-template-rows: 0fr;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    margin-bottom: 0;
+    opacity: 0;
+  }
+
+  .browse-panel:not(.open) .browse-panel-inner {
+    visibility: hidden;
+  }
+
+  .browse-panel.open .browse-panel-inner {
+    transition-delay: 0s;
+  }
 }
 
 .browse-group + .browse-group {

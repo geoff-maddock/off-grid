@@ -170,11 +170,22 @@ function resortInPlace() {
   return done;
 }
 
-// Filter toggle shows/hides the chip panel (per-view groups)
-document.getElementById('browse-toggle').addEventListener('click', () => {
-  const panel = document.getElementById('browse-panel');
-  panel.hidden = !panel.hidden;
-});
+// Filter toggle expands/collapses the chip panel (per-view groups) on
+// narrow screens; the choice persists across loads. On wide viewports CSS
+// keeps the panel visible as a rail and hides this button entirely.
+const browsePanelEl = document.getElementById('browse-panel');
+const browseToggleEl = document.getElementById('browse-toggle');
+
+function setFilterOpen(open) {
+  browsePanelEl.classList.toggle('open', open);
+  browseToggleEl.setAttribute('aria-expanded', String(open));
+  try { localStorage.setItem('filterOpen', open ? '1' : '0'); } catch (e) { /* private mode */ }
+}
+
+let savedFilterOpen = false;
+try { savedFilterOpen = localStorage.getItem('filterOpen') === '1'; } catch (e) { /* private mode */ }
+setFilterOpen(savedFilterOpen);
+browseToggleEl.addEventListener('click', () => setFilterOpen(!browsePanelEl.classList.contains('open')));
 
 // Color-mode toggle: cycles dark -> light -> color, themes the page chrome
 // (via [data-theme] on <html>) and every embedded player/playlist (via the
