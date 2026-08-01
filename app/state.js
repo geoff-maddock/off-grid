@@ -135,39 +135,84 @@ export function trackLetterOf(t) {
   return /[a-z]/.test(ch) ? ch : 'other';
 }
 
+// Capped groups show the top CHIP_CAP chips (most-used first) with a
+// "+N more" reveal pill — same pattern as playlist header tags.
+const CHIP_CAP = 12;
+
 export function populateChips() {
   const chip = (href, label, count) => {
     const a = document.createElement('a');
     a.className = 'chip';
     a.href = href;
+    // Original route + filter value, so the active-chip logic (views.js)
+    // can flip the href to a clear-route and back, and find this chip.
+    a.dataset.href = href;
+    a.dataset.value = label;
     a.innerHTML = `${esc(label)} <span class="chip-count">${count}</span>`;
     return a;
   };
-  const fill = (rowId, entries, hrefFor) => {
+  const fill = (rowId, entries, hrefFor, cap = CHIP_CAP) => {
     const row = document.getElementById(rowId);
     row.innerHTML = '';
-    for (const [name, items] of entries) {
-      row.appendChild(chip(hrefFor(name), name, Array.isArray(items) ? items.length : items));
+    entries.forEach(([name, items], i) => {
+      const c = chip(hrefFor(name), name, Array.isArray(items) ? items.length : items);
+      if (cap && i >= cap) {
+        c.classList.add('chip-overflow');
+        c.hidden = true;
+      }
+      row.appendChild(c);
+    });
+    if (cap && entries.length > cap) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'chip chip-more';
+      pill.textContent = `+${entries.length - cap} more`;
+      pill.addEventListener('click', () => {
+        row.querySelectorAll('.chip-overflow[hidden]').forEach(c => { c.hidden = false; });
+        pill.remove();
+      });
+      row.appendChild(pill);
     }
   };
-  const alpha = (index) => [...index.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  // Most-used first; the alphabetical pre-sort makes ties alphabetical
+  // (Array.sort is stable).
+  const size = (v) => (Array.isArray(v) ? v.length : v);
+  const byCount = (index) => [...index.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .sort((a, b) => size(b[1]) - size(a[1]));
 
-  fill('artist-chips', alpha(state.artistIndex), n => '#/artist/' + encodeURIComponent(n));
-  fill('tag-chips', alpha(state.tagIndex), n => '#/tag/' + encodeURIComponent(n));
-  fill('playlist-tag-chips', alpha(state.playlistTagIndex), n => '#/playlists/tag/' + encodeURIComponent(n));
+  fill('artist-chips', byCount(state.artistIndex), n => '#/artist/' + encodeURIComponent(n));
+  fill('tag-chips', byCount(state.tagIndex), n => '#/tag/' + encodeURIComponent(n));
+  fill('playlist-tag-chips', byCount(state.playlistTagIndex), n => '#/playlists/tag/' + encodeURIComponent(n));
   // A single creator can't differentiate anything — offer the group only at 2+.
-  fill('creator-chips', state.creatorIndex.size >= 2 ? alpha(state.creatorIndex) : [],
+  fill('creator-chips', state.creatorIndex.size >= 2 ? byCount(state.creatorIndex) : [],
     n => '#/playlists/creator/' + encodeURIComponent(n));
 
+  // The A–Z index stays alphabetical and uncapped (26 small chips max).
   const letterRow = document.getElementById('track-letter-chips');
   letterRow.innerHTML = '';
   for (const l of [...'abcdefghijklmnopqrstuvwxyz', 'other']) {
     const count = state.trackLetterIndex.get(l);
     if (!count) continue;
-    letterRow.appendChild(chip('#/tracks/letter/' + l, l === 'other' ? '#' : l.toUpperCase(), count));
+    const c = chip('#/tracks/letter/' + l, l === 'other' ? '#' : l.toUpperCase(), count);
+    c.dataset.value = l; // route value, not the display label
+    letterRow.appendChild(c);
   }
   // Per-view group visibility (and hiding the toggle when the active
   // view has no chips) is handled by showChrome().
+}
+
+// Un-hide a single overflow chip (used when the active filter's chip sits
+// past the cap) and keep the "+N more" pill count honest.
+export function revealChip(chipEl) {
+  if (!chipEl || !chipEl.hidden) return;
+  chipEl.hidden = false;
+  const row = chipEl.parentElement;
+  const pill = row.querySelector('.chip-more');
+  if (!pill) return;
+  const left = row.querySelectorAll('.chip-overflow[hidden]').length;
+  if (left) pill.textContent = `+${left} more`;
+  else pill.remove();
 }
 
 // ---- Search wiring (context-aware) ----------------------------------

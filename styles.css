@@ -548,6 +548,20 @@ footer a {
   color: var(--accent);
 }
 
+/* "+N more" reveal pill at the end of a capped chip row. */
+.chip-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  cursor: pointer;
+}
+
+.chip-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Search helper line */
 .search-hint {
   font-size: 12px;
