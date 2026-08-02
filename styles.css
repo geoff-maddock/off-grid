@@ -389,6 +389,26 @@ footer a {
   background: var(--surface);
 }
 
+/* Filter button: caret flips with the panel, and the button takes the
+   active-nav look while the panel is open. */
+.browse-toggle {
+  white-space: nowrap;
+}
+
+.browse-toggle::after {
+  content: ' \25BE';
+}
+
+.browse-toggle[aria-expanded="true"]::after {
+  content: ' \25B4';
+}
+
+.browse-toggle[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--border);
+  background: var(--surface);
+}
+
 .toolbar-sort {
   display: flex;
   align-items: center;
@@ -431,13 +451,57 @@ footer a {
   border-color: var(--accent);
 }
 
-/* Browse panel (tags + artists) */
+/* Browse panel (tags + artists). The 0fr <-> 1fr grid-row technique
+   animates the unknown content height on narrow screens; padding, border,
+   margin and opacity collapse alongside so the closed panel takes no
+   space. */
 .browse-panel {
+  display: grid;
+  grid-template-rows: 1fr;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 18px;
   margin-bottom: 20px;
+  transition: grid-template-rows 0.25s ease, padding 0.25s ease,
+    margin-bottom 0.25s ease, opacity 0.2s ease, border-width 0.25s ease;
+}
+
+/* An explicit display on .browse-panel would beat the UA's [hidden] rule,
+   so pin it down. `hidden` strictly means "no chips in this view". */
+.browse-panel[hidden] {
+  display: none;
+}
+
+.browse-panel-inner {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  /* Keep collapsed chips out of the tab order the moment the panel starts
+     closing (visibility flips back instantly on open). */
+  transition: visibility 0s linear 0.25s;
+}
+
+/* Collapsed state — only below the breakpoint; the desktop rail ignores
+   .open entirely. */
+@media (max-width: 1099px) {
+  .browse-panel:not(.open) {
+    grid-template-rows: 0fr;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top-width: 0;
+    border-bottom-width: 0;
+    margin-bottom: 0;
+    opacity: 0;
+  }
+
+  .browse-panel:not(.open) .browse-panel-inner {
+    visibility: hidden;
+  }
+
+  .browse-panel.open .browse-panel-inner {
+    transition-delay: 0s;
+  }
 }
 
 .browse-group + .browse-group {
@@ -478,6 +542,12 @@ footer a {
   color: var(--accent);
 }
 
+/* The explicit display above would beat the UA's [hidden] rule — pin it
+   down so capped overflow chips actually hide. */
+.chip[hidden] {
+  display: none;
+}
+
 .chip-count {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
@@ -486,6 +556,48 @@ footer a {
 
 .chip:hover .chip-count {
   color: var(--accent);
+}
+
+/* "+N more" reveal pill at the end of a capped chip row. */
+.chip-more {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  cursor: pointer;
+}
+
+.chip-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Chip for the view's active filter — clicking it clears the filter. */
+.chip-active,
+.chip-active:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.chip-active .chip-count {
+  color: var(--accent);
+}
+
+.chip-x {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.8;
+}
+
+/* Active-filter pill beside the Filter button (narrow screens only —
+   the desktop media query hides it along with the button). */
+.filter-active-pill {
+  display: inline-flex;
+}
+
+.filter-active-pill[hidden] {
+  display: none;
 }
 
 /* Search helper line */
@@ -652,4 +764,46 @@ footer a {
   color: var(--text-muted);
   font-size: 13px;
   font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Wide-viewport layout: the filter panel becomes a permanent sticky rail
+   next to the content column. Below the breakpoint, .layout is a plain
+   block and the panel behaves as the collapsible mobile panel. */
+@media (min-width: 1100px) {
+  :root {
+    --max-w: 1240px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 0 32px;
+    align-items: start;
+  }
+
+  /* No chips in this view -> no rail; let the content column center. */
+  .layout:has(> .browse-panel[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .layout > .content {
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .browse-panel {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    margin-bottom: 0;
+  }
+
+  /* The rail is always open on desktop; the toggle only exists below the
+     breakpoint. */
+  .browse-toggle,
+  .filter-active-pill {
+    display: none;
+  }
 }
