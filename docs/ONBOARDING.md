@@ -172,11 +172,11 @@ Apply the database schema — **all migrations, in order**:
 npm run db:migrate:all
 ```
 
-> This runs every file in `worker/migrations/` (001–008) against your remote D1 database.
+> This runs every file in `worker/migrations/` (001–009) against your remote D1 database.
 > (`npm run db:migrate` applies only `001_init.sql` — don't stop there, or tracklists, accounts,
 > rate limiting, and play tracking will be missing.) Migrations aren't tracked by
 > `wrangler d1 execute`: run each once, on a fresh database. On a **fresh install** running all
-> seven up front is correct — migration 004's ownership backfill is a no-op when there's no
+> nine up front is correct — migration 004's ownership backfill is a no-op when there's no
 > content yet.
 >
 > **Importing an existing library?** (i.e. you plan to run `scripts/seed-d1.js` with pre-existing
@@ -373,6 +373,7 @@ Before opening an instance to the world:
 | Waveform but no audio | `src` URL wrong / not public | Open the `src` URL directly; enable the bucket's Public Development URL |
 | A migration errors with `duplicate column name` | It was already applied | Skip it — migrations aren't tracked, apply each exactly once |
 | Stats columns show zeros | Migration 007 not applied | `npx wrangler d1 execute offgrid-db --remote --file=migrations/007_play_tracking.sql` |
+| Engagement tab can't load / play beacons fail after deploy | Migration 009 not applied | `npx wrangler d1 execute offgrid-db --remote --file=migrations/009_play_geo.sql` (apply before deploying a Worker that records country) |
 | R2 won't activate | No payment method on the account | Add one (free tier still costs $0) — see [Accounts](#accounts) |
 | `wrangler login` hangs | OAuth redirect can't reach your machine (common on WSL) | `export CLOUDFLARE_API_TOKEN="your-token"` (create one with the "Edit Cloudflare Workers" template at [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)) |
 | `d1 execute` / local mode fails on WSL | `workerd` memory allocation issue in local mode | Always use `--remote` on WSL, e.g. `npx wrangler d1 execute offgrid-db --remote --file=migrations/001_init.sql` |

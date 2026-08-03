@@ -35,7 +35,7 @@ npx wrangler login
 npx wrangler r2 bucket cors set offgrid-media --file ./r2-cors.json
 npx wrangler d1 create offgrid-db     # paste database_id into wrangler.toml;
                                       # also set R2_PUBLIC_URL under [vars]
-npm run db:migrate:all                # all 7 migrations, in order
+npm run db:migrate:all                # all 9 migrations, in order
 
 npx wrangler secret put ADMIN_TOKEN           # openssl rand -hex 32 — save it!
 npx wrangler secret put JWT_SECRET            # openssl rand -hex 32

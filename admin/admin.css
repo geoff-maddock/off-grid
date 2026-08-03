@@ -1110,6 +1110,89 @@ html, body {
   }
 }
 
+/* Engagement tab: segmented period control, country chips, session rows */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.seg-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--border);
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  color: var(--accent);
+  background: var(--bg2);
+}
+
+.country-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.country-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+#engagement-content td.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+.session-row {
+  cursor: pointer;
+}
+
+.session-row.expanded td {
+  border-bottom: none;
+}
+
+.session-detail td {
+  background: var(--bg2);
+  font-size: 12px;
+}
+
+.session-events {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.session-events .mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#engagement-load-more {
+  margin-top: 12px;
+}
+
 /* Unpublished-changes badge next to the Publish button */
 .publish-dirty[hidden] {
   display: none; /* the display rule below would otherwise defeat [hidden] */

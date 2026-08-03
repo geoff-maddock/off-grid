@@ -10,6 +10,7 @@ export default [
     ignores: [
       'node_modules/',
       'worker/node_modules/',
+      'worker/.wrangler/',  // wrangler dev build artifacts
       'mix/',        // generated share pages
       'mixes/',      // local media
       'offline/',

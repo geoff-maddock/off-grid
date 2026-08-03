@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <!-- ?v= busts browser caches when these files change; bump it alongside edits -->
-  <link rel="stylesheet" href="admin.css?v=20260721">
+  <link rel="stylesheet" href="admin.css?v=20260803">
 </head>
 <body>
   <div class="page">
@@ -28,6 +28,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="mixes">Mixes</button>
       <button class="tab" data-tab="playlists">Playlists</button>
+      <button class="tab" data-tab="engagement">Engagement</button>
       <button class="tab" data-tab="users" id="tab-users" style="display:none">Users</button>
     </div>
 
@@ -89,6 +90,22 @@
       <div class="empty-state" id="playlist-empty" style="display:none">
         No playlists yet. Click "Add Playlist" to get started.
       </div>
+    </div>
+
+    <!-- Engagement Tab — content rendered by renderEngagement() -->
+    <div class="tab-panel" id="panel-engagement">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="segmented" id="engagement-period" role="group" aria-label="Time period">
+            <button class="seg-btn" data-period="24h">24h</button>
+            <button class="seg-btn active" data-period="7d">7d</button>
+            <button class="seg-btn" data-period="30d">30d</button>
+            <button class="seg-btn" data-period="90d">90d</button>
+            <button class="seg-btn" data-period="all">All</button>
+          </div>
+        </div>
+      </div>
+      <div id="engagement-content"><div class="hint">Loading&hellip;</div></div>
     </div>
 
     <!-- Users Tab (admins only) -->
@@ -331,6 +348,6 @@
        login needs only email + password. Harmless 404 if absent. -->
   <script src="../config.local.js"></script>
   <script src="peaks.js?v=20260721"></script>
-  <script src="admin.js?v=20260721"></script>
+  <script src="admin.js?v=20260803"></script>
 </body>
 </html>

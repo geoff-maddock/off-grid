@@ -14,7 +14,7 @@
 import { resolveOwnerId } from '../db.js';
 
 const MAX_BODY_BYTES = 1024;
-const SESSION_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
+export const SESSION_ID_RE = /^[A-Za-z0-9-]{8,64}$/;
 // Clamp per event. Normal heartbeats carry ~30-45s, but a hidden tab whose
 // timers are throttled can legitimately flush a few minutes in one beacon.
 const MAX_SECONDS_PER_EVENT = 300;
@@ -62,9 +62,14 @@ export async function handleTrack(request, env, path) {
     const countsAsPlay =
       priorSeconds < PLAY_THRESHOLD_SECONDS && priorSeconds + seconds >= PLAY_THRESHOLD_SECONDS;
 
+    // Coarse geo only: the edge's country code, never the IP (request.cf is
+    // undefined in local dev → NULL).
+    const country = typeof request.cf?.country === 'string'
+      ? request.cf.country.slice(0, 2).toUpperCase() : null;
+
     await db.batch([
-      db.prepare('INSERT INTO play_events (mix_id, session_id, seconds) VALUES (?, ?, ?)')
-        .bind(body.mixId, body.sessionId, seconds),
+      db.prepare('INSERT INTO play_events (mix_id, session_id, seconds, country) VALUES (?, ?, ?, ?)')
+        .bind(body.mixId, body.sessionId, seconds, country),
       db.prepare(
         `INSERT INTO mix_stats (mix_id, play_count, total_seconds, last_played_at)
          VALUES (?, ?, ?, datetime('now'))
