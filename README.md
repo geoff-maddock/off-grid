@@ -340,11 +340,17 @@ Clicking the cover art opens the full-size image in a built-in lightbox (click t
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
 click-to-seek, and the currently playing track is highlighted as playback crosses each timestamp.
+Once playback starts, a "Now playing: Artist – Title" line also appears in the player header and
+updates live as playback crosses each timestamp (and on seek); when the entry has an http(s) `url`,
+the label links to it in a new tab (the tracklist rows get the same trailing ↗ link). Tiny ‹ ›
+buttons next to the label skip between tracks, with CD-style back behavior: more than 3 seconds
+into a track, ‹ restarts it; otherwise it jumps to the previous one (same as the OS media-widget
+prev/next).
 Provide it either as a JS property (used by the player page from the manifest):
 
 ```js
 player.tracks = [
-  { time: "00:00", seconds: 0,   artist: "Artist A", title: "Opening Track" },
+  { time: "00:00", seconds: 0,   artist: "Artist A", title: "Opening Track", url: "https://example.com/opening-track" },
   { time: "04:32", seconds: 272, artist: "Artist B", title: "Second Track"  }
 ];
 ```

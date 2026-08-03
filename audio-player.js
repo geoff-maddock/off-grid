@@ -271,6 +271,7 @@ class OffgridPlayer extends HTMLElement {
     this._peaksDuration = null;
     this._tracks = [];
     this._activeTrackIndex = undefined;
+    this._npStarted = false;
     this._seekOnReady = null;
     // Play tracking (anonymous, heartbeat-based). Session = one page-load of
     // one audio source; reset when `src` changes.
@@ -596,6 +597,10 @@ class OffgridPlayer extends HTMLElement {
           padding-top: 6px;
           padding-bottom: 6px;
         }
+        :host([size="slim"]) .now-playing {
+          margin-top: 1px;
+          font-size: 10px;
+        }
         :host([size="slim"]) .wave-row {
           padding-bottom: 10px;
         }
@@ -686,6 +691,44 @@ class OffgridPlayer extends HTMLElement {
         a.track-title:hover, a.track-artist:hover {
           text-decoration: underline;
         }
+
+        .now-playing {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          font-size: 11px;
+          color: var(--text-muted);
+          margin-top: 2px;
+        }
+        .now-playing[hidden] { display: none; }
+        .np-text {
+          min-width: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .np-text a {
+          color: var(--accent);
+          text-decoration: none;
+        }
+        .np-text a:hover { text-decoration: underline; }
+        .np-btn {
+          flex: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          padding: 0;
+          border: 0;
+          border-radius: 3px;
+          background: none;
+          color: var(--text-muted);
+          cursor: pointer;
+        }
+        .np-btn:first-of-type { margin-left: 4px; }
+        .np-btn:hover { color: var(--accent); }
+        .np-btn svg { width: 10px; height: 10px; }
 
         .time-row {
           display: flex;
@@ -1261,6 +1304,15 @@ class OffgridPlayer extends HTMLElement {
                 ? `<a class="track-artist" href="${this._esc(artistHref)}">${this._esc(artist)}</a>`
                 : `<div class="track-artist">${this._esc(artist)}</div>`)
               : ''}
+            <div class="now-playing" id="now-playing" hidden>
+              <span class="np-text" id="np-text" aria-live="polite"></span>
+              <button class="np-btn" id="np-prev" aria-label="Previous track" title="Previous track">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3L5 8l5 5"/></svg>
+              </button>
+              <button class="np-btn" id="np-next" aria-label="Next track" title="Next track">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l5 5-5 5"/></svg>
+              </button>
+            </div>
             <div class="time-row">
               <span class="time-display time-current">0:00</span>
               <span class="time-display">/</span>
@@ -1414,6 +1466,12 @@ class OffgridPlayer extends HTMLElement {
     volSlider.addEventListener('change', (e) => {
       volSlider.dataset.last = e.target.value;
     });
+
+    // Now-playing skip buttons: cue navigation within the mix (same CD-style
+    // behavior as the OS media-widget prev/next). Only reachable once playback
+    // has started (the row is hidden until then), so _ws exists.
+    this.shadowRoot.getElementById('np-prev').addEventListener('click', () => this._msPrevCue());
+    this.shadowRoot.getElementById('np-next').addEventListener('click', () => this._msNextCue());
 
     // Download button
     const src = this.getAttribute('src');
@@ -1687,6 +1745,12 @@ class OffgridPlayer extends HTMLElement {
     this._ws.on('play', () => {
       this.setAttribute('playing', '');
       this._setPlayingAria(true);
+      // Direct now-playing paint (not via _msActivate → _updateActiveTrack):
+      // _msActivate bails without mediaSession support, and with `start-at`
+      // the earlier `seeking` event already set _activeTrackIndex, so the
+      // change-gate in _updateActiveTrack would suppress the first paint.
+      this._npStarted = true;
+      this._updateNowPlaying(this._msTrackIndexAt(this._ws.getCurrentTime()));
       this._tkStart();
       this._msActivate();
       this.dispatchEvent(new CustomEvent('trackplay', { bubbles: true, composed: true, detail: { src: this.getAttribute('src') } }));
@@ -1938,6 +2002,7 @@ class OffgridPlayer extends HTMLElement {
     if (!tracks.length) {
       btn.style.display = 'none';
       list.innerHTML = '';
+      this._updateNowPlaying(-1);
       return;
     }
     btn.style.display = 'inline-flex';
@@ -1962,8 +2027,10 @@ class OffgridPlayer extends HTMLElement {
         `<span class="tl-label">${label}</span>${linkHtml}</li>`;
     }).join('');
 
-    // Rebuilding the rows drops the active-class; re-apply it.
+    // Rebuilding the rows drops the active-class; re-apply it (and keep the
+    // now-playing label in sync with the new track data).
     this._updateTracklistActive(typeof this._activeTrackIndex === 'number' ? this._activeTrackIndex : -1);
+    this._updateNowPlaying(typeof this._activeTrackIndex === 'number' ? this._activeTrackIndex : -1);
     this._applyTracklistOpen();
   }
 
@@ -2027,6 +2094,7 @@ class OffgridPlayer extends HTMLElement {
     if (index === this._activeTrackIndex) return;
     this._activeTrackIndex = index;
     this._updateTracklistActive(index);
+    this._updateNowPlaying(index);
     this._msSetMetadata(index);
   }
 
@@ -2035,6 +2103,29 @@ class OffgridPlayer extends HTMLElement {
     this.shadowRoot.querySelectorAll('.tracklist-list .tl-item').forEach((item, i) => {
       item.classList.toggle('active', i === index);
     });
+  }
+
+  // "Now playing" line in the meta row. Hidden until playback has started
+  // (_npStarted); then shows the tracklist entry at the active index, linking
+  // the label when the track has a safe http(s) url. Hidden for index -1
+  // (before the first cue) or when there is no tracklist.
+  _updateNowPlaying(index) {
+    if (!this.shadowRoot) return;
+    const el = this.shadowRoot.getElementById('now-playing');
+    const text = this.shadowRoot.getElementById('np-text');
+    if (!el || !text) return;
+    const track = index >= 0 ? (this._tracks || [])[index] : null;
+    if (!this._npStarted || !track) {
+      el.hidden = true;
+      text.innerHTML = '';
+      return;
+    }
+    const label = [track.artist, track.title].filter(Boolean).map((s) => this._esc(s)).join(' &ndash; ') || '<em>untitled</em>';
+    const safeUrl = /^https?:\/\//i.test(track.url || '') ? track.url : '';
+    text.innerHTML = 'Now playing: ' + (safeUrl
+      ? `<a href="${this._esc(safeUrl)}" target="_blank" rel="noopener">${label}</a>`
+      : label);
+    el.hidden = false;
   }
 
   // title = current track (falling back to the mix title), album = mix title,
