@@ -272,6 +272,7 @@ class OffgridPlayer extends HTMLElement {
     this._tracks = [];
     this._activeTrackIndex = undefined;
     this._npStarted = false;
+    this._npRo = null;
     this._seekOnReady = null;
     // Play tracking (anonymous, heartbeat-based). Session = one page-load of
     // one audio source; reset when `src` changes.
@@ -352,6 +353,10 @@ class OffgridPlayer extends HTMLElement {
         document.removeEventListener('visibilitychange', this._tkOnHidden);
         window.removeEventListener('pagehide', this._tkOnHidden);
         this._tkOnHidden = null;
+      }
+      if (this._npRo) {
+        this._npRo.disconnect();
+        this._npRo = null;
       }
       if (this._ws) {
         this._ws.destroy();
@@ -729,6 +734,10 @@ class OffgridPlayer extends HTMLElement {
         .np-btn:first-of-type { margin-left: 4px; }
         .np-btn:hover { color: var(--accent); }
         .np-btn svg { width: 10px; height: 10px; }
+        /* Narrow players: the row lives below the waveform instead of the
+           squeezed meta column (see _placeNowPlaying). */
+        #np-below-slot .now-playing { margin: -6px 14px 10px; }
+        :host([size="slim"]) #np-below-slot .now-playing { margin: -4px 14px 8px; }
 
         .time-row {
           display: flex;
@@ -1353,6 +1362,8 @@ class OffgridPlayer extends HTMLElement {
           <div id="waveform" style="display:none" tabindex="0" role="slider" aria-label="Seek (arrow keys)" aria-valuemin="0"></div>
         </div>
 
+        <div id="np-below-slot"></div>
+
         <div class="bottom-row">
           <div class="vol-wrap">
             <span class="vol-icon" id="vol-icon">
@@ -1472,6 +1483,17 @@ class OffgridPlayer extends HTMLElement {
     // has started (the row is hidden until then), so _ws exists.
     this.shadowRoot.getElementById('np-prev').addEventListener('click', () => this._msPrevCue());
     this.shadowRoot.getElementById('np-next').addEventListener('click', () => this._msNextCue());
+
+    // Narrow players: relocate the now-playing row below the waveform, where
+    // it gets the player's full width instead of the squeezed meta column.
+    // Keyed on the player's own width like the @container rules (520px is the
+    // medium collapse tier). Guarded: jsdom (tests) has no ResizeObserver.
+    if (typeof ResizeObserver !== 'undefined') {
+      this._npRo = new ResizeObserver((entries) => {
+        this._placeNowPlaying(entries[0].contentRect.width <= 520);
+      });
+      this._npRo.observe(this);
+    }
 
     // Download button
     const src = this.getAttribute('src');
@@ -2126,6 +2148,24 @@ class OffgridPlayer extends HTMLElement {
       ? `<a href="${this._esc(safeUrl)}" target="_blank" rel="noopener">${label}</a>`
       : label);
     el.hidden = false;
+  }
+
+  // Moves the (single) now-playing row between its two homes: the meta column
+  // (wide players) and the slot below the waveform (narrow players, where the
+  // meta column is too squeezed to show much of the label). A plain node move,
+  // so the button listeners and any live label survive.
+  _placeNowPlaying(below) {
+    if (!this.shadowRoot) return;
+    const row = this.shadowRoot.getElementById('now-playing');
+    const slot = this.shadowRoot.getElementById('np-below-slot');
+    if (!row || !slot) return;
+    const inSlot = row.parentNode === slot;
+    if (below && !inSlot) {
+      slot.appendChild(row);
+    } else if (!below && inSlot) {
+      const timeRow = this.shadowRoot.querySelector('.meta-row .time-row');
+      if (timeRow) timeRow.parentNode.insertBefore(row, timeRow);
+    }
   }
 
   // title = current track (falling back to the mix title), album = mix title,

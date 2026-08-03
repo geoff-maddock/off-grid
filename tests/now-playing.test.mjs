@@ -163,6 +163,33 @@ describe('now-playing skip buttons', () => {
   });
 });
 
+describe('now-playing responsive placement', () => {
+  // jsdom has no ResizeObserver, so the observer setup is skipped; drive the
+  // move method directly (the observer just calls it with width <= 520).
+  it('moves below the waveform on narrow players and back into the meta column', () => {
+    const el = makePlayer();
+    const row = el.shadowRoot.getElementById('now-playing');
+    const slot = el.shadowRoot.getElementById('np-below-slot');
+    const meta = el.shadowRoot.querySelector('.meta-row');
+    expect(row.parentNode).toBe(meta);
+
+    el._placeNowPlaying(true);
+    expect(row.parentNode).toBe(slot);
+    el._placeNowPlaying(true); // idempotent
+    expect(row.parentNode).toBe(slot);
+
+    // The label keeps updating in its new home.
+    el._npStarted = true;
+    el._updateNowPlaying(0);
+    expect(np(el).textContent).toBe('Now playing: Artist A – Opening Track');
+
+    el._placeNowPlaying(false);
+    expect(row.parentNode).toBe(meta);
+    // Back in its original spot: just above the time row.
+    expect(row.nextElementSibling).toBe(meta.querySelector('.time-row'));
+  });
+});
+
 describe('_msTrackIndexAt', () => {
   it('returns the last cue at or before t, skipping non-finite seconds', () => {
     const el = makePlayer([

@@ -176,8 +176,8 @@ chips on Mixes, tag chips (aggregated from each playlist's mixes) plus creator c
 (creators only appear when the library has more than one), and an artist A–Z index on Tracks. On
 wide screens the chips live in a permanent sidebar; on narrow screens the **Filter** button
 expands/collapses them (the choice is remembered). Chip groups list the most-used entries first,
-capped at 12 with a **+N more** pill; the active filter's chip is highlighted and clicking it (or
-the pill beside the Filter button) clears the filter.
+capped at 12 with a **+N more** pill; the active filter's chip is highlighted and clicking it
+clears the filter.
 **Sort** orders the list by Newest (`releaseDate`), Title, or Artist. The same Sort dropdown also appears on the
 Playlists and Tracks tabs — on Playlists, Artist sorts by the playlist creator; on Tracks it orders
 by artist/title (Tracks have no date, so Newest keeps the natural artist–title order).
@@ -345,7 +345,8 @@ updates live as playback crosses each timestamp (and on seek); when the entry ha
 the label links to it in a new tab (the tracklist rows get the same trailing ↗ link). Tiny ‹ ›
 buttons next to the label skip between tracks, with CD-style back behavior: more than 3 seconds
 into a track, ‹ restarts it; otherwise it jumps to the previous one (same as the OS media-widget
-prev/next).
+prev/next). On narrow players (≤520px wide) the whole now-playing row moves below the waveform,
+where it gets the full player width instead of being truncated in the header column.
 Provide it either as a JS property (used by the player page from the manifest):
 
 ```js

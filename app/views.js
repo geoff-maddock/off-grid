@@ -71,9 +71,7 @@ const ACTIVE_CHIP_ROWS = {
 };
 
 // Highlight the chip matching the view's active filter (clicking it again
-// clears), and mirror it as a dismissible pill next to the Filter button —
-// the narrow-screen closed state's only trace of the filter (the pill is
-// display:none on desktop, where the rail highlight covers it).
+// clears, via the × affordance and the swapped clear-route href).
 function applyActiveFilterChip(active) {
   document.querySelectorAll('.chip.chip-active').forEach(c => {
     c.classList.remove('chip-active');
@@ -81,12 +79,8 @@ function applyActiveFilterChip(active) {
     const x = c.querySelector('.chip-x');
     if (x) x.remove();
   });
-  const pillHost = document.getElementById('filter-active-pill');
-  pillHost.hidden = true;
-  pillHost.innerHTML = '';
   const conf = active && ACTIVE_CHIP_ROWS[active.type];
   if (!conf) return;
-  const label = active.label || active.value;
   const row = document.getElementById(conf.row);
   const match = [...row.querySelectorAll('.chip')].find(c => c.dataset.value === active.value);
   if (match) {
@@ -98,12 +92,6 @@ function applyActiveFilterChip(active) {
     x.textContent = '×';
     match.appendChild(x);
   }
-  const pill = document.createElement('a');
-  pill.className = 'chip chip-active';
-  pill.href = conf.clear;
-  pill.innerHTML = `${esc(label)} <span class="chip-x">×</span>`;
-  pillHost.appendChild(pill);
-  pillHost.hidden = false;
 }
 
 export function showChrome({ sort = false, browse = false, search = null, heading = null, active = null }) {

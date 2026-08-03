@@ -590,16 +590,6 @@ footer a {
   opacity: 0.8;
 }
 
-/* Active-filter pill beside the Filter button (narrow screens only —
-   the desktop media query hides it along with the button). */
-.filter-active-pill {
-  display: inline-flex;
-}
-
-.filter-active-pill[hidden] {
-  display: none;
-}
-
 /* Search helper line */
 .search-hint {
   font-size: 12px;
@@ -818,8 +808,7 @@ footer a {
 
   /* The rail is always open on desktop; the toggle only exists below the
      breakpoint. */
-  .browse-toggle,
-  .filter-active-pill {
+  .browse-toggle {
     display: none;
   }
 }
