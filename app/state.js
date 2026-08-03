@@ -136,8 +136,18 @@ export function trackLetterOf(t) {
 }
 
 // Capped groups show the top CHIP_CAP chips (most-used first) with a
-// "+N more" reveal pill — same pattern as playlist header tags.
+// "+N more" / "− less" toggle pill — same pattern as playlist header tags.
 const CHIP_CAP = 12;
+
+// Point the row's toggle pill at its current state: "+N more" while any
+// overflow chip is hidden, "− less" once they're all revealed.
+function syncMorePill(row) {
+  const pill = row.querySelector('.chip-more');
+  if (!pill) return;
+  const hidden = row.querySelectorAll('.chip-overflow[hidden]').length;
+  pill.textContent = hidden ? `+${hidden} more` : '− less';
+  pill.setAttribute('aria-label', hidden ? `Show ${hidden} more filters` : 'Show fewer filters');
+}
 
 export function populateChips() {
   const chip = (href, label, count) => {
@@ -166,12 +176,17 @@ export function populateChips() {
       const pill = document.createElement('button');
       pill.type = 'button';
       pill.className = 'chip chip-more';
-      pill.textContent = `+${entries.length - cap} more`;
       pill.addEventListener('click', () => {
-        row.querySelectorAll('.chip-overflow[hidden]').forEach(c => { c.hidden = false; });
-        pill.remove();
+        if (row.querySelector('.chip-overflow[hidden]')) {
+          row.querySelectorAll('.chip-overflow[hidden]').forEach(c => { c.hidden = false; });
+        } else {
+          // Collapse, but never re-hide the active filter's highlighted chip.
+          row.querySelectorAll('.chip-overflow:not(.chip-active)').forEach(c => { c.hidden = true; });
+        }
+        syncMorePill(row);
       });
       row.appendChild(pill);
+      syncMorePill(row);
     }
   };
   // Most-used first; the alphabetical pre-sort makes ties alphabetical
@@ -203,16 +218,11 @@ export function populateChips() {
 }
 
 // Un-hide a single overflow chip (used when the active filter's chip sits
-// past the cap) and keep the "+N more" pill count honest.
+// past the cap) and keep the toggle pill's count honest.
 export function revealChip(chipEl) {
   if (!chipEl || !chipEl.hidden) return;
   chipEl.hidden = false;
-  const row = chipEl.parentElement;
-  const pill = row.querySelector('.chip-more');
-  if (!pill) return;
-  const left = row.querySelectorAll('.chip-overflow[hidden]').length;
-  if (left) pill.textContent = `+${left} more`;
-  else pill.remove();
+  syncMorePill(chipEl.parentElement);
 }
 
 // ---- Search wiring (context-aware) ----------------------------------

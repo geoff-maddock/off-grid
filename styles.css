@@ -792,12 +792,28 @@ footer a {
     width: 100%;
   }
 
+  /* Drop the narrow-screen 0fr/1fr animation scaffolding: the grid row is
+     sized from the rail's max-height, so the inner's overflow:hidden would
+     clip expanded chip rows past one viewport with no way to scroll them. */
   .browse-panel {
     position: sticky;
     top: 24px;
     max-height: calc(100vh - 48px);
     overflow-y: auto;
     margin-bottom: 0;
+    display: block;
+    /* Minimal scrollbar matching the players' track lists: thin thumb,
+       no track, theme-aware. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .browse-panel:hover {
+    scrollbar-color: var(--text-muted) transparent;
+  }
+
+  .browse-panel-inner {
+    overflow: visible;
   }
 
   /* The rail is always open on desktop; the toggle only exists below the
