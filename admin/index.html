@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <!-- ?v= busts browser caches when these files change; bump it alongside edits -->
-  <link rel="stylesheet" href="admin.css?v=20260803">
+  <link rel="stylesheet" href="admin.css?v=20260804">
 </head>
 <body>
   <div class="page">
@@ -19,8 +19,13 @@
       </h1>
       <div class="header-actions">
         <a class="btn" href="../" target="_blank" title="Open player page">View Player</a>
-        <button class="btn" id="btn-import">Import JSON</button>
-        <button class="btn btn-primary" id="btn-export">Export JSON</button>
+        <div class="header-menu">
+          <button class="btn header-menu-toggle" id="btn-more" title="More actions" aria-haspopup="true" aria-expanded="false">&#8943;</button>
+          <div class="header-menu-list" id="header-menu-list" hidden>
+            <button class="menu-item" id="btn-import">Import JSON</button>
+            <button class="menu-item" id="btn-export">Export JSON</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -348,6 +353,6 @@
        login needs only email + password. Harmless 404 if absent. -->
   <script src="../config.local.js"></script>
   <script src="peaks.js?v=20260721"></script>
-  <script src="admin.js?v=20260803"></script>
+  <script src="admin.js?v=20260804"></script>
 </body>
 </html>
