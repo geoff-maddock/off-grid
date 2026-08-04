@@ -102,6 +102,11 @@ Without any deployment config, the login screen also offers **Use offline** to e
   (plays, time played, likes, last played, unique listeners) and a **listening-per-day chart** for
   the last 30 days, fed by the authenticated `GET /api/stats/:mixId` endpoint. The activity section
   needs API mode (and a Worker with that endpoint); the details render fine without it.
+- **Engagement** — an aggregate analytics tab across all your mixes: pick a period (24h / 7d /
+  30d / 90d / all) and see totals (plays, unique sessions, time listened, active mixes), a
+  listening timeline chart, a country breakdown, a per-mix table for the window, and a listener
+  drilldown — anonymous sessions with an expandable per-session play log. Fed by the authenticated
+  `GET /api/engagement/*` endpoints; needs API mode and migration `009_play_geo.sql`.
 - **Users** (admin) — invite people, set roles (admin/user), disable or delete accounts
 - **Publish** — write your library's `manifest.json` to R2. Afterward the admin shows **your manifest
   URL** plus a **▶ Preview** button (see [Viewing & sharing a library](#viewing--sharing-a-library)).
@@ -467,15 +472,19 @@ Worker; without them it's a complete no-op. Requires migration `007_play_trackin
 - **Likes** — a heart button appears on trackable players. Likes are anonymous; the browser's
   `localStorage` remembers them per mix so the button toggles and repeat likes from the same
   browser are suppressed (client-side only — this is a vibe metric, not an audited one).
-- **Privacy** — no IPs, cookies, or user identifiers are stored; just mix id, a random session id,
-  seconds listened, and a timestamp.
+- **Privacy** — no IPs, cookies, user agents, or user identifiers are stored; each event records
+  just the mix id, a random session id, seconds listened, a timestamp, and (with migration
+  `009_play_geo.sql`) a coarse country code taken from Cloudflare's edge geolocation — never the
+  IP address itself.
 - **Embeds** — the copy-paste embed snippet bakes in `mix-id` and the resolved `api-base`, so
   players embedded on other sites keep reporting. Beacons are sent as `text/plain` so they work
   cross-origin without preflight.
 
 Stats appear in the admin mixes table (Plays / Time played / Likes) via the authenticated
 `GET /api/stats` endpoint, and each mix's view page (`admin/#/mix/<id>`) adds unique listeners and
-a daily listening chart via `GET /api/stats/:mixId`.
+a daily listening chart via `GET /api/stats/:mixId`. The admin's **Engagement** tab aggregates the
+same event log across all your mixes with time-period filtering and a per-session drilldown via
+the `GET /api/engagement/*` endpoints (requires migration `009_play_geo.sql`).
 
 ---
 
@@ -582,6 +591,8 @@ off-grid/
       005_login_attempts.sql     # Login rate-limit table
       006_track_url.sql  # Optional per-track link (mix_tracks.url)
       007_play_tracking.sql      # Play events log + per-mix stats (plays/time/likes)
+      008_publish_state.sql      # Dirty/published tracking for the Publish button
+      009_play_geo.sql   # Coarse country on play events + time-window index
     src/
       index.js           # Worker entry point (routing, CORS)
       auth.js            # Session auth — verifies JWT, loads user
@@ -598,6 +609,7 @@ off-grid/
         playlists.js     # Playlist CRUD endpoints
         manifest.js      # Manifest generation + publish to R2
         track.js         # Public play/like tracking + authed stats
+        engagement.js    # Authed period-windowed engagement analytics
   scripts/
     setup.mjs             # Interactive setup wizard (D1, migrations, secrets, deploy)
     check.mjs             # Deployment doctor — verifies a live install
@@ -693,6 +705,9 @@ They also validate uploads per prefix: `audio/` accepts common audio extensions 
 | `POST` | `/api/track/like` | public | Anonymous like: `{ mixId, action }` (`action`: `like` \| `unlike`, default `like`) → `204` |
 | `GET`  | `/api/stats` | user | Per-mix aggregates for your mixes → `{ stats: [{ mixId, title, artist, playCount, totalSeconds, likeCount, lastPlayedAt }] }` |
 | `GET`  | `/api/stats/:mixId` | user | One mix's stats detail → the same aggregates plus `uniqueListeners` (distinct anonymous sessions, all-time) and `daily`: `[{ day, seconds, sessions }]` for the last 30 days (UTC; zero days omitted) |
+| `GET`  | `/api/engagement/summary?period=7d` | user | Period-windowed engagement across your mixes (`period`: `24h` \| `7d` \| `30d` \| `90d` \| `all`) → `{ period, totals: { plays, sessions, seconds, activeMixes }, mixes: [...], timeseries: { bucket: "hour"\|"day", capped, points }, countries: [...] }`. `period=all` caps the timeseries to the last 90 days (`capped: true`) |
+| `GET`  | `/api/engagement/sessions?period=7d&mixId=&limit=50&offset=0` | user | Anonymous listener sessions in the window (newest first, `limit` ≤ 100) → `{ sessions: [{ sessionId, country, firstSeen, lastSeen, seconds, mixCount }], hasMore }` |
+| `GET`  | `/api/engagement/session/:sessionId` | user | One session's play-event log (your mixes only) → `{ sessionId, country, events: [{ mixId, title, seconds, createdAt }] }`; `404` if the session has no visible events |
 
 The public tracking endpoints accept their JSON body as **`text/plain`** — the player sends
 `navigator.sendBeacon` simple requests so they survive page unload and work from cross-origin

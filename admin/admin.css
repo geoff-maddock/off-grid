@@ -58,7 +58,56 @@ html, body {
 
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+/* "…" overflow menu (Import/Export JSON, Logout) */
+.header-menu {
+  position: relative;
+}
+
+.header-menu-toggle {
+  padding: 8px 12px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.header-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 160px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.header-menu-list[hidden] {
+  display: none;
+}
+
+.header-menu-list .menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: none;
+  color: var(--text);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.header-menu-list .menu-item:hover {
+  background: var(--bg3);
 }
 
 /* Tabs */
@@ -775,6 +824,24 @@ html, body {
     margin-bottom: 24px;
   }
 
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Collapse the "Unpublished changes" badge to just its dot (the title
+     attribute still explains it) so the button row fits on phones.
+     Scoped selector so it outranks the base .publish-dirty rule below. */
+  .header-actions .publish-dirty {
+    font-size: 0;
+    gap: 0;
+  }
+
+  .header-actions .publish-dirty::before {
+    width: 8px;
+    height: 8px;
+  }
+
   .tabs {
     margin-bottom: 20px;
   }
@@ -1108,6 +1175,89 @@ html, body {
     grid-template-columns: 1fr;
     gap: 0;
   }
+}
+
+/* Engagement tab: segmented period control, country chips, session rows */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.seg-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--border);
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  color: var(--accent);
+  background: var(--bg2);
+}
+
+.country-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.country-chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+#engagement-content td.mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+}
+
+.session-row {
+  cursor: pointer;
+}
+
+.session-row.expanded td {
+  border-bottom: none;
+}
+
+.session-detail td {
+  background: var(--bg2);
+  font-size: 12px;
+}
+
+.session-events {
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.session-events .mono {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#engagement-load-more {
+  margin-top: 12px;
 }
 
 /* Unpublished-changes badge next to the Publish button */

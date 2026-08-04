@@ -168,7 +168,25 @@ function bindEvents() {
       tab.classList.add('active');
       document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
       if (tab.dataset.tab === 'users') renderUsers();
+      if (tab.dataset.tab === 'engagement') renderEngagement();
     });
+  });
+
+  // Engagement: period selector + session drilldown (the panel body is
+  // re-rendered per fetch, so row clicks are delegated to the container)
+  document.getElementById('engagement-period').addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn || btn.dataset.period === engagementPeriod) return;
+    engagementPeriod = btn.dataset.period;
+    document.querySelectorAll('#engagement-period .seg-btn').forEach(b =>
+      b.classList.toggle('active', b === btn));
+    renderEngagement();
+  });
+  document.getElementById('engagement-content').addEventListener('click', (e) => {
+    if (e.target.closest('#engagement-load-more')) { loadMoreSessions(); return; }
+    if (e.target.closest('a')) return; // mix links inside rows still navigate
+    const tr = e.target.closest('tr[data-session-id]');
+    if (tr) toggleSessionDetail(tr);
   });
 
   // Users / invites (admin)
@@ -198,6 +216,28 @@ function bindEvents() {
     else if (open('playlist-modal')) closePlaylistModal();
     else if (open('invite-modal')) closeInviteModal();
     else if (open('confirm-dialog')) closeConfirm();
+  });
+
+  // Header "…" overflow menu (Import/Export JSON, Logout)
+  const moreBtn = document.getElementById('btn-more');
+  const moreMenu = document.getElementById('header-menu-list');
+  const closeMoreMenu = () => {
+    moreMenu.hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  };
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moreMenu.hidden = !moreMenu.hidden;
+    moreBtn.setAttribute('aria-expanded', String(!moreMenu.hidden));
+  });
+  document.addEventListener('click', (e) => {
+    if (!moreMenu.hidden && !moreMenu.contains(e.target)) closeMoreMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !moreMenu.hidden) closeMoreMenu();
+  });
+  moreMenu.addEventListener('click', (e) => {
+    if (e.target.closest('.menu-item')) closeMoreMenu();
   });
 
   // Import/Export
@@ -1478,13 +1518,13 @@ function showApp() {
   if (loginEl) loginEl.remove();
   document.querySelector('.page').style.display = 'block';
 
-  // Add logout button if in API mode
+  // Add logout item (in the "…" menu) if in API mode
   if (API_URL && authToken) {
     const headerActions = document.querySelector('.header-actions');
     if (!document.getElementById('btn-logout')) {
       const logoutBtn = document.createElement('button');
       logoutBtn.id = 'btn-logout';
-      logoutBtn.className = 'btn btn-sm';
+      logoutBtn.className = 'menu-item';
       logoutBtn.textContent = 'Logout';
       logoutBtn.title = `Signed in to ${API_URL.replace(/^https?:\/\//, '')}`;
       logoutBtn.addEventListener('click', () => {
@@ -1497,7 +1537,7 @@ function showApp() {
         }
         location.reload();
       });
-      headerActions.appendChild(logoutBtn);
+      document.getElementById('header-menu-list').appendChild(logoutBtn);
     }
 
     // Add Publish button for API mode, with the unpublished-changes badge.
@@ -1699,6 +1739,213 @@ async function submitInvite(e) {
   } catch (err) {
     toast(`Invite failed: ${err.message}`, 'error');
   }
+}
+
+// ── Engagement tab ─────────────────────────────────────────────────
+// Period-windowed play analytics across the user's mixes, fetched from
+// /api/engagement/* on tab activation (like renderUsers). Sessions are
+// anonymous per-page-load ids; "who" is session + coarse country only.
+let engagementPeriod = '7d';
+let engagementOffset = 0;
+
+const ENGAGEMENT_PERIOD_LABELS = {
+  '24h': 'last 24 hours', '7d': 'last 7 days', '30d': 'last 30 days',
+  '90d': 'last 90 days', all: 'all time',
+};
+
+async function renderEngagement() {
+  const target = document.getElementById('engagement-content');
+  if (!target) return;
+  if (!API_URL || !authToken) {
+    target.innerHTML = '<div class="hint">Engagement stats need API mode — log in with your Worker URL.</div>';
+    return;
+  }
+
+  const period = engagementPeriod;
+  engagementOffset = 0;
+  target.innerHTML = '<div class="hint">Loading engagement…</div>';
+
+  let summary = null;
+  let sessions = null;
+  try {
+    const [sumResp, sessResp] = await Promise.all([
+      apiFetch(`/api/engagement/summary?period=${period}`),
+      apiFetch(`/api/engagement/sessions?period=${period}`),
+    ]);
+    if (sumResp.ok) summary = await sumResp.json();
+    if (sessResp.ok) sessions = await sessResp.json();
+  } catch (_) { /* fail-soft below */ }
+
+  // The user may have switched period (or the fetch raced a second click).
+  if (engagementPeriod !== period) return;
+  if (!summary) {
+    target.innerHTML = '<div class="hint">Could not load engagement stats — the Worker may need migration 009 and a redeploy.</div>';
+    return;
+  }
+
+  const periodLabel = ENGAGEMENT_PERIOD_LABELS[period];
+  const countries = (summary.countries || []).filter(c => c.sessions > 0);
+
+  target.innerHTML = `
+    <div class="stat-tiles">
+      ${statTile('Plays', summary.totals.plays, `Sessions that listened ≥ 5s, ${periodLabel}`)}
+      ${statTile('Unique sessions', summary.totals.sessions, 'Distinct anonymous listening sessions')}
+      ${statTile('Time listened', summary.totals.seconds >= 1 ? formatDuration(Math.round(summary.totals.seconds)) : '—')}
+      ${statTile('Active mixes', summary.totals.activeMixes)}
+    </div>
+
+    ${renderBucketChart(summary.timeseries, period)}
+
+    ${countries.length ? `
+    <section class="mix-view-section">
+      <h3>Where <span class="hint-inline">by anonymous session, ${esc(periodLabel)}</span></h3>
+      <div class="country-strip">${countries.map(c =>
+        `<span class="country-chip" title="${esc(`${Math.round(c.seconds / 60)} min listened`)}">${esc(c.country || 'Unknown')} · ${c.sessions}</span>`).join('')}
+      </div>
+    </section>` : ''}
+
+    <section class="mix-view-section">
+      <h3>Mixes played <span class="hint-inline">${esc(periodLabel)}</span></h3>
+      ${summary.mixes.length ? `
+      <table class="data-table">
+        <thead><tr>
+          <th>Title</th><th class="col-artist">Artist</th><th>Plays</th>
+          <th>Sessions</th><th class="col-time">Time</th><th class="col-added">Last played</th>
+        </tr></thead>
+        <tbody>${summary.mixes.map(m => `
+          <tr>
+            <td><a class="mix-title-link" href="#/mix/${encodeURIComponent(m.mixId)}">${esc(m.title)}</a></td>
+            <td class="col-artist">${esc(m.artist || '—')}</td>
+            <td>${m.plays}</td>
+            <td>${m.sessions}</td>
+            <td class="col-time">${m.seconds >= 1 ? formatDuration(Math.round(m.seconds)) : '—'}</td>
+            <td class="col-added">${m.lastPlayedAt ? esc(String(m.lastPlayedAt).slice(0, 16)) : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>` : `<div class="hint">No plays in the ${esc(periodLabel)}.</div>`}
+    </section>
+
+    <section class="mix-view-section">
+      <h3>Listeners <span class="hint-inline">anonymous sessions, ${esc(periodLabel)} — click a row for its play log</span></h3>
+      ${sessions && sessions.sessions.length ? `
+      <table class="data-table">
+        <thead><tr>
+          <th>Session</th><th>Country</th><th>Mixes</th>
+          <th class="col-time">Time</th><th class="col-added">Last seen</th>
+        </tr></thead>
+        <tbody id="engagement-sessions-tbody">${sessions.sessions.map(sessionRowHtml).join('')}</tbody>
+      </table>
+      ${sessions.hasMore ? '<button class="btn btn-sm" id="engagement-load-more">Load more</button>' : ''}`
+      : '<div class="hint">No listening sessions in this period.</div>'}
+    </section>`;
+}
+
+function sessionRowHtml(s) {
+  return `<tr data-session-id="${esc(s.sessionId)}" class="session-row" title="Show this session's plays">
+    <td class="mono">${esc(s.sessionId.slice(0, 8))}</td>
+    <td>${esc(s.country || '—')}</td>
+    <td>${s.mixCount}</td>
+    <td class="col-time">${s.seconds >= 1 ? formatDuration(Math.round(s.seconds)) : '—'}</td>
+    <td class="col-added">${esc(String(s.lastSeen || '').slice(0, 16))}</td>
+  </tr>`;
+}
+
+// Expand/collapse one session's event log under its row (fetched on first
+// open). Inline rather than a route so the period filter context survives.
+async function toggleSessionDetail(tr) {
+  const next = tr.nextElementSibling;
+  if (next && next.classList.contains('session-detail')) {
+    next.remove();
+    tr.classList.remove('expanded');
+    return;
+  }
+  const id = tr.dataset.sessionId;
+  const detail = document.createElement('tr');
+  detail.className = 'session-detail';
+  detail.innerHTML = `<td colspan="${tr.children.length}"><div class="hint">Loading…</div></td>`;
+  tr.after(detail);
+  tr.classList.add('expanded');
+  try {
+    const resp = await apiFetch(`/api/engagement/session/${encodeURIComponent(id)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    detail.firstElementChild.innerHTML = `
+      <ul class="session-events">${data.events.map(ev => `
+        <li><span class="mono">${esc(String(ev.createdAt))}</span> —
+          <a class="mix-title-link" href="#/mix/${encodeURIComponent(ev.mixId)}">${esc(ev.title)}</a>
+          · ${Math.round(ev.seconds)}s</li>`).join('')}
+      </ul>`;
+  } catch (_) {
+    detail.firstElementChild.innerHTML = '<div class="hint">Could not load session detail.</div>';
+  }
+}
+
+async function loadMoreSessions() {
+  const btn = document.getElementById('engagement-load-more');
+  const tbody = document.getElementById('engagement-sessions-tbody');
+  if (!btn || !tbody) return;
+  btn.disabled = true;
+  const period = engagementPeriod;
+  const offset = engagementOffset + 50;
+  try {
+    const resp = await apiFetch(`/api/engagement/sessions?period=${period}&offset=${offset}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    // Bail if the panel re-rendered (period switch) while we fetched.
+    if (engagementPeriod !== period || !document.getElementById('engagement-sessions-tbody')) return;
+    engagementOffset = offset;
+    tbody.insertAdjacentHTML('beforeend', data.sessions.map(sessionRowHtml).join(''));
+    btn.disabled = false;
+    if (!data.hasMore) btn.style.display = 'none';
+  } catch (_) {
+    btn.disabled = false;
+  }
+}
+
+// Bar chart over the summary timeseries — a sibling of renderDailyChart (which
+// the mix view depends on; kept separate). Zero buckets are filled in so the
+// x-axis is a true timeline: 24 hourly bars for 24h, daily bars otherwise.
+function renderBucketChart(timeseries, period) {
+  const hourly = timeseries.bucket === 'hour';
+  const count = hourly ? 24 : ({ '7d': 7, '30d': 30, '90d': 90 }[period] || 90);
+  const step = hourly ? 3600000 : 86400000;
+  const byBucket = new Map(timeseries.points.map(p => [p.bucket, p]));
+
+  const buckets = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * step);
+    const key = hourly ? d.toISOString().slice(0, 13) + ':00' : d.toISOString().slice(0, 10);
+    buckets.push({ key, seconds: byBucket.get(key)?.seconds || 0, sessions: byBucket.get(key)?.sessions || 0 });
+  }
+  const max = Math.max(...buckets.map(b => b.seconds));
+  const title = `Listening <span class="hint-inline">${esc(ENGAGEMENT_PERIOD_LABELS[period])}${period === 'all' ? ' — chart shows the last 90 days' : ''} (UTC)</span>`;
+  if (!max) {
+    return `<section class="mix-view-section"><h3>${title}</h3>
+      <div class="hint">No listening activity in this period.</div></section>`;
+  }
+
+  const fmt = (key) => hourly
+    ? key.slice(11)
+    : new Date(key + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const bars = buckets.map(b => {
+    const pct = b.seconds ? Math.max(3, Math.round((b.seconds / max) * 100)) : 0;
+    const mins = Math.round(b.seconds / 60);
+    const label = `${fmt(b.key)} — ${b.seconds ? `${mins || '<1'} min listened · ${b.sessions} session${b.sessions === 1 ? '' : 's'}` : 'no listening'}`;
+    return `<div class="chart-col" title="${esc(label)}">
+      <div class="chart-bar" style="height:${pct}%" role="img" aria-label="${esc(label)}"></div>
+    </div>`;
+  }).join('');
+
+  return `
+    <section class="mix-view-section">
+      <h3>${title}</h3>
+      <div class="daily-chart">${bars}</div>
+      <div class="daily-chart-axis">
+        <span>${fmt(buckets[0].key)}</span>
+        <span>${fmt(buckets[Math.floor(count / 2)].key)}</span>
+        <span>${fmt(buckets[count - 1].key)}</span>
+      </div>
+    </section>`;
 }
 
 async function apiFetch(path, options = {}) {

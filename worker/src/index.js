@@ -22,6 +22,9 @@
  *   *      /api/manifest          — generate / publish manifest
  *   GET    /api/stats             — per-mix play/like aggregates
  *   GET    /api/stats/:mixId      — one mix's stats detail (unique listeners, daily activity)
+ *   GET    /api/engagement/summary          — period-windowed totals, per-mix breakdown, timeseries, countries
+ *   GET    /api/engagement/sessions         — anonymous listener sessions in a period (paginated)
+ *   GET    /api/engagement/session/:id      — one session's play-event log
  */
 
 import { authenticate } from './auth.js';
@@ -32,6 +35,7 @@ import { handleMixes } from './api/mixes.js';
 import { handlePlaylists } from './api/playlists.js';
 import { handleManifest } from './api/manifest.js';
 import { handleTrack, handleStats } from './api/track.js';
+import { handleEngagement } from './api/engagement.js';
 
 // Routes reachable without a session.
 const PUBLIC_AUTH_PATHS = new Set(['/auth/login', '/auth/accept-invite', '/auth/bootstrap']);
@@ -120,6 +124,8 @@ export default {
         response = await handleManifest(request, env, path, method, user);
       } else if (path.startsWith('/api/stats')) {
         response = await handleStats(request, env, path, method, user);
+      } else if (path.startsWith('/api/engagement')) {
+        response = await handleEngagement(request, env, path, method, user);
       }
 
       if (!response) {
