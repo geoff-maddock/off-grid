@@ -218,6 +218,28 @@ function bindEvents() {
     else if (open('confirm-dialog')) closeConfirm();
   });
 
+  // Header "…" overflow menu (Import/Export JSON, Logout)
+  const moreBtn = document.getElementById('btn-more');
+  const moreMenu = document.getElementById('header-menu-list');
+  const closeMoreMenu = () => {
+    moreMenu.hidden = true;
+    moreBtn.setAttribute('aria-expanded', 'false');
+  };
+  moreBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moreMenu.hidden = !moreMenu.hidden;
+    moreBtn.setAttribute('aria-expanded', String(!moreMenu.hidden));
+  });
+  document.addEventListener('click', (e) => {
+    if (!moreMenu.hidden && !moreMenu.contains(e.target)) closeMoreMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !moreMenu.hidden) closeMoreMenu();
+  });
+  moreMenu.addEventListener('click', (e) => {
+    if (e.target.closest('.menu-item')) closeMoreMenu();
+  });
+
   // Import/Export
   document.getElementById('btn-export').addEventListener('click', exportManifest);
   document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-file').click());
@@ -1496,13 +1518,13 @@ function showApp() {
   if (loginEl) loginEl.remove();
   document.querySelector('.page').style.display = 'block';
 
-  // Add logout button if in API mode
+  // Add logout item (in the "…" menu) if in API mode
   if (API_URL && authToken) {
     const headerActions = document.querySelector('.header-actions');
     if (!document.getElementById('btn-logout')) {
       const logoutBtn = document.createElement('button');
       logoutBtn.id = 'btn-logout';
-      logoutBtn.className = 'btn btn-sm';
+      logoutBtn.className = 'menu-item';
       logoutBtn.textContent = 'Logout';
       logoutBtn.title = `Signed in to ${API_URL.replace(/^https?:\/\//, '')}`;
       logoutBtn.addEventListener('click', () => {
@@ -1515,7 +1537,7 @@ function showApp() {
         }
         location.reload();
       });
-      headerActions.appendChild(logoutBtn);
+      document.getElementById('header-menu-list').appendChild(logoutBtn);
     }
 
     // Add Publish button for API mode, with the unpublished-changes badge.
