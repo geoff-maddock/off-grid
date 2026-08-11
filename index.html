@@ -6,13 +6,24 @@
        manifest fills in the real site title (avoids a flash of the fallback
        text). No-JS users never get this class and see the fallback normally. -->
   <script>document.documentElement.className += ' js';</script>
-  <!-- Apply the saved color mode before paint so there's no flash of the
-       wrong theme. Default 'dark' keeps the first-visit look unchanged. -->
+  <!-- Apply the saved color mode and player layout before paint so there's no
+       flash of the wrong theme or of rows before cards. The defaults ('dark',
+       'horizontal') keep the first-visit look unchanged. Each read is guarded
+       on its own so a localStorage throw in private mode can't take the other
+       one down with it. -->
   <script>
     (function () {
-      var t = localStorage.getItem('theme');
+      var t = 'dark';
+      try { t = localStorage.getItem('theme'); } catch (e) { /* private mode */ }
       if (['dark', 'light', 'color'].indexOf(t) === -1) t = 'dark';
       document.documentElement.dataset.theme = t;
+
+      // ?layout= wins for this visit; otherwise the saved toolbar preference.
+      var l = new URLSearchParams(location.search).get('layout');
+      if (!l) { try { l = localStorage.getItem('layout'); } catch (e) { /* private mode */ } }
+      l = String(l || '').toLowerCase();
+      if (['horizontal', 'vertical'].indexOf(l) === -1) l = 'horizontal';
+      document.documentElement.dataset.layout = l;
     })();
   </script>
   <meta charset="UTF-8">
@@ -63,6 +74,8 @@
           <option value="title">Title A&ndash;Z</option>
           <option value="artist">Artist A&ndash;Z</option>
         </select>
+        <button class="nav-link layout-toggle" id="layout-toggle" type="button"
+          aria-label="Toggle player layout" aria-pressed="false"></button>
         <button class="nav-link theme-toggle" id="theme-toggle" type="button"
           aria-label="Toggle color mode"></button>
       </div>

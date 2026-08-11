@@ -15,6 +15,7 @@ export const state = {
   sort: 'default',
   singleMix: false,
   theme: document.documentElement.dataset.theme || 'dark',  // dark | light | color
+  layout: document.documentElement.dataset.layout || 'horizontal',  // horizontal | vertical
 };
 let activeFilter = null;   // current view's search handler: (query) => void
 

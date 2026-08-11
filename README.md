@@ -194,12 +194,21 @@ each embedded player switches to its own color styling. The choice is saved to `
 applied before first paint on the next visit, so there's no flash. First-time visitors default to
 Dark.
 
+Beside it, the **layout toggle** switches every player between **Rows** (default — the wide bar with
+the cover on the left) and **Cards** (a portrait card: full-width square cover on top, condensed
+waveform and controls below). In Cards mode the mix list becomes a responsive grid. Like the color
+mode, the choice is saved to `localStorage` and applied before first paint. Both toggles re-style the
+players in place rather than rebuilding them, so switching either one never interrupts a mix that's
+playing.
+
 > `#/mix/<slug>` keeps the page chrome (nav + back link); the `?mix=<id>` query param is the
 > chrome-less single-mix mode meant for embeds. Add **`?tracklist=open`** to any URL to render every
 > player with its tracklist already expanded — including a single mix, e.g.
 > `?mix=dawn-patrol&tracklist=open` or `#/mix/dawn-patrol` with `?tracklist=open`. When a player is
 > showing its tracklist open, the **embed** code it generates carries `open-tracklist` too, so the
-> embedded copy opens the same way.
+> embedded copy opens the same way. **`?layout=vertical`** likewise forces card layout for one visit
+> without changing the saved preference — `?mix=dawn-patrol&layout=vertical` makes a portrait
+> single-mix iframe embed.
 
 **Search** matches mix title, artist, tags, **and the track names inside each mix**, so typing a track's
 artist or title surfaces the mixes that contain it. On `#/tracks` the same box filters tracks by
@@ -328,7 +337,8 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 | `peaks`    | No       | URL to a pre-computed peaks JSON file (see [Peaks](#peaks)) |
 | `color`    | No       | Accent color as hex (default: `#ff5500`) |
 | `theme`    | No       | Color styling: `dark` (default), `light`, or `color` (uses `color` as the background/primary with auto-contrast text & waveform) |
-| `size`     | No       | Layout: `standard` (default) or `slim` (compact — smaller cover, shorter waveform, tighter padding) |
+| `size`     | No       | Density: `standard` (default) or `slim` (compact — smaller cover, shorter waveform, tighter padding) |
+| `layout`   | No       | Card shape: `horizontal` (default — cover on the left, meta and controls to its right) or `vertical` (portrait card — full-width square cover on top, condensed waveform and controls below). Composes with `size` |
 | `duration` | No       | Pre-known duration string, e.g. `"3:42"` |
 | `description` | No | Free text shown in the collapsible "More" panel |
 | `release-date` | No | ISO date (`YYYY-MM-DD`) shown as a formatted "Released:" line in the "More" panel |
@@ -342,6 +352,22 @@ The player renders inside Shadow DOM, so host-page styles won't interfere.
 
 Clicking the cover art opens the full-size image in a built-in lightbox (click the backdrop or press
 `Escape` to close). The "More" panel appears whenever a `description` or `release-date` is present.
+
+**Vertical (card) layout.** `layout="vertical"` turns the player into a portrait card that leads with
+the artwork — useful in a sidebar, a grid, or a narrow iframe:
+
+```html
+<offgrid-player
+  src="https://your-domain.com/audio/dawn-patrol.mp3"
+  title="Dawn Patrol"
+  thumb="https://your-domain.com/covers/dawn-patrol.jpg"
+  layout="vertical">
+</offgrid-player>
+```
+
+The card sizes itself to whatever width you give it (it uses container queries, so the controls
+condense to icons on their own — no media queries needed in the host page). Around 220–360px wide
+reads best.
 
 **Tracklist (optional).** A player can show a collapsible tracklist; tracks with a parsed time are
 click-to-seek, and the currently playing track is highlighted as playback crosses each timestamp.
@@ -397,7 +423,8 @@ are defined as JSON in a child `<script type="application/json">`:
 | `title-href` / `artist-href` | No | Make the header title/artist links (the player page points them at its playlist page and creator-filtered views); omitted from copied embed snippets |
 | `tags`    | No       | JSON array (or comma list) of tags shown as pills in the cover header, in the given order (the player page aggregates them from the member mixes, most-used first); the first 6 show with a "+N more" pill revealing the rest (and a "− less" pill to collapse again); clicks emit `tagclick` |
 | `theme`   | No       | Color styling: `dark` (default), `light`, or `color`; forwarded to the embedded player |
-| `size`    | No       | Layout: `standard` (default) or `slim`; forwarded to the embedded player |
+| `size`    | No       | Density: `standard` (default) or `slim`; forwarded to the embedded player |
+| `layout`  | No       | Card shape: `horizontal` (default) or `vertical`; forwarded to the embedded player. The playlist's own cover header and track list stay horizontal |
 | `api-base` | No      | Worker URL for [play tracking](#play-tracking--likes); forwarded to the embedded player (falls back to `window.OFFGRID_API_BASE`) |
 
 Track objects also accept a `mixId` field — when present (the player page includes it from the
@@ -555,7 +582,7 @@ off-grid/
   config.local.example.js # Copy to config.local.js (gitignored) to set your manifest + Worker API URLs
   package.json           # Dev tooling only (lint + tests) — the frontend still has no build step
   eslint.config.mjs      # Flat-config ESLint (browser / worker / node file groups)
-  tests/                 # Vitest suite for the Worker's security-critical modules (npm test)
+  tests/                 # Vitest suite: the Worker's security-critical modules + the web components (npm test)
   .github/workflows/     # CI: lint + tests on push/PR
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   generate-share-pages.mjs # Static mix + playlist share pages (OG/Twitter/JSON-LD) for scrapers

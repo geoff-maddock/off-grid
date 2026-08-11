@@ -19,7 +19,11 @@
 //   #/tracks/letter/<letter>    tracks whose artist starts with a letter (a–z, 'other')
 //   #/track/<slug>              one track + its buy link + every mix containing it
 //
-// Query param: ?tracklist=open renders every player with its tracklist open.
+// Query params (orthogonal to both of the above):
+//   ?tracklist=open  renders every player with its tracklist open
+//   ?layout=vertical renders players as portrait cards (overrides the saved
+//                    toolbar preference for this visit; applied pre-paint by
+//                    the inline script in index.html)
 // ---------------------------------------------------------------------
 export const _params = new URLSearchParams(location.search);
 // R2 base for ?user= — explicit OFFGRID_R2_BASE, else derived from the
@@ -30,6 +34,9 @@ export const _userId = _params.get('user');
 export const _mixId = _params.get('mix'); // optional: show just this one mix
 // ?tracklist=open|1|true → render every player with its tracklist expanded
 export const _openTracklist = ['open', '1', 'true'].includes((_params.get('tracklist') || '').toLowerCase());
+// Card shape, already resolved pre-paint (?layout= > localStorage > default)
+// by the inline script in index.html — read it back off <html>.
+export const _layout = document.documentElement.dataset.layout || 'horizontal';
 export const MANIFEST_URL =
   _params.get('manifest')
   || (_userId && _r2Base ? `${_r2Base}/users/${encodeURIComponent(_userId)}/data/manifest.json` : '')

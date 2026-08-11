@@ -23,6 +23,8 @@ export function makePlayer(mix, startSeconds, opts) {
 
   const player = document.createElement('offgrid-player');
   player.setAttribute('theme', state.theme);
+  // Only set when non-default, so copied embed snippets stay clean.
+  if (state.layout === 'vertical') player.setAttribute('layout', 'vertical');
   player.setAttribute('src', mix.src);
   player.setAttribute('title', mix.title);
   if (mix.artist) player.setAttribute('artist', mix.artist);

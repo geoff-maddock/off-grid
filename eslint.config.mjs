@@ -75,7 +75,7 @@ export default [
   },
   {
     // Component tests run under jsdom (see the @vitest-environment pragma).
-    files: ['tests/now-playing.test.mjs'],
+    files: ['tests/now-playing.test.mjs', 'tests/player-layout.test.mjs'],
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
