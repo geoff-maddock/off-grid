@@ -150,7 +150,9 @@ to play/share a library:
    [Onboarding Stage 4](docs/ONBOARDING.md#stage-4--frontend-config)) — handy for one-offs.
 3. **A single mix** — add `?mix=<id>` to show just one mix on the player page (composes with the
    above, e.g. `?user=<id>&mix=<id>` or `?manifest=<url>&mix=<id>`); the **Link** button on each row
-   in the admin copies this URL. Or embed it anywhere with the web component (see
+   in the admin copies this URL. Opened as a page it keeps the toolbar and a link back to the whole
+   library; framed in an iframe it renders bare — see the
+   [note under Browsing](#browsing-the-public-page). Or embed it anywhere with the web component (see
    [Embedding](#embedding)), using the `src`/`peaks`/`tracks` values from the manifest.
 
 Everything is served from your public R2 bucket, so libraries and embeds work cross-origin from any site.
@@ -201,8 +203,14 @@ mode, the choice is saved to `localStorage` and applied before first paint. Both
 players in place rather than rebuilding them, so switching either one never interrupts a mix that's
 playing.
 
-> `#/mix/<slug>` keeps the page chrome (nav + back link); the `?mix=<id>` query param is the
-> chrome-less single-mix mode meant for embeds. Add **`?tracklist=open`** to any URL to render every
+> `#/mix/<slug>` keeps the page chrome (nav + back link). The `?mix=<id>` query param is the
+> single-mix mode meant for embeds: **inside an iframe it renders bare** (just the player), and when
+> the same URL is opened as a page it keeps the toolbar, the color/layout toggles, and an
+> **← All mixes** link, so a shared single-mix link can still reach the rest of the library. Those
+> links drop `?mix=` (keeping `?user=`/`?manifest=`), so they load the full library rather than
+> re-rendering the one mix. Override the rule with **`?chrome=none`** (always bare, whether framed
+> or not) or **`?chrome=full`** (always chrome'd, even framed).
+> Add **`?tracklist=open`** to any URL to render every
 > player with its tracklist already expanded — including a single mix, e.g.
 > `?mix=dawn-patrol&tracklist=open` or `#/mix/dawn-patrol` with `?tracklist=open`. When a player is
 > showing its tracklist open, the **embed** code it generates carries `open-tracklist` too, so the
@@ -253,8 +261,8 @@ Durations use ISO 8601 (`PT58M30S`) and `releaseDate` maps to `datePublished`. A
 `mix/<slug>/index.html` **and one per playlist to `playlist/<slug>/index.html`**. Each mix page
 carries the full scraper-readable markup — Open Graph `music.song` tags (`og:image` cover,
 `og:audio` + `og:audio:type`, `music:duration`/`music:release_date`), a Twitter `player` card
-pointing at the chrome-less `?mix=<id>` embed page (falls back to a `summary` card when the mix has
-no cover), and the same `MusicRecording` JSON-LD the SPA emits. Playlist pages carry Open Graph
+pointing at the `?mix=<id>` embed page — which renders bare inside the card's iframe (falls back to
+a `summary` card when the mix has no cover), and the same `MusicRecording` JSON-LD the SPA emits. Playlist pages carry Open Graph
 `music.playlist` tags (`og:image` from the playlist's cover, falling back to its first mix's,
 `music:song_count`), a `summary` Twitter card, and `MusicPlaylist` JSON-LD whose tracks link to the
 member mixes' share pages. Every page ends with an instant redirect into the player

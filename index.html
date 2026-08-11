@@ -68,12 +68,16 @@
           aria-controls="browse-panel">Filter</button>
       </div>
       <div class="toolbar-sort" id="toolbar-sort">
-        <label for="sort-select">Sort</label>
-        <select id="sort-select">
-          <option value="default">Newest</option>
-          <option value="title">Title A&ndash;Z</option>
-          <option value="artist">Artist A&ndash;Z</option>
-        </select>
+        <!-- Sort is per-view (hidden on detail views); the two toggles beside
+             it stay available wherever the toolbar shows. -->
+        <div class="sort-field" id="sort-field">
+          <label for="sort-select">Sort</label>
+          <select id="sort-select">
+            <option value="default">Newest</option>
+            <option value="title">Title A&ndash;Z</option>
+            <option value="artist">Artist A&ndash;Z</option>
+          </select>
+        </div>
         <button class="nav-link layout-toggle" id="layout-toggle" type="button"
           aria-label="Toggle player layout" aria-pressed="false"></button>
         <button class="nav-link theme-toggle" id="theme-toggle" type="button"

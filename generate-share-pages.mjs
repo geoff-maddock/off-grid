@@ -115,7 +115,7 @@ function encFmt(src) {
 }
 
 // Same shape as mixJsonLd in app/seo.js, with the share page as the canonical
-// url/@id and the chrome-less ?mix= page as the embed URL.
+// url/@id and the ?mix= page (bare when framed) as the embed URL.
 function mixJsonLd(mix, pageUrl, embedUrl, siteBase) {
   const o = { '@context': 'https://schema.org', '@type': 'MusicRecording', '@id': pageUrl + '#mix', name: mix.title, url: pageUrl };
   if (mix.artist) o.byArtist = { '@type': 'MusicGroup', name: mix.artist };
