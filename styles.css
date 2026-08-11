@@ -183,6 +183,20 @@ html.js .site-header.ready {
   gap: 16px;
 }
 
+/* Card layout: the stack becomes a responsive grid of portrait cards. */
+:root[data-layout="vertical"] .player-stack {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  align-items: start;
+}
+
+/* Solo players (mix detail, track detail, ?mix= single-mix) aren't inside a
+   stack — cap them so the square cover doesn't fill the content column. */
+:root[data-layout="vertical"] #main-view > .player-entry {
+  max-width: 360px;
+  margin: 0 auto;
+}
+
 .player-entry {
   opacity: 0;
   transform: translateY(12px);
@@ -219,6 +233,23 @@ html.js .site-header.ready {
 
 .player-entry:nth-child(8) {
   animation-delay: 0.54s;
+}
+
+/* 9–12 only matter in the card grid, where a row holds up to 4 */
+.player-entry:nth-child(9) {
+  animation-delay: 0.61s;
+}
+
+.player-entry:nth-child(10) {
+  animation-delay: 0.68s;
+}
+
+.player-entry:nth-child(11) {
+  animation-delay: 0.75s;
+}
+
+.player-entry:nth-child(12) {
+  animation-delay: 0.82s;
 }
 
 @keyframes fadeUp {
@@ -415,16 +446,29 @@ footer a {
   gap: 8px;
 }
 
-/* Theme toggle reuses the .nav-link look but reads as a bordered control
-   (like the sort select) and keeps a stable width across mode labels. */
-.theme-toggle {
+/* The theme + layout toggles reuse the .nav-link look but read as bordered
+   controls (like the sort select) and keep a stable width across labels. */
+.theme-toggle,
+.layout-toggle {
   border-color: var(--border);
   min-width: 82px;
   text-align: center;
 }
 
-.theme-toggle:hover {
+.theme-toggle:hover,
+.layout-toggle:hover {
   border-color: var(--accent);
+}
+
+.layout-toggle svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+  margin-right: 5px;
+}
+
+.layout-toggle[aria-pressed="true"] {
+  color: var(--accent);
 }
 
 .toolbar-sort label {

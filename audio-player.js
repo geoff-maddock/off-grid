@@ -9,7 +9,8 @@
  *   thumb       — URL to thumbnail image
  *   color       — Waveform accent color (default: #ff5500)
  *   theme       — Color styling: "dark" (default) | "light" | "color" (accent as background)
- *   size        — Layout: "standard" (default) | "slim" (compact)
+ *   size        — Density: "standard" (default) | "slim" (compact)
+ *   layout      — Card shape: "horizontal" (default) | "vertical" (portrait card)
  *   peaks       — URL to pre-computed peaks JSON ({peaks: number[], duration: number})
  *   duration    — Optional pre-known duration string (e.g. "3:42")
  *   description — Optional track description (shown via expandable "more" button)
@@ -257,7 +258,7 @@ const OffgridShared = {
 
 class OffgridPlayer extends HTMLElement {
   static get observedAttributes() {
-    return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href', 'mix-id', 'api-base'];
+    return ['src', 'title', 'artist', 'thumb', 'color', 'theme', 'size', 'layout', 'duration', 'peaks', 'description', 'tags', 'open-tracklist', 'start-at', 'release-date', 'title-href', 'artist-href', 'mix-id', 'api-base'];
   }
 
   constructor() {
@@ -389,6 +390,9 @@ class OffgridPlayer extends HTMLElement {
     if ((name === 'theme' || name === 'color') && oldVal !== newVal) {
       this._applyThemeLive();
     }
+    if ((name === 'layout' || name === 'size') && oldVal !== newVal) {
+      this._applyLayoutLive();
+    }
   }
 
   // Re-theme in place (no re-render) so switching the page theme never
@@ -404,6 +408,25 @@ class OffgridPlayer extends HTMLElement {
     }
   }
 
+  // Re-shape in place (no re-render) when `layout`/`size` change. The CSS is
+  // attribute-driven and needs no help; only the waveform canvases carry a
+  // baked pixel height, so they're the sole thing to nudge — see #49 for why a
+  // rebuild is not an option.
+  _applyLayoutLive() {
+    if (this._ws) {
+      this._ws.setOptions({ height: this._waveHeight() });
+      return;
+    }
+    // Pre-play: redraw the static peaks preview at the new height. Deferred a
+    // frame because the card's width changes in the same tick and
+    // _drawStaticWaveform measures the container.
+    if (!this._initialized && this._peaksData) {
+      requestAnimationFrame(() => {
+        if (!this._initialized && this._peaksData) this._drawStaticWaveform(this._peaksData);
+      });
+    }
+  }
+
   get _color() {
     return this.getAttribute('color') || '#ff5500';
   }
@@ -414,9 +437,14 @@ class OffgridPlayer extends HTMLElement {
     return ['dark', 'light', 'color'].includes(t) ? t : 'dark';
   }
 
-  // Layout mode: standard (default) | slim
+  // Density: standard (default) | slim
   get _size() {
     return (this.getAttribute('size') || 'standard').toLowerCase() === 'slim' ? 'slim' : 'standard';
+  }
+
+  // Card shape: horizontal (default) | vertical. Orthogonal to `size`.
+  get _layout() {
+    return (this.getAttribute('layout') || 'horizontal').toLowerCase() === 'vertical' ? 'vertical' : 'horizontal';
   }
 
   _contrastColor(hex) {
@@ -458,8 +486,11 @@ class OffgridPlayer extends HTMLElement {
     return this._color;
   }
 
+  // Waveform pixel height for the canvas + WaveSurfer, which need a number.
+  // Keep in sync with the --wave-h declarations in _render().
   _waveHeight() {
-    return this._size === 'slim' ? 40 : 64;
+    const slim = this._size === 'slim';
+    return this._layout === 'vertical' ? (slim ? 24 : 32) : (slim ? 40 : 64);
   }
 
   // Load peaks JSON if available and render a static preview waveform
@@ -566,9 +597,15 @@ class OffgridPlayer extends HTMLElement {
           ${this._themeVars()}
           --wave-progress: var(--accent);
           --wave-cursor: transparent;
-          --wave-h: ${this._size === 'slim' ? '40px' : '64px'};
+          /* Waveform height. Declared (not interpolated) so size/layout can be
+             switched live without a re-render — keep in sync with _waveHeight(). */
+          --wave-h: 64px;
           --radius: 4px;
         }
+
+        :host([size="slim"]) { --wave-h: 40px; }
+        :host([layout="vertical"]) { --wave-h: 32px; }
+        :host([layout="vertical"][size="slim"]) { --wave-h: 24px; }
 
         .player {
           background: var(--bg);
@@ -612,6 +649,72 @@ class OffgridPlayer extends HTMLElement {
         :host([size="slim"]) .bottom-row {
           padding-top: 4px;
           padding-bottom: 8px;
+        }
+
+        /* VERTICAL layout — portrait card: full-width square cover on top, the
+           meta stacked below it, and the play button straddling the seam. Must
+           follow the slim block: equal specificity, so source order decides.
+           The template is unchanged — .top just becomes a grid whose two cells
+           overlap for the play button. */
+        :host([layout="vertical"]) .top {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-areas: "art" "meta";
+        }
+        :host([layout="vertical"]) .thumb-wrap {
+          grid-area: art;
+          /* block (not flex) + aspect-ratio gives the image's height:100% a
+             definite box to resolve against */
+          display: block;
+          width: 100%;
+          height: auto;
+          aspect-ratio: 1 / 1;
+        }
+        :host([layout="vertical"]) .thumb-placeholder svg {
+          width: 40px;
+          height: 40px;
+        }
+        :host([layout="vertical"]) .meta-row {
+          grid-area: meta;
+          /* The right gutter clears the play button, which hangs over this
+             box's top-right corner — without it a long title runs under it. */
+          padding: 12px 58px 2px 12px;
+        }
+        :host([layout="vertical"][size="slim"]) .meta-row {
+          padding-right: 50px;
+        }
+        :host([layout="vertical"]) .track-title {
+          white-space: normal;
+        }
+        :host([layout="vertical"]) .play-btn-wrap {
+          grid-area: art;
+          align-self: end;
+          justify-self: end;
+          padding: 0 10px;
+          transform: translateY(50%);
+          z-index: 1;
+        }
+        :host([layout="vertical"]) .play-btn {
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+        }
+        /* Tags cap to a single row so they can't dominate a narrow card
+           (clicking still emits tagclick). */
+        :host([layout="vertical"]) .tag-wrap {
+          padding: 6px 10px;
+          max-height: 26px;
+          overflow: hidden;
+        }
+        :host([layout="vertical"]) .wave-row {
+          padding: 0 10px 8px;
+        }
+        :host([layout="vertical"]) .bottom-row {
+          padding: 0 6px 8px;
+        }
+        :host([layout="vertical"]) .vol-wrap input[type="range"] {
+          display: none;
+        }
+        :host([layout="vertical"]) #np-below-slot .now-playing {
+          margin: -4px 10px 8px;
         }
 
         /* TOP ROW: thumb + meta + controls */
@@ -1957,7 +2060,7 @@ class OffgridPlayer extends HTMLElement {
 
   _generateEmbedCode() {
     // Every attribute the player understands, so the embed is self-contained.
-    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'theme', 'size', 'duration', 'description', 'release-date', 'tags', 'mix-id'];
+    const attrNames = ['src', 'title', 'artist', 'thumb', 'peaks', 'color', 'theme', 'size', 'layout', 'duration', 'description', 'release-date', 'tags', 'mix-id'];
     let attrs = '';
     for (const name of attrNames) {
       const value = this.getAttribute(name);
@@ -2497,7 +2600,7 @@ customElements.define('offgrid-player', OffgridPlayer);
  */
 class OffgridPlaylist extends HTMLElement {
   static get observedAttributes() {
-    return ['color', 'artist', 'theme', 'size', 'api-base', 'thumb', 'title', 'title-href', 'artist-href', 'tags'];
+    return ['color', 'artist', 'theme', 'size', 'layout', 'api-base', 'thumb', 'title', 'title-href', 'artist-href', 'tags'];
   }
 
   constructor() {
@@ -2543,6 +2646,12 @@ class OffgridPlaylist extends HTMLElement {
       OffgridShared.applyThemeStyle(this);
       if (this._playerEl) this._playerEl.setAttribute(name, newVal);
     }
+    // The playlist's own chrome stays horizontal; `layout` only shapes the
+    // embedded player.
+    if (name === 'layout' && this._playerEl) {
+      if (newVal) this._playerEl.setAttribute('layout', newVal);
+      else this._playerEl.removeAttribute('layout');
+    }
   }
 
   set tracks(arr) {
@@ -2578,9 +2687,14 @@ class OffgridPlaylist extends HTMLElement {
     return ['dark', 'light', 'color'].includes(t) ? t : 'dark';
   }
 
-  // Layout mode: standard (default) | slim
+  // Density: standard (default) | slim
   get _size() {
     return (this.getAttribute('size') || 'standard').toLowerCase() === 'slim' ? 'slim' : 'standard';
+  }
+
+  // Card shape for the embedded player: horizontal (default) | vertical.
+  get _layout() {
+    return (this.getAttribute('layout') || 'horizontal').toLowerCase() === 'vertical' ? 'vertical' : 'horizontal';
   }
 
   // Pick a legible foreground (#111 or #fff) for a background hex (see OffgridPlayer).
@@ -3130,6 +3244,7 @@ class OffgridPlaylist extends HTMLElement {
     player.setAttribute('color', this._color);
     if (this.getAttribute('theme')) player.setAttribute('theme', this._theme);
     if (this.getAttribute('size')) player.setAttribute('size', this._size);
+    if (this.getAttribute('layout')) player.setAttribute('layout', this._layout);
     // Play tracking: a track's mixId enables it on the inner player; the swap
     // discards the old element, whose disconnectedCallback flushes its session.
     if (t.mixId) player.setAttribute('mix-id', t.mixId);
@@ -3242,6 +3357,7 @@ class OffgridPlaylist extends HTMLElement {
     const artist = this.getAttribute('artist');
     const theme = this.getAttribute('theme');
     const size = this.getAttribute('size');
+    const layout = this.getAttribute('layout');
     const thumb = this.getAttribute('thumb');
     const title = this.getAttribute('title');
     const tags = this.getAttribute('tags');
@@ -3249,6 +3365,7 @@ class OffgridPlaylist extends HTMLElement {
     if (artist) attrs += `\n  artist="${this._esc(artist)}"`;
     if (theme) attrs += `\n  theme="${this._esc(theme)}"`;
     if (size) attrs += `\n  size="${this._esc(size)}"`;
+    if (layout) attrs += `\n  layout="${this._esc(layout)}"`;
     if (thumb) attrs += `\n  thumb="${this._esc(thumb)}"`;
     if (title) attrs += `\n  title="${this._esc(title)}"`;
     if (tags) attrs += `\n  tags="${this._esc(tags)}"`;

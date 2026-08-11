@@ -215,6 +215,45 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
   applyTheme(next);
 });
 
+// Player layout toggle: rows (default) <-> portrait cards. Mirrors the theme
+// toggle — [data-layout] on <html> drives the page grid, the `layout` attribute
+// drives each player. Both are applied pre-paint by the inline script in
+// index.html so a saved choice never flashes the wrong shape.
+const LAYOUT_LABELS = {
+  horizontal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>Rows',
+  vertical: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>Cards',
+};
+
+function updateLayoutToggleLabel(l) {
+  const btn = document.getElementById('layout-toggle');
+  if (!btn) return;
+  btn.innerHTML = LAYOUT_LABELS[l] || LAYOUT_LABELS.horizontal;
+  btn.setAttribute('aria-pressed', String(l === 'vertical'));
+}
+
+function applyLayout(l) {
+  state.layout = l;
+  document.documentElement.dataset.layout = l;
+  try { localStorage.setItem('layout', l); } catch (e) { /* private mode */ }
+  updateLayoutToggleLabel(l);
+  // Re-shape embedded players in place — rebuilding them would stop any mix
+  // that's currently playing (they live-update on the layout attribute).
+  // Removed rather than set to "horizontal" so copied embeds stay clean.
+  // Playlists keep their own horizontal chrome, so they're left alone.
+  document.querySelectorAll('offgrid-player').forEach((el) => {
+    if (l === 'vertical') el.setAttribute('layout', 'vertical');
+    else el.removeAttribute('layout');
+  });
+}
+
+// Label only on load: the pre-paint script already set [data-layout], and a
+// ?layout= override shouldn't overwrite the saved preference (matching
+// ?tracklist=open — only an explicit toggle persists).
+updateLayoutToggleLabel(state.layout);
+document.getElementById('layout-toggle').addEventListener('click', () => {
+  applyLayout(state.layout === 'vertical' ? 'horizontal' : 'vertical');
+});
+
 // Click a tag pill inside any player → navigate to that tag view
 document.addEventListener('tagclick', (e) => {
   if (e.detail && e.detail.tag) location.hash = '#/tag/' + encodeURIComponent(e.detail.tag);
