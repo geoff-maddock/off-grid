@@ -22,7 +22,8 @@ function playlistPageUrl(id) {
   return PLAYLIST_SHARE_BASE ? PLAYLIST_SHARE_BASE + '/' + encodeURIComponent(id) + '/'
     : siteUrl('#/playlist/' + encodeURIComponent(id));
 }
-// The chrome-less single-mix page — what an iframe embed should load.
+// The single-mix page — what an iframe embed should load; framed, it renders
+// bare (see _singleMixChrome in config.js).
 function mixEmbedUrl(id) { return siteUrl('?mix=' + encodeURIComponent(id)); }
 
 function _abs(u) {

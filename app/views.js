@@ -1,5 +1,5 @@
 import { esc, slugify } from './util.js';
-import { _openTracklist } from './config.js';
+import { _openTracklist, _singleMixChrome, libraryUrl } from './config.js';
 import {
   state, sortMixes, sortPlaylists, sortTracks, trackLetterOf,
   setMixFilter, setTrackFilter, setPlaylistFilter, setActiveFilter,
@@ -39,10 +39,12 @@ export function makePlayer(mix, startSeconds, opts) {
   if (mix.id) player.setAttribute('mix-id', mix.id);
   // Meta links: title -> mix page, artist -> artist filter. Suppress the
   // title self-link on a mix's own detail page, and all links in single-mix
-  // embed mode where the app's hash routes don't navigate.
+  // embed mode where the app's hash routes don't navigate. `hrefBase` prefixes
+  // the hash routes so a chrome'd ?mix= page links back into the full library.
   if (!opts.noLinks) {
-    if (mix.id && !opts.selfMix) player.setAttribute('title-href', '#/mix/' + encodeURIComponent(mix.id));
-    if (mix.artist) player.setAttribute('artist-href', '#/artist/' + encodeURIComponent(mix.artist));
+    const base = opts.hrefBase || '';
+    if (mix.id && !opts.selfMix) player.setAttribute('title-href', base + '#/mix/' + encodeURIComponent(mix.id));
+    if (mix.artist) player.setAttribute('artist-href', base + '#/artist/' + encodeURIComponent(mix.artist));
   }
   if (_openTracklist) player.setAttribute('open-tracklist', '');
   if (Number.isFinite(startSeconds) && startSeconds > 0) {
@@ -97,8 +99,13 @@ function applyActiveFilterChip(active) {
 }
 
 export function showChrome({ sort = false, browse = false, search = null, heading = null, active = null }) {
-  document.getElementById('toolbar').style.display = state.singleMix ? 'none' : '';
-  document.getElementById('toolbar-sort').style.display = sort ? '' : 'none';
+  // Single-mix mode drops the toolbar only when it's a bare embed; a ?mix=
+  // page opened at top level keeps it (see _singleMixChrome).
+  const bareEmbed = state.singleMix && !_singleMixChrome;
+  document.getElementById('toolbar').style.display = bareEmbed ? 'none' : '';
+  // Only the Sort field is per-view; the theme and layout toggles beside it
+  // stay available on every view that shows the toolbar.
+  document.getElementById('sort-field').style.display = sort ? '' : 'none';
   if (sort) document.getElementById('sort-select').value = state.sort;
 
   // Detail views pass browse:false but still get their parent list view's
@@ -513,8 +520,25 @@ function trackSecondsInMix(mix, slug) {
   return undefined;
 }
 
+// Point the toolbar tabs at the full library rather than at hash routes,
+// which can't navigate while ?mix= pins the page to one mix. Full URLs, so
+// following one reloads the page without the single-mix param.
+const NAV_ROUTES = { home: '#/', playlists: '#/playlists', tracks: '#/tracks' };
+
+function retargetNavToLibrary() {
+  document.querySelectorAll('.nav-link[data-nav]').forEach((el) => {
+    const route = NAV_ROUTES[el.dataset.nav];
+    if (route) el.href = libraryUrl(route);
+  });
+}
+
 export function renderSingleMix() {
-  showChrome({}); // singleMix flag hides the toolbar; everything else off
+  // Bare embed: no chrome at all. Top-level ?mix= page: the toolbar plus a
+  // back link out to the rest of the library.
+  showChrome(_singleMixChrome
+    ? { heading: { back: libraryUrl('#/'), backText: 'All mixes', nav: 'home' } }
+    : {});
+  if (_singleMixChrome) retargetNavToLibrary();
   const root = view();
   root.innerHTML = '';
   const mix = state.mixes[0];
@@ -522,6 +546,10 @@ export function renderSingleMix() {
     root.innerHTML = '<div class="manifest-status error">Mix not found.</div>';
     return;
   }
-  root.appendChild(makePlayer(mix, undefined, { noLinks: true }));
+  root.appendChild(makePlayer(mix, undefined, {
+    noLinks: !_singleMixChrome,
+    selfMix: true,              // the title links nowhere but this page
+    hrefBase: libraryUrl(''),   // artist link lands in the full library
+  }));
   setActiveFilter(null);
 }

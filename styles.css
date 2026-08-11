@@ -446,6 +446,14 @@ footer a {
   gap: 8px;
 }
 
+/* Label + select travel together so views without sorting can hide just
+   them, leaving the theme and layout toggles in place. */
+.sort-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* The theme + layout toggles reuse the .nav-link look but read as bordered
    controls (like the sort select) and keep a stable width across labels. */
 .theme-toggle,

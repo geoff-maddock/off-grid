@@ -1,7 +1,7 @@
 // Off Grid player page — entry point: router, manifest load, and global
 // wiring (split out of index.html, #58).
 
-import { MANIFEST_URL, _mixId } from './config.js';
+import { MANIFEST_URL, _mixId, _singleMixChrome, libraryUrl } from './config.js';
 import { state, buildIndexes, populateChips, sortMixes, sortPlaylists, runActiveFilter } from './state.js';
 import {
   view, applySiteHeader, renderHome, renderMixDetail, renderPlaylistsView,
@@ -74,11 +74,20 @@ function render() {
     state.mixes = data.mixes || [];
     state.playlists = data.playlists || [];
 
-    // Single-mix mode (?mix=<id>): show just that mix, no chrome.
+    // Single-mix mode (?mix=<id>): show just that mix — bare in an iframe,
+    // with the page chrome at top level (see _singleMixChrome).
     if (_mixId) {
       const one = state.mixes.find(m => m.id === _mixId);
       if (!one) {
-        if (loadingEl) { loadingEl.className = 'manifest-status error'; loadingEl.textContent = 'Mix not found.'; }
+        applySiteHeader();
+        if (loadingEl) {
+          loadingEl.className = 'manifest-status error';
+          loadingEl.textContent = 'Mix not found. ';
+          const back = document.createElement('a');
+          back.href = libraryUrl('#/');
+          back.textContent = 'All mixes →';
+          loadingEl.appendChild(back);
+        }
         return;
       }
       state.mixes = [one];
@@ -254,9 +263,14 @@ document.getElementById('layout-toggle').addEventListener('click', () => {
   applyLayout(state.layout === 'vertical' ? 'horizontal' : 'vertical');
 });
 
-// Click a tag pill inside any player → navigate to that tag view
+// Click a tag pill inside any player → navigate to that tag view. On a
+// single-mix page the hash router is pinned to the one mix, so the click has
+// to leave ?mix= behind and load the tag view in the full library.
 document.addEventListener('tagclick', (e) => {
-  if (e.detail && e.detail.tag) location.hash = '#/tag/' + encodeURIComponent(e.detail.tag);
+  if (!e.detail || !e.detail.tag) return;
+  const route = '#/tag/' + encodeURIComponent(e.detail.tag);
+  if (_singleMixChrome) location.href = libraryUrl(route);
+  else location.hash = route;
 });
 
 // Global play-one-at-a-time: pause any other player when one starts
