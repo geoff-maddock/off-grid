@@ -2586,7 +2586,8 @@ customElements.define('offgrid-player', OffgridPlayer);
  *   api-base   — optional Worker URL for play tracking (see <offgrid-player>)
  *
  * Children: JSON in a <script type="application/json"> tag OR
- * pass tracks via the `tracks` property (array of {src, title, artist, thumb, peaks, mixId})
+ * pass tracks via the `tracks` property (array of {src, title, artist, thumb,
+ * peaks, mixId, description, releaseDate, tags, tracks})
  *
  * Example:
  * <offgrid-playlist color="#ff5500">
@@ -3254,6 +3255,10 @@ class OffgridPlaylist extends HTMLElement {
     if (Array.isArray(t.tracks) && t.tracks.length) player.tracks = t.tracks;
     // The mix's tag pills, clickable like on standalone players.
     if (Array.isArray(t.tags) && t.tags.length) player.setAttribute('tags', JSON.stringify(t.tags));
+    // The mix's description + release date — gives the inner player the same
+    // "More" button/panel as a standalone mix player.
+    if (t.description) player.setAttribute('description', t.description);
+    if (t.releaseDate) player.setAttribute('release-date', t.releaseDate);
     // OS media-widget prev/next advance the playlist; mediaNav wins over the
     // mix's tracklist cues (see the media-session registration).
     player.mediaNav = { prev: () => this._advance(-1), next: () => this._advance(1) };

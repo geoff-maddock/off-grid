@@ -440,7 +440,9 @@ manifest), the embedded player tracks plays and shows the like button for that m
 carry `titleHref`/`artistHref` links, which the mounted player renders on the mix title and artist
 name (the player page uses these for its mix/artist routes); both are stripped from copied embed
 snippets, where the page's hash routes wouldn't resolve. A `tracks` array (the same tracklist
-entries a standalone player takes) gives the mounted player its Tracklist button and inline panel.
+entries a standalone player takes) gives the mounted player its Tracklist button and inline panel,
+and `description`/`releaseDate` fields give it the same **More** button and detail panel as a
+standalone mix player.
 
 ### Play one at a time
 

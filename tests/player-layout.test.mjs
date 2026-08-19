@@ -139,3 +139,40 @@ describe('playlist layout forwarding', () => {
     expect(makePlaylist()._generateEmbedCode()).not.toContain('layout=');
   });
 });
+
+describe('playlist details forwarding', () => {
+  function makePlaylist(tracks) {
+    const el = document.createElement('offgrid-playlist');
+    document.body.appendChild(el);
+    el.tracks = tracks;
+    return el;
+  }
+
+  const inner = (el) => el.shadowRoot.querySelector('#player-slot offgrid-player');
+
+  it('forwards description and release date so the More button appears', () => {
+    const player = inner(makePlaylist([{
+      title: 'One', src: 'https://example.com/1.mp3',
+      description: 'A fine mix', releaseDate: '2024-01-15',
+    }]));
+    expect(player.getAttribute('description')).toBe('A fine mix');
+    expect(player.getAttribute('release-date')).toBe('2024-01-15');
+    // These host attributes are what reveal the More button in CSS.
+    expect(player.hasAttribute('has-description')).toBe(true);
+    expect(player.hasAttribute('has-details')).toBe(true);
+  });
+
+  it('leaves the More button hidden for tracks without details', () => {
+    const player = inner(makePlaylist([{ title: 'One', src: 'https://example.com/1.mp3' }]));
+    expect(player.hasAttribute('description')).toBe(false);
+    expect(player.hasAttribute('has-details')).toBe(false);
+  });
+
+  it('shows the More button for a release date alone', () => {
+    const player = inner(makePlaylist([{
+      title: 'One', src: 'https://example.com/1.mp3', releaseDate: '2024-01-15',
+    }]));
+    expect(player.hasAttribute('has-description')).toBe(false);
+    expect(player.hasAttribute('has-details')).toBe(true);
+  });
+});
