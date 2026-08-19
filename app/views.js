@@ -292,6 +292,10 @@ function playlistSection(pl, { linkTitle = false } = {}) {
       tracks: m.tracks,
       // The mix's tags, rendered as clickable pills on the mounted player.
       tags: m.tags,
+      // The mix's description + release date — the mounted player shows the
+      // same "More" button/panel as on the mix's own page.
+      description: m.description,
+      releaseDate: m.releaseDate,
       // Same meta links as standalone players: title -> mix page,
       // artist -> artist filter (see makePlayer).
       titleHref: '#/mix/' + encodeURIComponent(m.id),
