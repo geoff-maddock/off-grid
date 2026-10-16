@@ -600,6 +600,7 @@ off-grid/
   docs/
     ONBOARDING.md        # Full from-scratch self-hosting guide (start here)
     self-hosting.md      # Pointer to ONBOARDING.md (kept for old links)
+    intent/              # Per-feature intent, spec and build plan (e.g. intent/auto-tracklisting/)
   context/               # Historical planning notes (incl. the shipped multi-user design)
   offline/               # Private notes & prod-specific material (gitignored)
   admin/
