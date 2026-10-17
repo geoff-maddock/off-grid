@@ -39,7 +39,7 @@ language and one test runner in the repo.
 - `data/schema.md` + `data/manifest.json` — only if slice 5 adds manifest fields (e.g. `source`)
 
 ## Slices
-- [ ] 1. Serato CSV → JSON tracklist CLI, with a sample-export fixture and tests — covers AC 1
+- [x] 1. Serato CSV → JSON tracklist CLI, with a sample-export fixture and tests — covers AC 1
 - [ ] 2. Bandcamp lookup with a cache; "no match" marker; failures logged, run continues — covers
       AC 2 (**needs your OK on scraping and request rate first**, see Risks)
 - [ ] 3. Manual overrides merged on re-run, so corrected entries are never replaced — covers AC 3
@@ -52,7 +52,7 @@ language and one test runner in the repo.
       Mostly already supported by the existing player; this slice proves it with a test.
 
 ## Acceptance criteria → proof
-- [ ] AC1 — test: `tests/tracklist-serato.test.mjs` parses `tests/fixtures/serato-history.csv`
+- [x] AC1 — test: `tests/tracklist-serato.test.mjs` parses `tests/fixtures/serato-history.csv`
       and checks order, artist, title, and start times relative to the first track (incl. a
       session that crosses midnight and rows with a blank artist)
 - [ ] AC2 — test: `tests/tracklist-bandcamp.test.mjs` with a mocked fetch: match → URL set; no
@@ -88,5 +88,12 @@ language and one test runner in the repo.
 
 ## Log
 - 2026-10-16: plan drafted; no code yet. Draft PR opened for plan review.
+- 2026-10-17: slice 1 done. `scripts/tracklist.mjs` + `scripts/tracklist/{serato,format}.mjs`,
+  fixture, and `tests/tracklist-serato.test.mjs` (15 tests). Built fresh in JS as proposed (no
+  reply yet on reuse vs. fresh; nothing here depends on mix-extractor). The CLI only takes
+  `--format` and `--out` so far; `--bandcamp`, `--overrides` and `--fingerprint` arrive with
+  their slices. Every entry carries `source: "serato"` now so slice 4 can tell sources apart.
+  An optional `played` column is honoured (rows marked 0/false/no are dropped). Still modelled on
+  a synthetic export; a real one in `offline/` would confirm the header names.
 
 <!-- Add a "## Blocked" section here with the question when the builder needs input. -->

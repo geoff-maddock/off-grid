@@ -553,6 +553,31 @@ Output: `<basename>.peaks.json` next to the source file. Requires `ffmpeg`/`ffpr
 
 ---
 
+## Building a tracklist from Serato
+
+`scripts/tracklist.mjs` turns a Serato DJ history export (History → Export → CSV) into a
+tracklist, with each start time relative to the first track. Text output is the same
+`MM:SS Artist - Title` line format the admin's **Tracklist** box reads, so you can paste it straight in.
+
+```bash
+# JSON tracklist to stdout
+node scripts/tracklist.mjs offline/my-set.csv
+
+# Lines to paste into the admin's Tracklist box
+node scripts/tracklist.mjs offline/my-set.csv --format text
+
+# Write to a file instead
+node scripts/tracklist.mjs offline/my-set.csv --out offline/my-set.tracklist.json
+```
+
+Columns are matched by header name (`name`, `artist`, `start time`, and optionally `deck` and
+`played`), so column order and extra columns don't matter. The session row at the top of the
+export is skipped, a set that runs past midnight keeps counting forward, and tracks with a blank
+artist are kept. Each JSON entry has `position`, `time`, `time_seconds`, `artist`, `title`, and
+`source: "serato"`.
+
+---
+
 ## Optional: migrate existing files
 
 If you already have local audio/covers/peaks and a `data/manifest.json`, two helper scripts do a one-time migration:
@@ -591,6 +616,7 @@ off-grid/
   package.json           # Dev tooling only (lint + tests) — the frontend still has no build step
   eslint.config.mjs      # Flat-config ESLint (browser / worker / node file groups)
   tests/                 # Vitest suite: the Worker's security-critical modules + the web components (npm test)
+    fixtures/            # Test inputs (e.g. a synthetic Serato history export)
   .github/workflows/     # CI: lint + tests on push/PR
   generate-peaks.js      # Waveform peak generation CLI (Node.js + ffmpeg) — bulk/fallback
   generate-share-pages.mjs # Static mix + playlist share pages (OG/Twitter/JSON-LD) for scrapers
@@ -652,6 +678,8 @@ off-grid/
     deploy-static.sh     # Copy the static frontend into a target site directory
     migrate-to-r2.js     # One-time: upload local files to R2
     seed-d1.js           # One-time: seed D1 from manifest.json
+    tracklist.mjs        # Serato history CSV → tracklist (JSON or admin text lines)
+    tracklist/           # Tracklist modules: serato.mjs (CSV parser), format.mjs (output)
 ```
 
 ---
