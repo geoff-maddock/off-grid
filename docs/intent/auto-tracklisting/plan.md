@@ -96,4 +96,11 @@ language and one test runner in the repo.
   An optional `played` column is honoured (rows marked 0/false/no are dropped). Still modelled on
   a synthetic export; a real one in `offline/` would confirm the header names.
 
-<!-- Add a "## Blocked" section here with the question when the builder needs input. -->
+## Blocked
+2026-10-17: Slice 2 (Bandcamp lookup) needs a decision the spec doesn't make. Bandcamp has no
+public search API, so a lookup means requesting its search pages.
+
+Question: is scraping Bandcamp search OK for your own use, and at what rate (proposed: one request
+every 2 seconds, results cached so a re-run makes no repeat requests)? If not, slice 2 can instead
+take links only from manual overrides. Reply on PR #73 or in Slack; the next run records the answer
+under Decisions in spec.md and starts slice 2.
