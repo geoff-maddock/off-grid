@@ -72,6 +72,6 @@ index.html        player page shell    worker/   Cloudflare Worker (R2+D1 API)
 app/ styles.css   player page modules + styles (native ES modules, no build)
 generate-peaks.js peaks (ffmpeg)       data/     sample manifest + schema docs
 QUICKSTART.md     abbreviated setup    docs/     ONBOARDING.md (canonical setup guide)
-scripts/          setup wizard, doctor, deploy, one-time migration
+scripts/          setup wizard, doctor, deploy, one-time migration, tracklist CLI
 mixes/            local media (gitignored)
 ```
